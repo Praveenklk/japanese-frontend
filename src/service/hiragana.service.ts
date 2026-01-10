@@ -102,6 +102,17 @@ export const updateHiragana = (
   });
 };
 
+
+export const updateHiraganaReadStatus = (
+  id: string,
+  isRead: boolean
+) => {
+  return api.patch(`/hiragana/${id}/read-status`, {
+    isRead,
+  });
+};
+
+
 /**
  * DELETE Hiragana
  * DELETE /hiragana/:id

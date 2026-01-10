@@ -13,7 +13,13 @@ import {
   Layers,
   Settings,
   BarChart3,
-  Sparkles
+  Sparkles,
+  Target,
+  Zap,
+  Clock,
+  Star,
+  TrophyIcon,
+  GraduationCap
 } from "lucide-react";
 
 const Home = () => {
@@ -41,11 +47,21 @@ const Home = () => {
       buttonText: "Start Learning"
     },
     {
+      title: "Kana Quiz Challenge",
+      description: "Test your knowledge like Tofugu's Kana Quiz with customizable options",
+      icon: <Target className="w-10 h-10 text-purple-600" />,
+      link: "/kana-quiz",
+      color: "bg-purple-50 hover:bg-purple-100",
+      stats: "3 Quiz Modes",
+      status: "new",
+      buttonText: "Take Quiz"
+    },
+    {
       title: "Smart Flashcards",
       description: "Spaced repetition system with audio and multiple quiz modes",
-      icon: <Brain className="w-10 h-10 text-purple-600" />,
+      icon: <Brain className="w-10 h-10 text-green-600" />,
       link: "/flashcards",
-      color: "bg-purple-50 hover:bg-purple-100",
+      color: "bg-green-50 hover:bg-green-100",
       stats: "3 Study Modes",
       status: "available",
       buttonText: "Practice Now"
@@ -53,12 +69,62 @@ const Home = () => {
     {
       title: "Progress Tracking",
       description: "Monitor your learning journey with detailed analytics",
-      icon: <BarChart3 className="w-10 h-10 text-green-600" />,
+      icon: <BarChart3 className="w-10 h-10 text-amber-600" />,
       link: "/progress",
-      color: "bg-green-50 hover:bg-green-100",
+      color: "bg-amber-50 hover:bg-amber-100",
       stats: "Real-time Stats",
       status: "available",
       buttonText: "View Progress"
+    },
+    {
+      title: "Audio Pronunciation",
+      description: "Practice listening and speaking with native pronunciation",
+      icon: <Volume2 className="w-10 h-10 text-cyan-600" />,
+      link: "/pronunciation",
+      color: "bg-cyan-50 hover:bg-cyan-100",
+      stats: "Audio Guide",
+      status: "available",
+      buttonText: "Listen & Learn"
+    },
+    // In Home.tsx, add to learningFeatures array
+{
+  title: "Learning Hub",
+  japaneseTitle: "学習センター",
+  description: "Access all learning modules: Kanji, Grammar, Vocabulary, Stories and more",
+  icon: <GraduationCap className="w-10 h-10 text-indigo-600" />,
+  link: "/learn",
+  color: "bg-indigo-50 hover:bg-indigo-100 border-indigo-200",
+  stats: "6 Modules",
+  status: "available",
+  buttonText: "Explore All",
+  progress: null
+}
+  ];
+
+  const quizFeatures = [
+    {
+      title: "Customizable Quiz",
+      description: "Choose specific rows, dakuten, combos, and difficulty",
+      icon: <Settings className="w-6 h-6 text-blue-600" />,
+      color: "text-blue-600 bg-blue-50"
+    },
+    {
+      title: "Multiple Modes",
+      description: "Reading, Writing, and Listening quiz modes",
+      icon: <Layers className="w-6 h-6 text-purple-600" />,
+      color: "text-purple-600 bg-purple-50"
+    },
+    {
+      title: "Instant Feedback",
+      description: "Get immediate results with correct answers shown",
+      icon: <CheckCircle className="w-6 h-6 text-green-600" />,
+      color: "text-green-600 bg-green-50"
+    },
+    {
+      title: "Time Tracking",
+      description: "Race against the clock to improve your speed",
+      icon: <Clock className="w-6 h-6 text-red-600" />,
+      color: "text-red-600 bg-red-50"
     }
   ];
 
@@ -86,13 +152,13 @@ const Home = () => {
   const stats = [
     { 
       label: "Active Learners", 
-      value: "1,247", 
+      value: "1,847", 
       icon: Users,
       color: "text-blue-600 bg-blue-50"
     },
     { 
       label: "Characters Mastered", 
-      value: "92/92", 
+      value: `${getLearnedCount()}/92`, 
       icon: CheckCircle,
       color: "text-green-600 bg-green-50"
     },
@@ -103,19 +169,26 @@ const Home = () => {
       color: "text-purple-600 bg-purple-50"
     },
     { 
-      label: "Study Hours Saved", 
-      value: "2,548", 
-      icon: Award,
+      label: "Quizzes Completed", 
+      value: getQuizCount(), 
+      icon: Target,
       color: "text-red-600 bg-red-50"
     }
   ];
 
   const quickActions = [
     {
+      title: "Kana Quiz",
+      description: "Test your knowledge with customizable quiz",
+      action: () => navigate("/kana-quiz"),
+      color: "from-purple-500 to-pink-500",
+      icon: Target,
+      badge: "NEW"
+    },
+    {
       title: "Continue Learning",
       description: "Pick up where you left off",
       action: () => {
-        // Get last visited page from localStorage
         const lastPage = localStorage.getItem("lastVisitedPage") || "/hiragana";
         navigate(lastPage);
       },
@@ -128,64 +201,93 @@ const Home = () => {
       action: () => navigate("/flashcards?mode=review"),
       color: "from-blue-500 to-cyan-500",
       icon: Brain
-    },
-    {
-      title: "Settings",
-      description: "Customize your experience",
-      action: () => navigate("/settings"),
-      color: "from-gray-600 to-gray-800",
-      icon: Settings
     }
   ];
 
   // Check user progress from localStorage
-  const getLearnedCount = () => {
-    const hiragana = JSON.parse(localStorage.getItem("learnedHiragana") || "[]");
-    const katakana = JSON.parse(localStorage.getItem("learnedKatakana") || "[]");
-    return hiragana.length + katakana.length;
-  };
+  function getLearnedCount() {
+    let count = 0;
+    // Check hiragana
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith('hiragana_') && localStorage.getItem(key) === 'true') {
+        count++;
+      }
+    }
+    // Check katakana
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith('katakana_') && localStorage.getItem(key) === 'true') {
+        count++;
+      }
+    }
+    return count;
+  }
+
+  function getQuizCount() {
+    const results = JSON.parse(localStorage.getItem('kanaQuizResults') || '[]');
+    return results.length;
+  }
 
   const learnedCount = getLearnedCount();
   const totalCount = 92; // 46 hiragana + 46 katakana
   const progressPercent = Math.round((learnedCount / totalCount) * 100);
 
+  // Get recent quiz results
+  function getRecentQuizResult() {
+    const results = JSON.parse(localStorage.getItem('kanaQuizResults') || '[]');
+    if (results.length > 0) {
+      const latest = results[results.length - 1];
+      return {
+        score: latest.score,
+        total: latest.total,
+        accuracy: latest.accuracy,
+        date: new Date(latest.date).toLocaleDateString()
+      };
+    }
+    return null;
+  }
+
+  const recentQuiz = getRecentQuizResult();
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-50 via-white to-blue-50">
       {/* Hero Section */}
-      <div className="relative overflow-hidden bg-gradient-to-r from-red-500 to-blue-600 text-white">
+      <div className="relative overflow-hidden bg-gradient-to-r from-purple-500 to-blue-600 text-white">
         <div className="absolute inset-0 bg-black/10"></div>
         <div className="relative max-w-7xl mx-auto px-4 pt-20 pb-16">
           <div className="text-center">
             <div className="flex justify-center mb-6">
               <div className="inline-flex items-center gap-2 bg-white/20 backdrop-blur-sm px-4 py-2 rounded-full">
                 <Sparkles className="w-4 h-4" />
-                <span className="text-sm">New: Flashcards & Progress Tracking</span>
+                <span className="text-sm">NEW: Kana Quiz Challenge Launched! 🎯</span>
               </div>
             </div>
             
             <h1 className="text-5xl md:text-6xl font-bold mb-6">
               Master Japanese
               <br />
-              <span className="text-yellow-300">Together</span>
+              <span className="text-yellow-300">Like a Pro</span>
             </h1>
             <p className="text-xl mb-10 opacity-90 max-w-2xl mx-auto">
               Learn Hiragana, Katakana, and more through interactive lessons, 
-              smart flashcards, and personalized progress tracking.
+              smart flashcards, and the ultimate Kana Quiz experience.
             </p>
             
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <button
-                onClick={() => navigate("/flashcards")}
-                className="inline-flex items-center justify-center gap-2 bg-white text-red-600 px-8 py-4 rounded-xl text-lg font-semibold hover:bg-gray-100 transition transform hover:-translate-y-1 shadow-lg hover:shadow-xl"
+                onClick={() => navigate("/kana-quiz")}
+                className="inline-flex items-center justify-center gap-2 bg-gradient-to-r from-pink-500 to-purple-500 text-white px-8 py-4 rounded-xl text-lg font-semibold hover:shadow-2xl transition transform hover:-translate-y-1 shadow-lg"
               >
-                <Play className="w-5 h-5" />
-                Get Started Now
+                <Target className="w-5 h-5" />
+                Try Kana Quiz
               </button>
               <button
-                onClick={() => navigate("/hiragana")}
-                className="inline-flex items-center justify-center gap-2 bg-transparent border-2 border-white px-8 py-4 rounded-xl text-lg font-semibold hover:bg-white/10 transition"
+                onClick={() => navigate("/flashcards")}
+                className="inline-flex items-center justify-center gap-2 bg-white text-blue-600 px-8 py-4 rounded-xl text-lg font-semibold hover:bg-gray-100 transition transform hover:-translate-y-1 shadow-lg hover:shadow-xl"
               >
-                Explore Features <ArrowRight className="w-5 h-5" />
+                <Play className="w-5 h-5" />
+                Start Learning
               </button>
             </div>
 
@@ -193,12 +295,15 @@ const Home = () => {
             {learnedCount > 0 && (
               <div className="mt-12 max-w-md mx-auto bg-white/20 backdrop-blur-sm rounded-xl p-4">
                 <div className="flex justify-between text-sm mb-2">
-                  <span>Your Progress</span>
+                  <span className="flex items-center gap-2">
+                    <Star className="w-4 h-4 text-yellow-300" />
+                    Your Progress
+                  </span>
                   <span>{progressPercent}%</span>
                 </div>
                 <div className="h-2 bg-white/30 rounded-full overflow-hidden">
                   <div 
-                    className="h-full bg-yellow-300 transition-all duration-500"
+                    className="h-full bg-gradient-to-r from-yellow-300 to-orange-400 transition-all duration-500"
                     style={{ width: `${progressPercent}%` }}
                   />
                 </div>
@@ -218,8 +323,13 @@ const Home = () => {
             <button
               key={index}
               onClick={action.action}
-              className={`bg-gradient-to-r ${action.color} text-white rounded-2xl p-6 text-left hover:shadow-2xl transition-all transform hover:-translate-y-1`}
+              className={`bg-gradient-to-r ${action.color} text-white rounded-2xl p-6 text-left hover:shadow-2xl transition-all transform hover:-translate-y-1 relative`}
             >
+              {action.badge && (
+                <span className="absolute -top-2 -right-2 bg-gradient-to-r from-red-500 to-pink-500 text-white text-xs font-bold px-3 py-1 rounded-full animate-pulse">
+                  {action.badge}
+                </span>
+              )}
               <div className="flex items-center justify-between mb-4">
                 <action.icon className="w-8 h-8" />
                 <ArrowRight className="w-5 h-5 opacity-75" />
@@ -231,11 +341,49 @@ const Home = () => {
         </div>
       </div>
 
+      {/* Recent Quiz Result */}
+      {recentQuiz && (
+        <div className="max-w-7xl mx-auto px-4 mt-8">
+          <div className="bg-gradient-to-r from-green-50 to-emerald-100 rounded-2xl p-6 shadow-lg border border-green-200">
+            <div className="flex flex-col md:flex-row items-center justify-between">
+              <div>
+                <h3 className="text-lg font-bold text-gray-900 mb-2 flex items-center gap-2">
+                  <TrophyIcon className="w-5 h-5 text-yellow-600" />
+                  Your Last Quiz Result
+                </h3>
+                <p className="text-gray-600">Completed on {recentQuiz.date}</p>
+              </div>
+              <div className="flex items-center gap-6 mt-4 md:mt-0">
+                <div className="text-center">
+                  <div className="text-3xl font-bold text-green-600">
+                    {recentQuiz.score}/{recentQuiz.total}
+                  </div>
+                  <div className="text-sm text-gray-600">Score</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-3xl font-bold text-blue-600">
+                    {recentQuiz.accuracy}%
+                  </div>
+                  <div className="text-sm text-gray-600">Accuracy</div>
+                </div>
+              </div>
+              <button
+                onClick={() => navigate("/kana-quiz")}
+                className="mt-4 md:mt-0 px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-lg hover:shadow-lg transition flex items-center gap-2"
+              >
+                <Target className="w-4 h-4" />
+                Try Again
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Stats Section */}
       <div className="max-w-7xl mx-auto px-4 py-12">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
           {stats.map((stat, index) => (
-            <div key={index} className={`p-6 rounded-2xl ${stat.color} shadow-sm`}>
+            <div key={index} className={`p-6 rounded-2xl ${stat.color} shadow-sm hover:shadow-md transition-all transform hover:-translate-y-1`}>
               <div className="flex items-center gap-3 mb-3">
                 <div className="p-2 rounded-lg bg-white/50">
                   <stat.icon className="w-5 h-5" />
@@ -251,20 +399,25 @@ const Home = () => {
       {/* Main Learning Features */}
       <div className="max-w-7xl mx-auto px-4 py-12">
         <div className="text-center mb-12">
-          <h2 className="text-3xl font-bold text-gray-900 mb-4">Start Your Journey</h2>
+          <h2 className="text-3xl font-bold text-gray-900 mb-4">Your Learning Journey</h2>
           <p className="text-gray-600 max-w-2xl mx-auto">
             Everything you need to master Japanese characters, built with modern learning science.
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {learningFeatures.map((feature, index) => (
             <div
               key={index}
               onClick={() => navigate(feature.link)}
-              className={`${feature.color} rounded-2xl shadow-lg p-6 hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-2 cursor-pointer border border-transparent hover:border-gray-200`}
+              className={`${feature.color} rounded-2xl shadow-lg p-6 hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-2 cursor-pointer border border-transparent hover:border-gray-200 relative group`}
             >
-              <div className="flex items-center justify-center w-16 h-16 rounded-xl mb-6">
+              {feature.status === "new" && (
+                <span className="absolute -top-2 -right-2 bg-gradient-to-r from-red-500 to-pink-500 text-white text-xs font-bold px-3 py-1 rounded-full animate-pulse">
+                  NEW
+                </span>
+              )}
+              <div className="flex items-center justify-center w-16 h-16 rounded-xl mb-6 group-hover:scale-110 transition-transform">
                 {feature.icon}
               </div>
               <h3 className="text-xl font-bold text-gray-900 mb-3">{feature.title}</h3>
@@ -273,12 +426,106 @@ const Home = () => {
                 <span className="text-xs font-medium text-gray-500 px-3 py-1 bg-white rounded-full">
                   {feature.stats}
                 </span>
-                <button className="flex items-center text-sm font-semibold hover:gap-2 transition-all">
+                <button className="flex items-center text-sm font-semibold text-blue-600 hover:text-blue-700 hover:gap-2 transition-all">
                   {feature.buttonText} <ArrowRight className="w-4 h-4 ml-1" />
                 </button>
               </div>
             </div>
           ))}
+        </div>
+      </div>
+
+      {/* Kana Quiz Highlight */}
+      <div className="bg-gradient-to-r from-purple-50 to-blue-50 py-16">
+        <div className="max-w-7xl mx-auto px-4">
+          <div className="flex flex-col lg:flex-row items-center gap-12">
+            <div className="lg:w-1/2">
+              <div className="inline-flex items-center gap-2 bg-white px-4 py-2 rounded-full shadow-sm mb-6">
+                <Target className="w-5 h-5 text-purple-600" />
+                <span className="text-sm font-medium text-purple-600">NEW FEATURE</span>
+              </div>
+              <h2 className="text-3xl font-bold text-gray-900 mb-4">
+                Ultimate Kana Quiz Challenge
+              </h2>
+              <p className="text-gray-600 mb-8 text-lg">
+                Inspired by Tofugu's Kana Quiz, our advanced quiz system lets you test your 
+                knowledge with customizable settings, multiple modes, and detailed analytics.
+              </p>
+              
+              <div className="grid grid-cols-2 gap-4 mb-8">
+                {quizFeatures.map((feature, index) => (
+                  <div key={index} className="flex items-center gap-3">
+                    <div className={`p-2 rounded-lg ${feature.color}`}>
+                      {feature.icon}
+                    </div>
+                    <div>
+                      <h4 className="font-semibold text-gray-900">{feature.title}</h4>
+                      <p className="text-sm text-gray-600">{feature.description}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              
+              <div className="flex flex-col sm:flex-row gap-4">
+                <button
+                  onClick={() => navigate("/kana-quiz")}
+                  className="inline-flex items-center justify-center gap-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white px-8 py-4 rounded-xl text-lg font-semibold hover:shadow-xl transition transform hover:-translate-y-1"
+                >
+                  <Target className="w-5 h-5" />
+                  Start Quiz Challenge
+                </button>
+                <button
+                  onClick={() => navigate("/flashcards")}
+                  className="inline-flex items-center justify-center gap-2 bg-white border border-purple-200 text-purple-600 px-8 py-4 rounded-xl text-lg font-semibold hover:bg-purple-50 transition"
+                >
+                  <Brain className="w-5 h-5" />
+                  Practice First
+                </button>
+              </div>
+            </div>
+            
+            <div className="lg:w-1/2">
+              <div className="bg-white rounded-2xl shadow-2xl p-8 border border-purple-200">
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="p-3 bg-gradient-to-r from-purple-500 to-pink-500 rounded-lg">
+                    <Target className="w-8 h-8 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-bold text-gray-900">Quiz Preview</h3>
+                    <p className="text-gray-600">Try a sample question</p>
+                  </div>
+                </div>
+                
+                <div className="space-y-6">
+                  <div className="text-center p-6 bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl">
+                    <div className="text-6xl font-bold text-gray-900 mb-4">あ</div>
+                    <p className="text-lg font-medium text-gray-700">What is the romaji for this character?</p>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-3">
+                    <button className="p-4 bg-gray-50 hover:bg-gray-100 rounded-lg text-center transition">
+                      <span className="font-mono text-lg">a</span>
+                    </button>
+                    <button className="p-4 bg-gray-50 hover:bg-gray-100 rounded-lg text-center transition">
+                      <span className="font-mono text-lg">i</span>
+                    </button>
+                    <button className="p-4 bg-gray-50 hover:bg-gray-100 rounded-lg text-center transition">
+                      <span className="font-mono text-lg">u</span>
+                    </button>
+                    <button className="p-4 bg-gray-50 hover:bg-gray-100 rounded-lg text-center transition">
+                      <span className="font-mono text-lg">e</span>
+                    </button>
+                  </div>
+                  
+                  <div className="pt-4 border-t border-gray-200">
+                    <p className="text-sm text-gray-500 text-center">
+                      Real quiz includes dakuten, combos, and timing
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -294,7 +541,7 @@ const Home = () => {
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             {comingSoonFeatures.map((feature, index) => (
-              <div key={index} className="bg-white rounded-2xl shadow-lg p-8">
+              <div key={index} className="bg-white rounded-2xl shadow-lg p-8 hover:shadow-xl transition-all transform hover:-translate-y-2">
                 <div className="flex items-center justify-center w-16 h-16 rounded-xl mb-6 bg-gray-50">
                   {feature.icon}
                 </div>
@@ -317,53 +564,62 @@ const Home = () => {
           Learn Smart, Not Hard
         </h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-          <div className="text-center">
-            <div className="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-6">
-              <BookOpen className="w-10 h-10 text-red-600" />
+          <div className="text-center p-6">
+            <div className="w-20 h-20 bg-gradient-to-r from-red-500 to-orange-400 rounded-full flex items-center justify-center mx-auto mb-6">
+              <BookOpen className="w-10 h-10 text-white" />
             </div>
-            <h3 className="text-xl font-bold text-gray-900 mb-3">Interactive Lessons</h3>
+            <h3 className="text-xl font-bold text-gray-900 mb-3">Learn with Flashcards</h3>
             <p className="text-gray-600">
-              Learn with visual memory aids, audio pronunciation, and cultural context
+              Master characters with spaced repetition and smart review scheduling
             </p>
           </div>
-          <div className="text-center">
-            <div className="w-20 h-20 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-6">
-              <Brain className="w-10 h-10 text-blue-600" />
+          <div className="text-center p-6">
+            <div className="w-20 h-20 bg-gradient-to-r from-blue-500 to-cyan-400 rounded-full flex items-center justify-center mx-auto mb-6">
+              <Target className="w-10 h-10 text-white" />
             </div>
-            <h3 className="text-xl font-bold text-gray-900 mb-3">Smart Practice</h3>
+            <h3 className="text-xl font-bold text-gray-900 mb-3">Test with Quizzes</h3>
             <p className="text-gray-600">
-              Spaced repetition flashcards adapt to your learning pace
+              Challenge yourself with customizable quizzes and track your progress
             </p>
           </div>
-          <div className="text-center">
-            <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
-              <TrendingUp className="w-10 h-10 text-green-600" />
+          <div className="text-center p-6">
+            <div className="w-20 h-20 bg-gradient-to-r from-green-500 to-emerald-400 rounded-full flex items-center justify-center mx-auto mb-6">
+              <TrendingUp className="w-10 h-10 text-white" />
             </div>
-            <h3 className="text-xl font-bold text-gray-900 mb-3">Track Progress</h3>
+            <h3 className="text-xl font-bold text-gray-900 mb-3">See Your Growth</h3>
             <p className="text-gray-600">
-              Detailed analytics show your improvement and keep you motivated
+              Watch your skills improve with detailed analytics and progress tracking
             </p>
           </div>
         </div>
       </div>
 
       {/* CTA Section */}
-      <div className="bg-gradient-to-r from-blue-500 to-purple-600 text-white py-16">
+      <div className="bg-gradient-to-r from-purple-500 to-blue-600 text-white py-16">
         <div className="max-w-4xl mx-auto px-4 text-center">
           <h2 className="text-3xl font-bold mb-6">
-            Ready to Start Your Japanese Journey?
+            Ready to Master Japanese?
           </h2>
           <p className="text-xl opacity-90 mb-10 max-w-2xl mx-auto">
-            Join thousands of learners who are mastering Japanese with our platform.
+            Join thousands of learners who are mastering Japanese with our complete platform.
           </p>
-          <button
-            onClick={() => navigate("/register")}
-            className="inline-flex items-center justify-center gap-2 bg-white text-blue-600 px-10 py-4 rounded-xl text-lg font-semibold hover:bg-gray-100 transition transform hover:scale-105 shadow-2xl"
-          >
-            <Sparkles className="w-5 h-5" />
-            Start Learning Free
-          </button>
-          <p className="text-sm opacity-75 mt-6">No credit card required</p>
+          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <button
+              onClick={() => navigate("/kana-quiz")}
+              className="inline-flex items-center justify-center gap-2 bg-gradient-to-r from-pink-500 to-purple-500 text-white px-10 py-4 rounded-xl text-lg font-semibold hover:shadow-2xl transition transform hover:scale-105"
+            >
+              <Target className="w-5 h-5" />
+              Start with Quiz
+            </button>
+            <button
+              onClick={() => navigate("/register")}
+              className="inline-flex items-center justify-center gap-2 bg-white text-blue-600 px-10 py-4 rounded-xl text-lg font-semibold hover:bg-gray-100 transition transform hover:scale-105 shadow-2xl"
+            >
+              <Sparkles className="w-5 h-5" />
+              Create Free Account
+            </button>
+          </div>
+          <p className="text-sm opacity-75 mt-6">No credit card required • Start learning in seconds</p>
         </div>
       </div>
 
@@ -372,7 +628,10 @@ const Home = () => {
         <div className="max-w-7xl mx-auto px-4">
           <div className="flex flex-col md:flex-row justify-between items-center">
             <div className="mb-6 md:mb-0">
-              <div className="text-2xl font-bold text-red-600">日本語</div>
+              <div className="text-2xl font-bold text-red-600 flex items-center gap-2">
+                <Sparkles className="w-6 h-6 text-purple-600" />
+                日本語 Master
+              </div>
               <p className="text-gray-500 text-sm">Learn Japanese the Smart Way</p>
             </div>
             <div className="flex gap-6">

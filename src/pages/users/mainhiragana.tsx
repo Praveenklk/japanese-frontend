@@ -1,16 +1,20 @@
 import { useEffect, useState } from "react";
-import {type Hiragana, getAllHiragana } from "../../service/hiragana.service";
-
-import { Speaker, Volume2, Lightbulb, BookOpen, Search, Filter, ChevronRight, CheckCircle } from "lucide-react";
+import { type Hiragana, getAllHiragana, updateHiraganaReadStatus } from "../../service/hiragana.service";
+import { Speaker, Volume2, Lightbulb, BookOpen, Search, Filter, ChevronRight, CheckCircle, Bookmark, Loader2, X } from "lucide-react";
 
 const HiraganaPage = () => {
   const [hiraganaList, setHiraganaList] = useState<Hiragana[]>([]);
   const [filteredList, setFilteredList] = useState<Hiragana[]>([]);
   const [selectedChar, setSelectedChar] = useState<Hiragana | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
-  const [filterType, setFilterType] = useState<"all" | "vowels" | "k-column" | "s-column" | "t-column">("all");
+  const [filterType, setFilterType] = useState<
+    "all" | "basic" | "vowels" | "tenten" | "maru" | "combinations"
+  >("all");
   const [learnedChars, setLearnedChars] = useState<string[]>([]);
   const [showDetails, setShowDetails] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [updatingChar, setUpdatingChar] = useState<string | null>(null);
+  const [isScrolled, setIsScrolled] = useState(false);
 
   useEffect(() => {
     fetchHiragana();
@@ -20,15 +24,57 @@ const HiraganaPage = () => {
     filterHiragana();
   }, [hiraganaList, searchTerm, filterType]);
 
+  // Track scroll position
+  useEffect(() => {
+    const handleScroll = () => {
+      setIsScrolled(window.scrollY > 100);
+    };
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
   const fetchHiragana = async () => {
     try {
+      setIsLoading(true);
       const response = await getAllHiragana();
-      setHiraganaList(response.data);
-      // Load learned characters from localStorage
-      const saved = localStorage.getItem("learnedHiragana");
-      if (saved) setLearnedChars(JSON.parse(saved));
+      const sortedHiragana = response.data.sort((a, b) => {
+        // Sort by category: basic, tenten, maru, combinations
+        const getCategory = (char: Hiragana) => {
+          if (char.symbol.length === 1 && !char.symbol.includes("゛") && !char.symbol.includes("゜") && !["ゃ", "ゅ", "ょ", "ぁ", "ぃ", "ぅ", "ぇ", "ぉ"].includes(char.symbol)) {
+            return "basic";
+          } else if (char.symbol.includes("゛")) {
+            return "tenten";
+          } else if (char.symbol.includes("゜")) {
+            return "maru";
+          } else {
+            return "combinations";
+          }
+        };
+        
+        const categoryOrder = { basic: 1, tenten: 2, maru: 3, combinations: 4 };
+        const categoryA = getCategory(a);
+        const categoryB = getCategory(b);
+        
+        if (categoryOrder[categoryA] !== categoryOrder[categoryB]) {
+          return categoryOrder[categoryA] - categoryOrder[categoryB];
+        }
+        return a.symbol.localeCompare(b.symbol);
+      });
+      
+      setHiraganaList(sortedHiragana);
+      
+      // Load learned characters from API (isRead: true)
+      const learned = sortedHiragana.filter(char => char.isRead).map(char => char.id);
+      setLearnedChars(learned);
+      
+      // Select first character by default
+      if (sortedHiragana.length > 0) {
+        setSelectedChar(sortedHiragana[0]);
+      }
     } catch (error) {
       console.error("Error fetching hiragana:", error);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -45,27 +91,71 @@ const HiraganaPage = () => {
       );
     }
 
-    // Column filter
+    // Category filter
     if (filterType !== "all") {
-      const columnMap: Record<string, string[]> = {
-        vowels: ["あ", "い", "う", "え", "お"],
-        "k-column": ["か", "き", "く", "け", "こ"],
-        "s-column": ["さ", "し", "す", "せ", "そ"],
-        "t-column": ["た", "ち", "つ", "て", "と"],
-      };
-      filtered = filtered.filter((char) => columnMap[filterType]?.includes(char.symbol));
+      filtered = filtered.filter((char) => {
+        if (filterType === "vowels") {
+          return ["あ", "い", "う", "え", "お"].includes(char.symbol);
+        } else if (filterType === "basic") {
+          return char.symbol.length === 1 && 
+                 !char.symbol.includes("゛") && 
+                 !char.symbol.includes("゜") && 
+                 !["ゃ", "ゅ", "ょ", "ぁ", "ぃ", "ぅ", "ぇ", "ぉ"].includes(char.symbol);
+        } else if (filterType === "tenten") {
+          return char.symbol.includes("゛") || 
+                 ["が", "ぎ", "ぐ", "げ", "ご", "ざ", "じ", "ず", "ぜ", "ぞ", "だ", "ぢ", "づ", "で", "ど", "ば", "び", "ぶ", "べ", "ぼ"].includes(char.symbol);
+        } else if (filterType === "maru") {
+          return char.symbol.includes("゜") || 
+                 ["ぱ", "ぴ", "ぷ", "ぺ", "ぽ"].includes(char.symbol);
+        } else if (filterType === "combinations") {
+          return char.symbol.length > 1 || 
+                 ["ゃ", "ゅ", "ょ", "ぁ", "ぃ", "ぅ", "ぇ", "ぉ"].includes(char.symbol);
+        }
+        return true;
+      });
     }
 
     setFilteredList(filtered);
+    
+    // Auto-select first character if none selected or selected not in filtered list
+    if (filtered.length > 0 && (!selectedChar || !filtered.find(c => c.id === selectedChar.id))) {
+      setSelectedChar(filtered[0]);
+    } else if (filtered.length === 0) {
+      setSelectedChar(null);
+    }
   };
 
-  const toggleLearned = (symbol: string) => {
-    const newLearned = learnedChars.includes(symbol)
-      ? learnedChars.filter((char) => char !== symbol)
-      : [...learnedChars, symbol];
-    
-    setLearnedChars(newLearned);
-    localStorage.setItem("learnedHiragana", JSON.stringify(newLearned));
+  const toggleLearned = async (characterId: string, symbol: string) => {
+    try {
+      setUpdatingChar(characterId);
+      const isCurrentlyLearned = learnedChars.includes(characterId);
+      
+      // Update in API
+      await updateHiraganaReadStatus(characterId, !isCurrentlyLearned);
+      
+      // Update local state
+      const newLearned = isCurrentlyLearned
+        ? learnedChars.filter((id) => id !== characterId)
+        : [...learnedChars, characterId];
+      
+      setLearnedChars(newLearned);
+      
+      // Update hiraganaList with new isRead status
+      setHiraganaList(prev => prev.map(char => 
+        char.id === characterId ? { ...char, isRead: !isCurrentlyLearned } : char
+      ));
+      
+      // Update selected char if it's the same
+      if (selectedChar?.id === characterId) {
+        setSelectedChar(prev => prev ? { ...prev, isRead: !isCurrentlyLearned } : null);
+      }
+      
+    } catch (error) {
+      console.error("Error updating learned status:", error);
+      alert("Failed to update learning status. Please try again.");
+    } finally {
+      setUpdatingChar(null);
+    }
   };
 
   const playAudio = (text: string) => {
@@ -80,44 +170,99 @@ const HiraganaPage = () => {
     return Math.round((learnedChars.length / hiraganaList.length) * 100);
   };
 
-  const groupByRow = () => {
-    const rows = [];
-    const vowels = ["あ", "い", "う", "え", "お"];
-    const kRow = ["か", "き", "く", "け", "こ"];
-    const sRow = ["さ", "し", "す", "せ", "そ"];
-    const tRow = ["た", "ち", "つ", "て", "と"];
-    const nRow = ["な", "に", "ぬ", "ね", "の"];
-    const hRow = ["は", "ひ", "ふ", "へ", "ほ"];
-    const mRow = ["ま", "み", "む", "め", "も"];
-    const yRow = ["や", "ゆ", "よ"];
-    const rRow = ["ら", "り", "る", "れ", "ろ"];
-    const wRow = ["わ", "を", "ん"];
-
-    return [
-      { title: "Vowels (あ行)", chars: vowels },
-      { title: "K-row (か行)", chars: kRow },
-      { title: "S-row (さ行)", chars: sRow },
-      { title: "T-row (た行)", chars: tRow },
-      { title: "N-row (な行)", chars: nRow },
-      { title: "H-row (は行)", chars: hRow },
-      { title: "M-row (ま行)", chars: mRow },
-      { title: "Y-row (や行)", chars: yRow },
-      { title: "R-row (ら行)", chars: rRow },
-      { title: "W-row (わ行)", chars: wRow },
+  const groupByCategory = () => {
+    const categories = [
+      {
+        title: "Basic Hiragana",
+        description: "Standard hiragana characters",
+        chars: hiraganaList.filter(char => 
+          char.symbol.length === 1 && 
+          !char.symbol.includes("゛") && 
+          !char.symbol.includes("゜") && 
+          !["ゃ", "ゅ", "ょ", "ぁ", "ぃ", "ぅ", "ぇ", "ぉ"].includes(char.symbol)
+        )
+      },
+      {
+        title: "Dakuten (Tenten ゛)",
+        description: "Characters with dakuten mark",
+        chars: hiraganaList.filter(char => 
+          char.symbol.includes("゛") || 
+          ["が", "ぎ", "ぐ", "げ", "ご", "ざ", "じ", "ず", "ぜ", "ぞ", "だ", "ぢ", "づ", "で", "ど", "ば", "び", "ぶ", "べ", "ぼ"].includes(char.symbol)
+        )
+      },
+      {
+        title: "Handakuten (Maru ゜)",
+        description: "Characters with handakuten mark",
+        chars: hiraganaList.filter(char => 
+          char.symbol.includes("゜") || 
+          ["ぱ", "ぴ", "ぷ", "ぺ", "ぽ"].includes(char.symbol)
+        )
+      },
+      {
+        title: "Combinations",
+        description: "Contracted sounds (ゃ, ゅ, ょ)",
+        chars: hiraganaList.filter(char => 
+          char.symbol.length > 1 || 
+          ["ゃ", "ゅ", "ょ", "ぁ", "ぃ", "ぅ", "ぇ", "ぉ"].includes(char.symbol)
+        )
+      }
     ];
+    
+    return categories.filter(category => category.chars.length > 0);
   };
+
+  const getCategoryIcon = (category: string) => {
+    switch(category) {
+      case "basic": return "🅰️";
+      case "tenten": return "゛";
+      case "maru": return "゜";
+      case "combinations": return "ゃ";
+      default: return "🔤";
+    }
+  };
+
+  const getCategoryColor = (category: string) => {
+    switch(category) {
+      case "basic": return "bg-blue-100 text-blue-800 border-blue-300";
+      case "tenten": return "bg-green-100 text-green-800 border-green-300";
+      case "maru": return "bg-purple-100 text-purple-800 border-purple-300";
+      case "combinations": return "bg-orange-100 text-orange-800 border-orange-300";
+      default: return "bg-gray-100 text-gray-800 border-gray-300";
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-red-50 via-white to-blue-50">
+        <div className="text-center space-y-6">
+          <div className="relative">
+            <div className="w-20 h-20 border-4 border-red-200 border-t-red-600 rounded-full animate-spin"></div>
+            <div className="absolute inset-0 flex items-center justify-center">
+              <span className="text-3xl">あ</span>
+            </div>
+          </div>
+          <div>
+            <h2 className="text-2xl font-bold text-gray-800">Loading Hiragana</h2>
+            <p className="text-gray-600 mt-2">Fetching Japanese characters...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-red-50 via-white to-blue-50">
       {/* Header */}
-      <header className="sticky top-0 z-50 bg-white/90 backdrop-blur-sm border-b">
+      <header className={`sticky top-0 z-50 transition-all duration-300 ${
+        isScrolled ? 'bg-white shadow-lg' : 'bg-white/90 backdrop-blur-sm'
+      }`}>
         <div className="max-w-7xl mx-auto px-4 py-4">
           <div className="flex flex-col md:flex-row justify-between items-center gap-4">
             <div>
               <h1 className="text-3xl font-bold text-red-600">
-                <span className="text-4xl">ひらがな</span> Hiragana
+                <span className="text-4xl">ひらがな</span> Hiragana Master
               </h1>
-              <p className="text-gray-600">Learn Japanese characters step by step</p>
+              <p className="text-gray-600">Complete hiragana learning with dakuten, handakuten, and combinations</p>
             </div>
             
             {/* Progress Bar */}
@@ -128,7 +273,7 @@ const HiraganaPage = () => {
               </div>
               <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
                 <div 
-                  className="h-full bg-green-500 transition-all duration-500"
+                  className="h-full bg-gradient-to-r from-green-500 to-emerald-500 transition-all duration-500"
                   style={{ width: `${getProgress()}%` }}
                 />
               </div>
@@ -151,7 +296,7 @@ const HiraganaPage = () => {
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
                   <input
                     type="text"
-                    placeholder="Search hiragana, romaji, or meaning..."
+                    placeholder="Search hiragana, romaji, or explanation..."
                     className="w-full pl-10 pr-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-red-300"
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
@@ -159,20 +304,24 @@ const HiraganaPage = () => {
                 </div>
                 
                 <div className="flex gap-2 overflow-x-auto pb-2">
-                  {["all", "vowels", "k-column", "s-column", "t-column"].map((type) => (
+                  {["all", "basic", "vowels", "tenten", "maru", "combinations"].map((type) => (
                     <button
                       key={type}
-                      className={`px-4 py-2 rounded-lg whitespace-nowrap transition ${
+                      className={`px-4 py-2 rounded-lg whitespace-nowrap transition flex items-center gap-2 ${
                         filterType === type
                           ? "bg-red-600 text-white"
                           : "bg-gray-100 text-gray-700 hover:bg-gray-200"
                       }`}
                       onClick={() => setFilterType(type as any)}
                     >
-                      {type === "all" ? "All" : 
-                       type === "vowels" ? "Vowels" :
-                       type === "k-column" ? "K-column" :
-                       type === "s-column" ? "S-column" : "T-column"}
+                      <span>{getCategoryIcon(type)}</span>
+                      <span>
+                        {type === "all" ? "All" : 
+                         type === "basic" ? "Basic" :
+                         type === "vowels" ? "Vowels" :
+                         type === "tenten" ? "Dakuten" :
+                         type === "maru" ? "Handakuten" : "Combinations"}
+                      </span>
                     </button>
                   ))}
                 </div>
@@ -192,6 +341,59 @@ const HiraganaPage = () => {
                   <p className="text-sm text-gray-600">Remaining</p>
                   <p className="text-2xl font-bold text-blue-600">{hiraganaList.length - learnedChars.length}</p>
                 </div>
+                <div className="px-4 py-2 bg-purple-50 rounded-lg">
+                  <p className="text-sm text-gray-600">Mastery</p>
+                  <p className="text-2xl font-bold text-purple-600">{getProgress()}%</p>
+                </div>
+              </div>
+
+              {/* Category Navigation */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                {groupByCategory().map((category) => (
+                  <div 
+                    key={category.title}
+                    className={`p-3 rounded-xl border-2 cursor-pointer hover:shadow-md transition-all ${
+                      filterType === category.title.toLowerCase().includes("dakuten") ? "tenten" :
+                      filterType === category.title.toLowerCase().includes("handakuten") ? "maru" :
+                      filterType === category.title.toLowerCase().includes("combination") ? "combinations" :
+                      filterType === category.title.toLowerCase().includes("basic") ? "basic" : ""
+                    } === category.title.toLowerCase().includes("dakuten") ? "tenten" :
+                      category.title.toLowerCase().includes("handakuten") ? "maru" :
+                      category.title.toLowerCase().includes("combination") ? "combinations" :
+                      category.title.toLowerCase().includes("basic") ? "basic" : "" ? 
+                      "ring-2 ring-red-500" : ""} ${getCategoryColor(
+                        category.title.toLowerCase().includes("dakuten") ? "tenten" :
+                        category.title.toLowerCase().includes("handakuten") ? "maru" :
+                        category.title.toLowerCase().includes("combination") ? "combinations" :
+                        "basic"
+                      )}`}
+                    onClick={() => {
+                      const filter = 
+                        category.title.toLowerCase().includes("dakuten") ? "tenten" :
+                        category.title.toLowerCase().includes("handakuten") ? "maru" :
+                        category.title.toLowerCase().includes("combination") ? "combinations" : "basic";
+                      setFilterType(filter as any);
+                    }}
+                  >
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <h4 className="font-semibold">{category.title.split(" ")[0]}</h4>
+                        <p className="text-xs text-gray-600 mt-1">{category.description}</p>
+                      </div>
+                      <span className="text-2xl">
+                        {category.title.toLowerCase().includes("dakuten") ? "゛" :
+                         category.title.toLowerCase().includes("handakuten") ? "゜" :
+                         category.title.toLowerCase().includes("combination") ? "ゃ" : "あ"}
+                      </span>
+                    </div>
+                    <div className="mt-2 flex justify-between text-sm">
+                      <span>{category.chars.length} chars</span>
+                      <span className="text-green-600">
+                        {Math.round((category.chars.filter(c => learnedChars.includes(c.id)).length / category.chars.length) * 100)}%
+                      </span>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
 
@@ -199,63 +401,88 @@ const HiraganaPage = () => {
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
               {filteredList.map((char) => (
                 <div
-                  key={char.symbol}
+                  key={char.id}
                   className={`relative bg-white rounded-2xl shadow-md hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 cursor-pointer border-2 ${
-                    selectedChar?.symbol === char.symbol
-                      ? "border-red-500"
+                    selectedChar?.id === char.id
+                      ? "border-red-500 ring-2 ring-red-200"
                       : "border-transparent"
-                  } ${learnedChars.includes(char.symbol) ? "ring-2 ring-green-200" : ""}`}
+                  } ${learnedChars.includes(char.id) ? "ring-2 ring-green-200" : ""}`}
                   onClick={() => {
                     setSelectedChar(char);
                     setShowDetails(true);
+                    // Scroll to top on mobile when selecting a character
+                    if (window.innerWidth < 1024) {
+                      window.scrollTo({ top: 0, behavior: 'smooth' });
+                    }
                   }}
                 >
                   {/* Learned Badge */}
-                  {learnedChars.includes(char.symbol) && (
-                    <div className="absolute -top-2 -right-2 bg-green-500 text-white p-1 rounded-full">
+                  {learnedChars.includes(char.id) && (
+                    <div className="absolute -top-2 -right-2 bg-green-500 text-white p-1 rounded-full z-10">
                       <CheckCircle className="w-5 h-5" />
                     </div>
                   )}
                   
+                  {/* Category Indicator */}
+                  <div className="absolute -top-2 -left-2">
+                    <span className={`text-xs px-2 py-1 rounded-full ${
+                      char.symbol.includes("゛") ? "bg-green-100 text-green-800" :
+                      char.symbol.includes("゜") ? "bg-purple-100 text-purple-800" :
+                      char.symbol.length > 1 || ["ゃ", "ゅ", "ょ", "ぁ", "ぃ", "ぅ", "ぇ", "ぉ"].includes(char.symbol) ? 
+                      "bg-orange-100 text-orange-800" : "bg-blue-100 text-blue-800"
+                    }`}>
+                      {char.symbol.includes("゛") ? "゛" :
+                       char.symbol.includes("゜") ? "゜" :
+                       char.symbol.length > 1 ? "ゃ" : "あ"}
+                    </span>
+                  </div>
+                  
                   <div className="p-6 text-center">
                     <div className="text-5xl font-bold mb-3">{char.symbol}</div>
                     <div className="text-2xl font-mono text-gray-700 mb-2">{char.romaji}</div>
-                    <p className="text-sm text-gray-600 line-clamp-2">{char.explanation}</p>
+                    <p className="text-sm text-gray-600 line-clamp-2 h-10">{char.explanation}</p>
                     
                     <div className="mt-4 flex justify-center space-x-2">
                       <button
-                        className="p-2 bg-red-100 text-red-600 rounded-full hover:bg-red-200 transition"
+                        className="p-2 bg-red-100 text-red-600 rounded-full hover:bg-red-200 transition disabled:opacity-50"
                         onClick={(e) => {
                           e.stopPropagation();
                           playAudio(char.symbol);
                         }}
-                        title="Listen"
+                        title="Listen to character"
+                        disabled={updatingChar === char.id}
                       >
                         <Speaker className="w-4 h-4" />
                       </button>
                       <button
-                        className="p-2 bg-blue-100 text-blue-600 rounded-full hover:bg-blue-200 transition"
+                        className="p-2 bg-blue-100 text-blue-600 rounded-full hover:bg-blue-200 transition disabled:opacity-50"
                         onClick={(e) => {
                           e.stopPropagation();
                           playAudio(char.example?.split(" ")[0] || char.symbol);
                         }}
                         title="Listen to example"
+                        disabled={updatingChar === char.id}
                       >
                         <Volume2 className="w-4 h-4" />
                       </button>
                       <button
-                        className={`p-2 rounded-full transition ${
-                          learnedChars.includes(char.symbol)
-                            ? "bg-green-100 text-green-600"
+                        className={`p-2 rounded-full transition disabled:opacity-50 relative ${
+                          learnedChars.includes(char.id)
+                            ? "bg-green-100 text-green-600 hover:bg-green-200"
                             : "bg-gray-100 text-gray-600 hover:bg-gray-200"
                         }`}
                         onClick={(e) => {
                           e.stopPropagation();
-                          toggleLearned(char.symbol);
+                          toggleLearned(char.id, char.symbol);
                         }}
-                        title={learnedChars.includes(char.symbol) ? "Mark as unlearned" : "Mark as learned"}
+                        title={learnedChars.includes(char.id) ? "Mark as unlearned" : "Mark as learned"}
+                        disabled={updatingChar === char.id}
                       >
-                        <BookOpen className="w-4 h-4" />
+                        {updatingChar === char.id ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Bookmark className={`w-4 h-4 ${learnedChars.includes(char.id) ? 'fill-green-600' : ''}`} />
+                        )}
                       </button>
                     </div>
                   </div>
@@ -273,17 +500,34 @@ const HiraganaPage = () => {
             )}
           </div>
 
-          {/* Right Column - Details Panel */}
+          {/* Right Column - Details Panel - Fixed */}
           <div className="lg:col-span-1">
-            <div className={`sticky top-24 ${showDetails ? "" : "lg:hidden"}`}>
+            {/* Sticky Container - Only on desktop */}
+            <div className="hidden lg:block sticky top-24">
               {selectedChar ? (
-                <div className="bg-white rounded-2xl shadow-lg border overflow-hidden">
+                <div className="bg-white rounded-2xl shadow-lg border overflow-hidden transition-all duration-300">
                   {/* Header */}
                   <div className="bg-gradient-to-r from-red-500 to-orange-500 p-6 text-white">
                     <div className="flex justify-between items-start">
                       <div>
                         <div className="text-6xl font-bold mb-2">{selectedChar.symbol}</div>
                         <div className="text-3xl font-mono">{selectedChar.romaji}</div>
+                        <div className="flex items-center gap-2 mt-2">
+                          <span className={`px-2 py-1 rounded-full text-xs ${
+                            selectedChar.symbol.includes("゛") ? "bg-green-500/30" :
+                            selectedChar.symbol.includes("゜") ? "bg-purple-500/30" :
+                            selectedChar.symbol.length > 1 ? "bg-orange-500/30" : "bg-blue-500/30"
+                          }`}>
+                            {selectedChar.symbol.includes("゛") ? "Dakuten (゛)" :
+                             selectedChar.symbol.includes("゜") ? "Handakuten (゜)" :
+                             selectedChar.symbol.length > 1 ? "Combination" : "Basic"}
+                          </span>
+                          {selectedChar.isRead && (
+                            <span className="px-2 py-1 bg-green-500/30 rounded-full text-xs">
+                              ✓ Learned
+                            </span>
+                          )}
+                        </div>
                       </div>
                       <button
                         className="p-2 bg-white/20 rounded-full hover:bg-white/30 transition"
@@ -313,55 +557,84 @@ const HiraganaPage = () => {
                       <div className="bg-gray-50 p-4 rounded-lg">
                         <div className="flex items-center justify-between">
                           <div>
-                            <div className="text-2xl font-bold">{selectedChar.example?.split(" ")[0]}</div>
-                            <div className="text-gray-600">{selectedChar.example?.split("—")[1]?.trim()}</div>
+                            <div className="text-2xl font-bold">
+                              {selectedChar.example?.split(" ")[0] || selectedChar.symbol}
+                            </div>
+                            <div className="text-gray-600">
+                              {selectedChar.example?.split("—")[1]?.trim() || "Japanese word example"}
+                            </div>
                           </div>
                           <button
                             className="p-2 bg-blue-100 text-blue-600 rounded-full hover:bg-blue-200 transition"
-                            onClick={() => playAudio(selectedChar.example?.split(" ")[0] || "")}
+                            onClick={() => playAudio(selectedChar.example?.split(" ")[0] || selectedChar.symbol)}
                           >
                             <Volume2 className="w-5 h-5" />
                           </button>
                         </div>
-                        <div className="mt-2 text-sm text-gray-500">
-                          {selectedChar.example}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Similar Characters */}
-                    <div className="mb-6">
-                      <h3 className="font-semibold text-gray-800 mb-3">Similar Characters</h3>
-                      <div className="flex gap-2">
-                        {hiraganaList
-                          .filter(c => c.romaji.startsWith(selectedChar.romaji[0]) && c.symbol !== selectedChar.symbol)
-                          .slice(0, 3)
-                          .map(c => (
-                            <button
-                              key={c.symbol}
-                              className="flex-1 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition text-center"
-                              onClick={() => setSelectedChar(c)}
-                            >
-                              <div className="text-2xl font-bold">{c.symbol}</div>
-                              <div className="text-sm text-gray-600">{c.romaji}</div>
-                            </button>
-                          ))}
+                        {selectedChar.example && (
+                          <div className="mt-2 text-sm text-gray-500">
+                            {selectedChar.example}
+                          </div>
+                        )}
                       </div>
                     </div>
 
                     {/* Practice Button */}
                     <button
-                      className={`w-full py-3 rounded-lg font-semibold transition ${
-                        learnedChars.includes(selectedChar.symbol)
+                      className={`w-full py-3 rounded-lg font-semibold transition flex items-center justify-center gap-2 ${
+                        selectedChar.isRead
                           ? "bg-green-100 text-green-700 hover:bg-green-200"
                           : "bg-red-100 text-red-700 hover:bg-red-200"
                       }`}
-                      onClick={() => toggleLearned(selectedChar.symbol)}
+                      onClick={() => toggleLearned(selectedChar.id, selectedChar.symbol)}
+                      disabled={updatingChar === selectedChar.id}
                     >
-                      {learnedChars.includes(selectedChar.symbol)
-                        ? "✓ Marked as Learned"
-                        : "Mark as Learned"}
+                      {updatingChar === selectedChar.id ? (
+                        <>
+                          <Loader2 className="w-5 h-5 animate-spin" />
+                          Updating...
+                        </>
+                      ) : selectedChar.isRead ? (
+                        <>
+                          <CheckCircle className="w-5 h-5" />
+                          ✓ Marked as Learned
+                        </>
+                      ) : (
+                        <>
+                          <Bookmark className="w-5 h-5" />
+                          Mark as Learned
+                        </>
+                      )}
                     </button>
+
+                    {/* Character Info */}
+                    {/* <div className="mt-6 pt-6 border-t">
+                      <h3 className="font-semibold text-gray-800 mb-3">Character Info</h3>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="bg-gray-50 p-3 rounded-lg">
+                          <div className="text-xs text-gray-500">Type</div>
+                          <div className="font-medium">
+                            {selectedChar.symbol.includes("゛") ? "Dakuten" :
+                             selectedChar.symbol.includes("゜") ? "Handakuten" :
+                             selectedChar.symbol.length > 1 ? "Combination" : "Basic"}
+                          </div>
+                        </div>
+                        <div className="bg-gray-50 p-3 rounded-lg">
+                          <div className="text-xs text-gray-500">Romaji</div>
+                          <div className="font-mono font-medium">{selectedChar.romaji}</div>
+                        </div>
+                        <div className="bg-gray-50 p-3 rounded-lg">
+                          <div className="text-xs text-gray-500">Stroke Count</div>
+                          <div className="font-medium">Varies</div>
+                        </div>
+                        <div className="bg-gray-50 p-3 rounded-lg">
+                          <div className="text-xs text-gray-500">Status</div>
+                          <div className={`font-medium ${selectedChar.isRead ? 'text-green-600' : 'text-yellow-600'}`}>
+                            {selectedChar.isRead ? 'Learned' : 'To Learn'}
+                          </div>
+                        </div>
+                      </div>
+                    </div> */}
                   </div>
                 </div>
               ) : (
@@ -375,73 +648,325 @@ const HiraganaPage = () => {
                 </div>
               )}
 
-              {/* Hiragana Chart Reference */}
-              <div className="mt-6 bg-white rounded-2xl shadow border p-6">
-                <h3 className="font-semibold text-gray-800 mb-4">Hiragana Chart</h3>
+              {/* Hiragana Categories Reference */}
+              {/* <div className="mt-6 bg-white rounded-2xl shadow border p-6">
+                <h3 className="font-semibold text-gray-800 mb-4">Hiragana Categories</h3>
                 <div className="space-y-4">
-                  {groupByRow().map((row) => (
-                    <div key={row.title}>
-                      <div className="text-sm font-medium text-gray-600 mb-2">{row.title}</div>
+                  {groupByCategory().map((category) => (
+                    <div key={category.title}>
+                      <div className="flex justify-between items-center mb-2">
+                        <div className="text-sm font-medium text-gray-800">{category.title}</div>
+                        <div className="text-xs text-gray-500">{category.chars.length} characters</div>
+                      </div>
                       <div className="flex flex-wrap gap-2">
-                        {row.chars.map((symbol) => {
-                          const char = hiraganaList.find(c => c.symbol === symbol);
-                          return char ? (
-                            <button
-                              key={symbol}
-                              className={`w-10 h-10 rounded-lg flex items-center justify-center transition ${
-                                learnedChars.includes(symbol)
-                                  ? "bg-green-100 text-green-700 border border-green-300"
-                                  : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                              } ${
-                                selectedChar?.symbol === symbol
-                                  ? "ring-2 ring-red-300"
-                                  : ""
-                              }`}
-                              onClick={() => {
-                                setSelectedChar(char);
-                                setShowDetails(true);
-                              }}
-                              title={`${symbol} - ${char?.romaji}`}
-                            >
-                              <span className="font-bold">{symbol}</span>
-                            </button>
-                          ) : null;
-                        })}
+                        {category.chars.slice(0, 8).map((char) => (
+                          <button
+                            key={char.id}
+                            className={`w-10 h-10 rounded-lg flex items-center justify-center transition ${
+                              learnedChars.includes(char.id)
+                                ? "bg-green-100 text-green-700 border border-green-300"
+                                : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                            } ${
+                              selectedChar?.id === char.id
+                                ? "ring-2 ring-red-300"
+                                : ""
+                            }`}
+                            onClick={() => setSelectedChar(char)}
+                            title={`${char.symbol} - ${char.romaji}`}
+                          >
+                            <span className="font-bold">{char.symbol}</span>
+                          </button>
+                        ))}
+                        {category.chars.length > 8 && (
+                          <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center text-gray-500 text-sm">
+                            +{category.chars.length - 8}
+                          </div>
+                        )}
                       </div>
                     </div>
                   ))}
                 </div>
+              </div> */}
+            </div>
+
+            {/* Mobile Details Panel - Hidden on desktop */}
+            <div className="lg:hidden">
+              {selectedChar && (
+                <div className="bg-white rounded-2xl shadow-lg border overflow-hidden mb-6">
+                  {/* Header */}
+                  <div className="bg-gradient-to-r from-red-500 to-orange-500 p-6 text-white">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <div className="text-6xl font-bold mb-2">{selectedChar.symbol}</div>
+                        <div className="text-3xl font-mono">{selectedChar.romaji}</div>
+                        <div className="flex items-center gap-2 mt-2">
+                          <span className={`px-2 py-1 rounded-full text-xs ${
+                            selectedChar.symbol.includes("゛") ? "bg-green-500/30" :
+                            selectedChar.symbol.includes("゜") ? "bg-purple-500/30" :
+                            selectedChar.symbol.length > 1 ? "bg-orange-500/30" : "bg-blue-500/30"
+                          }`}>
+                            {selectedChar.symbol.includes("゛") ? "Dakuten (゛)" :
+                             selectedChar.symbol.includes("゜") ? "Handakuten (゜)" :
+                             selectedChar.symbol.length > 1 ? "Combination" : "Basic"}
+                          </span>
+                          {selectedChar.isRead && (
+                            <span className="px-2 py-1 bg-green-500/30 rounded-full text-xs">
+                              ✓ Learned
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <button
+                        className="p-2 bg-white/20 rounded-full hover:bg-white/30 transition"
+                        onClick={() => playAudio(selectedChar.symbol)}
+                      >
+                        <Speaker className="w-6 h-6" />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Content */}
+                  <div className="p-6">
+                    {/* Memory Tip */}
+                    <div className="mb-6">
+                      <div className="flex items-center gap-2 mb-3">
+                        <Lightbulb className="w-5 h-5 text-yellow-500" />
+                        <h3 className="font-semibold text-gray-800">Memory Tip</h3>
+                      </div>
+                      <p className="text-gray-700 bg-yellow-50 p-4 rounded-lg">
+                        {selectedChar.explanation}
+                      </p>
+                    </div>
+
+                    {/* Example */}
+                    <div className="mb-6">
+                      <h3 className="font-semibold text-gray-800 mb-2">Example Word</h3>
+                      <div className="bg-gray-50 p-4 rounded-lg">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <div className="text-2xl font-bold">
+                              {selectedChar.example?.split(" ")[0] || selectedChar.symbol}
+                            </div>
+                            <div className="text-gray-600">
+                              {selectedChar.example?.split("—")[1]?.trim() || "Japanese word example"}
+                            </div>
+                          </div>
+                          <button
+                            className="p-2 bg-blue-100 text-blue-600 rounded-full hover:bg-blue-200 transition"
+                            onClick={() => playAudio(selectedChar.example?.split(" ")[0] || selectedChar.symbol)}
+                          >
+                            <Volume2 className="w-5 h-5" />
+                          </button>
+                        </div>
+                        {selectedChar.example && (
+                          <div className="mt-2 text-sm text-gray-500">
+                            {selectedChar.example}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Practice Button */}
+                    <button
+                      className={`w-full py-3 rounded-lg font-semibold transition flex items-center justify-center gap-2 ${
+                        selectedChar.isRead
+                          ? "bg-green-100 text-green-700 hover:bg-green-200"
+                          : "bg-red-100 text-red-700 hover:bg-red-200"
+                      }`}
+                      onClick={() => toggleLearned(selectedChar.id, selectedChar.symbol)}
+                      disabled={updatingChar === selectedChar.id}
+                    >
+                      {updatingChar === selectedChar.id ? (
+                        <>
+                          <Loader2 className="w-5 h-5 animate-spin" />
+                          Updating...
+                        </>
+                      ) : selectedChar.isRead ? (
+                        <>
+                          <CheckCircle className="w-5 h-5" />
+                          ✓ Marked as Learned
+                        </>
+                      ) : (
+                        <>
+                          <Bookmark className="w-5 h-5" />
+                          Mark as Learned
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Mobile Details Overlay - Only shows when user explicitly taps for more details */}
+      {showDetails && selectedChar && (
+        <div className="fixed inset-0 z-50 lg:hidden">
+          {/* Backdrop */}
+          <div 
+            className="absolute inset-0 bg-black/50 transition-opacity duration-300"
+            onClick={() => setShowDetails(false)}
+          />
+          
+          {/* Slide-up Panel */}
+          <div 
+            className="absolute inset-x-0 bottom-0 bg-white rounded-t-3xl overflow-hidden transition-transform duration-300 ease-out transform max-h-[90vh]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Drag handle */}
+            <div className="flex justify-center pt-3">
+              <div className="w-12 h-1.5 bg-gray-300 rounded-full"></div>
+            </div>
+            
+            {/* Close button */}
+            <button
+              className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center bg-gray-100 hover:bg-gray-200 rounded-full z-10"
+              onClick={() => setShowDetails(false)}
+            >
+              <X className="w-5 h-5 text-gray-600" />
+            </button>
+            
+            {/* Scrollable content */}
+            <div className="overflow-y-auto h-full pb-6">
+              {/* Header */}
+              <div className="bg-gradient-to-r from-red-500 to-orange-500 p-6 text-white">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <div className="text-6xl font-bold mb-2">{selectedChar.symbol}</div>
+                    <div className="text-3xl font-mono">{selectedChar.romaji}</div>
+                    <div className="flex items-center gap-2 mt-2">
+                      <span className={`px-2 py-1 rounded-full text-xs ${
+                        selectedChar.symbol.includes("゛") ? "bg-green-500/30" :
+                        selectedChar.symbol.includes("゜") ? "bg-purple-500/30" :
+                        selectedChar.symbol.length > 1 ? "bg-orange-500/30" : "bg-blue-500/30"
+                      }`}>
+                        {selectedChar.symbol.includes("゛") ? "Dakuten (゛)" :
+                         selectedChar.symbol.includes("゜") ? "Handakuten (゜)" :
+                         selectedChar.symbol.length > 1 ? "Combination" : "Basic"}
+                      </span>
+                      {selectedChar.isRead && (
+                        <span className="px-2 py-1 bg-green-500/30 rounded-full text-xs">
+                          ✓ Learned
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <button
+                    className="p-2 bg-white/20 rounded-full hover:bg-white/30 transition"
+                    onClick={() => playAudio(selectedChar.symbol)}
+                  >
+                    <Speaker className="w-6 h-6" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Content */}
+              <div className="p-6">
+                {/* Memory Tip */}
+                <div className="mb-6">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Lightbulb className="w-5 h-5 text-yellow-500" />
+                    <h3 className="font-semibold text-gray-800">Memory Tip</h3>
+                  </div>
+                  <p className="text-gray-700 bg-yellow-50 p-4 rounded-lg">
+                    {selectedChar.explanation}
+                  </p>
+                </div>
+
+                {/* Example */}
+                <div className="mb-6">
+                  <h3 className="font-semibold text-gray-800 mb-2">Example Word</h3>
+                  <div className="bg-gray-50 p-4 rounded-lg">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="text-2xl font-bold">
+                          {selectedChar.example?.split(" ")[0] || selectedChar.symbol}
+                        </div>
+                        <div className="text-gray-600">
+                          {selectedChar.example?.split("—")[1]?.trim() || "Japanese word example"}
+                        </div>
+                      </div>
+                      <button
+                        className="p-2 bg-blue-100 text-blue-600 rounded-full hover:bg-blue-200 transition"
+                        onClick={() => playAudio(selectedChar.example?.split(" ")[0] || selectedChar.symbol)}
+                      >
+                        <Volume2 className="w-5 h-5" />
+                      </button>
+                    </div>
+                    {selectedChar.example && (
+                      <div className="mt-2 text-sm text-gray-500">
+                        {selectedChar.example}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Character Info */}
+                <div className="mb-6">
+                  <h3 className="font-semibold text-gray-800 mb-3">Character Info</h3>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="bg-gray-50 p-3 rounded-lg">
+                      <div className="text-xs text-gray-500">Type</div>
+                      <div className="font-medium">
+                        {selectedChar.symbol.includes("゛") ? "Dakuten" :
+                         selectedChar.symbol.includes("゜") ? "Handakuten" :
+                         selectedChar.symbol.length > 1 ? "Combination" : "Basic"}
+                      </div>
+                    </div>
+                    <div className="bg-gray-50 p-3 rounded-lg">
+                      <div className="text-xs text-gray-500">Romaji</div>
+                      <div className="font-mono font-medium">{selectedChar.romaji}</div>
+                    </div>
+                    <div className="bg-gray-50 p-3 rounded-lg">
+                      <div className="text-xs text-gray-500">Stroke Count</div>
+                      <div className="font-medium">Varies</div>
+                    </div>
+                    <div className="bg-gray-50 p-3 rounded-lg">
+                      <div className="text-xs text-gray-500">Status</div>
+                      <div className={`font-medium ${selectedChar.isRead ? 'text-green-600' : 'text-yellow-600'}`}>
+                        {selectedChar.isRead ? 'Learned' : 'To Learn'}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Practice Button */}
+                <button
+                  className={`w-full py-3 rounded-lg font-semibold transition flex items-center justify-center gap-2 ${
+                    selectedChar.isRead
+                      ? "bg-green-100 text-green-700 hover:bg-green-200"
+                      : "bg-red-100 text-red-700 hover:bg-red-200"
+                  }`}
+                  onClick={() => {
+                    toggleLearned(selectedChar.id, selectedChar.symbol);
+                    setShowDetails(false);
+                  }}
+                  disabled={updatingChar === selectedChar.id}
+                >
+                  {updatingChar === selectedChar.id ? (
+                    <>
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                      Updating...
+                    </>
+                  ) : selectedChar.isRead ? (
+                    <>
+                      <CheckCircle className="w-5 h-5" />
+                      ✓ Marked as Learned
+                    </>
+                  ) : (
+                    <>
+                      <Bookmark className="w-5 h-5" />
+                      Mark as Learned
+                    </>
+                  )}
+                </button>
               </div>
             </div>
           </div>
         </div>
-
-        {/* Mobile Details Overlay */}
-        {showDetails && selectedChar && (
-          <div className="fixed inset-0 bg-black/50 z-50 lg:hidden">
-            <div className="absolute bottom-0 left-0 right-0 bg-white rounded-t-3xl max-h-[90vh] overflow-y-auto">
-              <div className="p-4">
-                <button
-                  className="ml-auto block text-gray-500 hover:text-gray-700"
-                  onClick={() => setShowDetails(false)}
-                >
-                  ✕
-                </button>
-                {/* Same details content as desktop */}
-                <div className="bg-gradient-to-r from-red-500 to-orange-500 p-6 text-white -mx-4 -mt-4 mb-4">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <div className="text-6xl font-bold mb-2">{selectedChar.symbol}</div>
-                      <div className="text-3xl font-mono">{selectedChar.romaji}</div>
-                    </div>
-                  </div>
-                </div>
-                {/* Rest of details content */}
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
+      )}
     </div>
   );
 };

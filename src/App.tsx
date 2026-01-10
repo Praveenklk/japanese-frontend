@@ -1,6 +1,5 @@
 // App.tsx
 import { Routes, Route, Navigate } from "react-router-dom";
-
 import Header from "./component/Header";
 import Footer from "./component/Footer";
 
@@ -27,12 +26,21 @@ import HiraganaAdmin from "./pages/admin/HiraganaAdmin";
 import KatakanaAdmin from "./pages/admin/KatakanaAdmin";
 import AdminDashboard from "./component/Router/AdminDashboard";
 import ProtectedRoute from "./component/Router/ProtectedRoute";
+import KanaQuiz from "./pages/KanaQuiz";
+
+// New Learning Pages
+import LearningHub from "./pages/LearningHub"; // Add this
+import KanjiLearning from "./pages/KanjiLearning";
+import GrammarLessons from "./pages/GrammarLessons";
+import DailyConversation from "./pages/DailyConversation";
+import VocabularyBuilder from "./pages/VocabularyBuilder";
+import ShortStories from "./pages/ShortStories";
+import CommunityLeaderboard from "./pages/CommunityLeaderboard";
 
 function App() {
   return (
     <div className="flex flex-col min-h-screen">
       <Header />
-
       <main className="flex-grow">
         <Routes>
           {/* ---------------- PUBLIC ---------------- */}
@@ -40,8 +48,21 @@ function App() {
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
 
+          {/* ---------------- KANA LEARNING ---------------- */}
           <Route path="/hiragana" element={<HiraganaPage />} />
           <Route path="/katakana" element={<KatakanaPage />} />
+          <Route path="/kana-quiz" element={<KanaQuiz />} />
+
+          {/* ---------------- LEARNING HUB ---------------- */}
+          <Route path="/learn" element={<LearningHub />} />
+          
+          {/* ---------------- COMPREHENSIVE LEARNING ---------------- */}
+          <Route path="/kanji" element={<KanjiLearning />} />
+          <Route path="/grammar" element={<GrammarLessons />} />
+          <Route path="/daily-conversation" element={<DailyConversation />} />
+          <Route path="/vocabulary" element={<VocabularyBuilder />} />
+          <Route path="/stories" element={<ShortStories />} />
+          <Route path="/community" element={<CommunityLeaderboard />} />
 
           {/* ---------------- FLASHCARDS ---------------- */}
           <Route path="/flashcards" element={<FlashcardsPage />}>
@@ -101,7 +122,6 @@ function App() {
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>
-
       <Footer />
     </div>
   );

@@ -1,19 +1,22 @@
 // pages/KatakanaPage.tsx
 import { useEffect, useState } from "react";
 import { type Katakana, getAllKatakana, markKatakanaAsRead } from "../../service/katakana.service";
-import { Speaker, Volume2, Lightbulb, BookOpen, Search, Filter, CheckCircle, ChevronRight, X, Menu, Grid } from "lucide-react";
+import { Speaker, Volume2, Lightbulb, Search, Filter, CheckCircle, Bookmark, Loader2, X, Menu, Grid, BookOpen } from "lucide-react";
 
 const KatakanaPage = () => {
   const [katakanaList, setKatakanaList] = useState<Katakana[]>([]);
   const [filteredList, setFilteredList] = useState<Katakana[]>([]);
   const [selectedChar, setSelectedChar] = useState<Katakana | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
-  const [filterType, setFilterType] = useState<"all" | "vowels" | "k-column" | "s-column" | "t-column" | "n-column" | "h-column" | "m-column">("all");
+  const [filterType, setFilterType] = useState<
+    "all" | "basic" | "vowels" | "tenten" | "maru" | "combinations"
+  >("all");
   const [learnedChars, setLearnedChars] = useState<string[]>([]);
   const [showDetails, setShowDetails] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [viewMode, setViewMode] = useState<"grid" | "chart">("grid");
   const [isLoading, setIsLoading] = useState(true);
+  const [updatingChar, setUpdatingChar] = useState<string | null>(null);
 
   useEffect(() => {
     fetchKatakana();
@@ -27,10 +30,39 @@ const KatakanaPage = () => {
     try {
       setIsLoading(true);
       const response = await getAllKatakana();
-      setKatakanaList(response.data);
-      // Load learned characters from localStorage
-      const saved = localStorage.getItem("learnedKatakana");
-      if (saved) setLearnedChars(JSON.parse(saved));
+      
+      // Sort katakana similar to hiragana
+      const sortedKatakana = response.data.sort((a, b) => {
+        const getCategory = (char: Katakana) => {
+          if (char.symbol.length === 1 && 
+              !char.symbol.includes("゛") && 
+              !char.symbol.includes("゜") && 
+              !["ャ", "ュ", "ョ", "ァ", "ィ", "ゥ", "ェ", "ォ"].includes(char.symbol)) {
+            return "basic";
+          } else if (char.symbol.includes("゛")) {
+            return "tenten";
+          } else if (char.symbol.includes("゜")) {
+            return "maru";
+          } else {
+            return "combinations";
+          }
+        };
+        
+        const categoryOrder = { basic: 1, tenten: 2, maru: 3, combinations: 4 };
+        const categoryA = getCategory(a);
+        const categoryB = getCategory(b);
+        
+        if (categoryOrder[categoryA] !== categoryOrder[categoryB]) {
+          return categoryOrder[categoryA] - categoryOrder[categoryB];
+        }
+        return a.symbol.localeCompare(b.symbol);
+      });
+      
+      setKatakanaList(sortedKatakana);
+      
+      // Load learned characters from API (isRead: true)
+      const learned = sortedKatakana.filter(char => char.isRead).map(char => char.id);
+      setLearnedChars(learned);
     } catch (error) {
       console.error("Error fetching katakana:", error);
     } finally {
@@ -52,46 +84,63 @@ const KatakanaPage = () => {
       );
     }
 
-    // Column filter
+    // Category filter
     if (filterType !== "all") {
-      const columnMap: Record<string, string[]> = {
-        vowels: ["ア", "イ", "ウ", "エ", "オ"],
-        "k-column": ["カ", "キ", "ク", "ケ", "コ"],
-        "s-column": ["サ", "シ", "ス", "セ", "ソ"],
-        "t-column": ["タ", "チ", "ツ", "テ", "ト"],
-        "n-column": ["ナ", "ニ", "ヌ", "ネ", "ノ"],
-        "h-column": ["ハ", "ヒ", "フ", "ヘ", "ホ"],
-        "m-column": ["マ", "ミ", "ム", "メ", "モ"],
-      };
-      filtered = filtered.filter((char) => columnMap[filterType]?.includes(char.symbol));
+      filtered = filtered.filter((char) => {
+        if (filterType === "vowels") {
+          return ["ア", "イ", "ウ", "エ", "オ"].includes(char.symbol);
+        } else if (filterType === "basic") {
+          return char.symbol.length === 1 && 
+                 !char.symbol.includes("゛") && 
+                 !char.symbol.includes("゜") && 
+                 !["ャ", "ュ", "ョ", "ァ", "ィ", "ゥ", "ェ", "ォ"].includes(char.symbol);
+        } else if (filterType === "tenten") {
+          return char.symbol.includes("゛") || 
+                 ["ガ", "ギ", "グ", "ゲ", "ゴ", "ザ", "ジ", "ズ", "ゼ", "ゾ", "ダ", "ヂ", "ヅ", "デ", "ド", "バ", "ビ", "ブ", "ベ", "ボ"].includes(char.symbol);
+        } else if (filterType === "maru") {
+          return char.symbol.includes("゜") || 
+                 ["パ", "ピ", "プ", "ペ", "ポ"].includes(char.symbol);
+        } else if (filterType === "combinations") {
+          return char.symbol.length > 1 || 
+                 ["ャ", "ュ", "ョ", "ァ", "ィ", "ゥ", "ェ", "ォ"].includes(char.symbol);
+        }
+        return true;
+      });
     }
 
     setFilteredList(filtered);
   };
 
-  const toggleLearned = async (char: Katakana) => {
+  const toggleLearned = async (characterId: string, symbol: string) => {
     try {
-      if (!learnedChars.includes(char.symbol)) {
-        // Mark as read on server
-        if (char.id) {
-          await markKatakanaAsRead(char.id);
-        }
-        
-        const newLearned = [...learnedChars, char.symbol];
-        setLearnedChars(newLearned);
-        localStorage.setItem("learnedKatakana", JSON.stringify(newLearned));
-        
-        // Update local state
-        setKatakanaList(prev => prev.map(c => 
-          c.id === char.id ? { ...c, isRead: true } : c
-        ));
-      } else {
-        const newLearned = learnedChars.filter((symbol) => symbol !== char.symbol);
-        setLearnedChars(newLearned);
-        localStorage.setItem("learnedKatakana", JSON.stringify(newLearned));
+      setUpdatingChar(characterId);
+      const isCurrentlyLearned = learnedChars.includes(characterId);
+      
+      // Update in API
+      await markKatakanaAsRead(characterId, !isCurrentlyLearned);
+      
+      // Update local state
+      const newLearned = isCurrentlyLearned
+        ? learnedChars.filter((id) => id !== characterId)
+        : [...learnedChars, characterId];
+      
+      setLearnedChars(newLearned);
+      
+      // Update katakanaList with new isRead status
+      setKatakanaList(prev => prev.map(char => 
+        char.id === characterId ? { ...char, isRead: !isCurrentlyLearned } : char
+      ));
+      
+      // Update selected char if it's the same
+      if (selectedChar?.id === characterId) {
+        setSelectedChar(prev => prev ? { ...prev, isRead: !isCurrentlyLearned } : null);
       }
+      
     } catch (error) {
-      console.error("Error toggling learned status:", error);
+      console.error("Error updating learned status:", error);
+      alert("Failed to update learning status. Please try again.");
+    } finally {
+      setUpdatingChar(null);
     }
   };
 
@@ -108,51 +157,123 @@ const KatakanaPage = () => {
     return Math.round((learnedChars.length / katakanaList.length) * 100);
   };
 
-  const groupByRow = () => {
-    const vowels = ["ア", "イ", "ウ", "エ", "オ"];
-    const kRow = ["カ", "キ", "ク", "ケ", "コ"];
-    const sRow = ["サ", "シ", "ス", "セ", "ソ"];
-    const tRow = ["タ", "チ", "ツ", "テ", "ト"];
-    const nRow = ["ナ", "ニ", "ヌ", "ネ", "ノ"];
-    const hRow = ["ハ", "ヒ", "フ", "ヘ", "ホ"];
-    const mRow = ["マ", "ミ", "ム", "メ", "モ"];
-    const yRow = ["ヤ", "ユ", "ヨ"];
-    const rRow = ["ラ", "リ", "ル", "レ", "ロ"];
-    const wRow = ["ワ", "ヲ", "ン"];
-
-    return [
-      { title: "Vowels (ア行)", chars: vowels, color: "bg-red-50 border-red-200" },
-      { title: "K-row (カ行)", chars: kRow, color: "bg-orange-50 border-orange-200" },
-      { title: "S-row (サ行)", chars: sRow, color: "bg-amber-50 border-amber-200" },
-      { title: "T-row (タ行)", chars: tRow, color: "bg-yellow-50 border-yellow-200" },
-      { title: "N-row (ナ行)", chars: nRow, color: "bg-lime-50 border-lime-200" },
-      { title: "H-row (ハ行)", chars: hRow, color: "bg-green-50 border-green-200" },
-      { title: "M-row (マ行)", chars: mRow, color: "bg-emerald-50 border-emerald-200" },
-      { title: "Y-row (ヤ行)", chars: yRow, color: "bg-teal-50 border-teal-200" },
-      { title: "R-row (ラ行)", chars: rRow, color: "bg-cyan-50 border-cyan-200" },
-      { title: "W-row (ワ行)", chars: wRow, color: "bg-blue-50 border-blue-200" },
+  const groupByCategory = () => {
+    const categories = [
+      {
+        title: "Basic Katakana",
+        description: "Standard katakana characters",
+        chars: katakanaList.filter(char => 
+          char.symbol.length === 1 && 
+          !char.symbol.includes("゛") && 
+          !char.symbol.includes("゜") && 
+          !["ャ", "ュ", "ョ", "ァ", "ィ", "ゥ", "ェ", "ォ"].includes(char.symbol)
+        )
+      },
+      {
+        title: "Dakuten (Tenten ゛)",
+        description: "Characters with dakuten mark",
+        chars: katakanaList.filter(char => 
+          char.symbol.includes("゛") || 
+          ["ガ", "ギ", "グ", "ゲ", "ゴ", "ザ", "ジ", "ズ", "ゼ", "ゾ", "ダ", "ヂ", "ヅ", "デ", "ド", "バ", "ビ", "ブ", "ベ", "ボ"].includes(char.symbol)
+        )
+      },
+      {
+        title: "Handakuten (Maru ゜)",
+        description: "Characters with handakuten mark",
+        chars: katakanaList.filter(char => 
+          char.symbol.includes("゜") || 
+          ["パ", "ピ", "プ", "ペ", "ポ"].includes(char.symbol)
+        )
+      },
+      {
+        title: "Combinations",
+        description: "Contracted sounds (ャ, ュ, ョ)",
+        chars: katakanaList.filter(char => 
+          char.symbol.length > 1 || 
+          ["ャ", "ュ", "ョ", "ァ", "ィ", "ゥ", "ェ", "ォ"].includes(char.symbol)
+        )
+      }
     ];
+    
+    return categories.filter(category => category.chars.length > 0);
   };
 
-  const getColumnFilterOptions = () => [
-    { value: "all", label: "All" },
-    { value: "vowels", label: "Vowels" },
-    { value: "k-column", label: "K-column" },
-    { value: "s-column", label: "S-column" },
-    { value: "t-column", label: "T-column" },
-    { value: "n-column", label: "N-column" },
-    { value: "h-column", label: "H-column" },
-    { value: "m-column", label: "M-column" },
-  ];
+  const getCategoryIcon = (category: string) => {
+    switch(category) {
+      case "basic": return "🅰️";
+      case "tenten": return "゛";
+      case "maru": return "゜";
+      case "combinations": return "ャ";
+      default: return "🔤";
+    }
+  };
 
-  const katakanaChartRows = groupByRow();
+  const getCategoryColor = (category: string) => {
+    switch(category) {
+      case "basic": return "bg-blue-100 text-blue-800 border-blue-300";
+      case "tenten": return "bg-green-100 text-green-800 border-green-300";
+      case "maru": return "bg-purple-100 text-purple-800 border-purple-300";
+      case "combinations": return "bg-orange-100 text-orange-800 border-orange-300";
+      default: return "bg-gray-100 text-gray-800 border-gray-300";
+    }
+  };
+
+  const groupByRow = () => {
+    const basicRows = [
+      { title: "Vowels (ア行)", chars: ["ア", "イ", "ウ", "エ", "オ"], color: "bg-red-50 border-red-200" },
+      { title: "K-row (カ行)", chars: ["カ", "キ", "ク", "ケ", "コ"], color: "bg-orange-50 border-orange-200" },
+      { title: "S-row (サ行)", chars: ["サ", "シ", "ス", "セ", "ソ"], color: "bg-amber-50 border-amber-200" },
+      { title: "T-row (タ行)", chars: ["タ", "チ", "ツ", "テ", "ト"], color: "bg-yellow-50 border-yellow-200" },
+      { title: "N-row (ナ行)", chars: ["ナ", "ニ", "ヌ", "ネ", "ノ"], color: "bg-lime-50 border-lime-200" },
+      { title: "H-row (ハ行)", chars: ["ハ", "ヒ", "フ", "ヘ", "ホ"], color: "bg-green-50 border-green-200" },
+      { title: "M-row (マ行)", chars: ["マ", "ミ", "ム", "メ", "モ"], color: "bg-emerald-50 border-emerald-200" },
+      { title: "Y-row (ヤ行)", chars: ["ヤ", "ユ", "ヨ"], color: "bg-teal-50 border-teal-200" },
+      { title: "R-row (ラ行)", chars: ["ラ", "リ", "ル", "レ", "ロ"], color: "bg-cyan-50 border-cyan-200" },
+      { title: "W-row (ワ行)", chars: ["ワ", "ヲ", "ン"], color: "bg-blue-50 border-blue-200" },
+    ];
+
+    const tentenRows = [
+      { title: "G-row (ガ行)", chars: ["ガ", "ギ", "グ", "ゲ", "ゴ"], color: "bg-green-50 border-green-200" },
+      { title: "Z-row (ザ行)", chars: ["ザ", "ジ", "ズ", "ゼ", "ゾ"], color: "bg-emerald-50 border-emerald-200" },
+      { title: "D-row (ダ行)", chars: ["ダ", "ヂ", "ヅ", "デ", "ド"], color: "bg-teal-50 border-teal-200" },
+      { title: "B-row (バ行)", chars: ["バ", "ビ", "ブ", "ベ", "ボ"], color: "bg-cyan-50 border-cyan-200" },
+    ];
+
+    const maruRows = [
+      { title: "P-row (パ行)", chars: ["パ", "ピ", "プ", "ペ", "ポ"], color: "bg-purple-50 border-purple-200" },
+    ];
+
+    const combinationRows = [
+      { title: "KY-row (キャ行)", chars: ["キャ", "キュ", "キョ"], color: "bg-orange-50 border-orange-200" },
+      { title: "SH-row (シャ行)", chars: ["シャ", "シュ", "ショ"], color: "bg-pink-50 border-pink-200" },
+      { title: "CH-row (チャ行)", chars: ["チャ", "チュ", "チョ"], color: "bg-rose-50 border-rose-200" },
+      { title: "NY-row (ニャ行)", chars: ["ニャ", "ニュ", "ニョ"], color: "bg-yellow-50 border-yellow-200" },
+      { title: "HY-row (ヒャ行)", chars: ["ヒャ", "ヒュ", "ヒョ"], color: "bg-green-50 border-green-200" },
+      { title: "MY-row (ミャ行)", chars: ["ミャ", "ミュ", "ミョ"], color: "bg-emerald-50 border-emerald-200" },
+      { title: "RY-row (リャ行)", chars: ["リャ", "リュ", "リョ"], color: "bg-cyan-50 border-cyan-200" },
+      { title: "GY-row (ギャ行)", chars: ["ギャ", "ギュ", "ギョ"], color: "bg-green-50 border-green-200" },
+      { title: "J-row (ジャ行)", chars: ["ジャ", "ジュ", "ジョ"], color: "bg-teal-50 border-teal-200" },
+      { title: "BY-row (ビャ行)", chars: ["ビャ", "ビュ", "ビョ"], color: "bg-blue-50 border-blue-200" },
+      { title: "PY-row (ピャ行)", chars: ["ピャ", "ピュ", "ピョ"], color: "bg-purple-50 border-purple-200" },
+    ];
+
+    return { basicRows, tentenRows, maruRows, combinationRows };
+  };
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading Katakana characters...</p>
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-purple-50">
+        <div className="text-center space-y-6">
+          <div className="relative">
+            <div className="w-20 h-20 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
+            <div className="absolute inset-0 flex items-center justify-center">
+              <span className="text-3xl">カ</span>
+            </div>
+          </div>
+          <div>
+            <h2 className="text-2xl font-bold text-gray-800">Loading Katakana</h2>
+            <p className="text-gray-600 mt-2">Fetching Japanese characters...</p>
+          </div>
         </div>
       </div>
     );
@@ -160,164 +281,83 @@ const KatakanaPage = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
-      {/* Mobile Header */}
-      <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-sm border-b lg:hidden">
-        <div className="px-4 py-3">
-          <div className="flex justify-between items-center">
-            <div>
-              <h1 className="text-2xl font-bold text-blue-600">
-                <span className="text-3xl">カタカナ</span> Katakana
-              </h1>
-            </div>
-            <button
-              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-              className="p-2 rounded-lg bg-gray-100"
-            >
-              <Menu className="w-6 h-6" />
-            </button>
-          </div>
-          
-          {/* Mobile Progress Bar */}
-          <div className="mt-3">
-            <div className="flex justify-between text-sm text-gray-600 mb-1">
-              <span>Progress</span>
-              <span>{getProgress()}%</span>
-            </div>
-            <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
-              <div 
-                className="h-full bg-green-500 transition-all duration-500"
-                style={{ width: `${getProgress()}%` }}
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* Mobile Menu */}
-        {isMobileMenuOpen && (
-          <div className="absolute top-full left-0 right-0 bg-white border-b shadow-lg z-50">
-            <div className="p-4">
-              <div className="relative mb-4">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-                <input
-                  type="text"
-                  placeholder="Search katakana..."
-                  className="w-full pl-10 pr-4 py-2 border rounded-lg"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                />
-              </div>
-              
-              <div className="flex gap-2 overflow-x-auto pb-2">
-                {getColumnFilterOptions().map((option) => (
-                  <button
-                    key={option.value}
-                    className={`px-3 py-2 rounded-lg whitespace-nowrap text-sm ${
-                      filterType === option.value
-                        ? "bg-blue-600 text-white"
-                        : "bg-gray-100 text-gray-700"
-                    }`}
-                    onClick={() => {
-                      setFilterType(option.value as any);
-                      setIsMobileMenuOpen(false);
-                    }}
-                  >
-                    {option.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
-      </header>
-
-      {/* Desktop Header */}
-      <header className="hidden lg:block sticky top-0 z-50 bg-white/95 backdrop-blur-sm border-b">
-        <div className="max-w-7xl mx-auto px-6 py-4">
-          <div className="flex justify-between items-center">
+      {/* Header */}
+      <header className="sticky top-0 z-50 bg-white/90 backdrop-blur-sm border-b">
+        <div className="max-w-7xl mx-auto px-4 py-4">
+          <div className="flex flex-col md:flex-row justify-between items-center gap-4">
             <div>
               <h1 className="text-3xl font-bold text-blue-600">
-                <span className="text-4xl">カタカナ</span> Katakana
+                <span className="text-4xl">カタカナ</span> Katakana Master
               </h1>
-              <p className="text-gray-600">Learn Japanese characters for foreign words</p>
+              <p className="text-gray-600">Complete katakana learning with dakuten, handakuten, and combinations</p>
             </div>
             
-            <div className="flex items-center gap-6">
-              {/* View Toggle */}
-              <div className="flex bg-gray-100 p-1 rounded-lg">
-                <button
-                  onClick={() => setViewMode("grid")}
-                  className={`px-4 py-2 rounded-md transition ${viewMode === "grid" ? "bg-white shadow" : ""}`}
-                >
-                  <Grid className="w-5 h-5" />
-                </button>
-                <button
-                  onClick={() => setViewMode("chart")}
-                  className={`px-4 py-2 rounded-md transition ${viewMode === "chart" ? "bg-white shadow" : ""}`}
-                >
-                  <BookOpen className="w-5 h-5" />
-                </button>
+            {/* Progress Bar */}
+            <div className="w-full md:w-64">
+              <div className="flex justify-between text-sm text-gray-600 mb-1">
+                <span>Progress</span>
+                <span>{getProgress()}%</span>
               </div>
-              
-              {/* Progress */}
-              <div className="w-64">
-                <div className="flex justify-between text-sm text-gray-600 mb-1">
-                  <span>Progress</span>
-                  <span>{getProgress()}%</span>
-                </div>
-                <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
-                  <div 
-                    className="h-full bg-green-500 transition-all duration-500"
-                    style={{ width: `${getProgress()}%` }}
-                  />
-                </div>
-                <p className="text-xs text-gray-500 mt-1">
-                  {learnedChars.length} of {katakanaList.length} learned
-                </p>
+              <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+                <div 
+                  className="h-full bg-gradient-to-r from-green-500 to-emerald-500 transition-all duration-500"
+                  style={{ width: `${getProgress()}%` }}
+                />
               </div>
+              <p className="text-xs text-gray-500 mt-1">
+                {learnedChars.length} of {katakanaList.length} characters learned
+              </p>
             </div>
           </div>
         </div>
       </header>
 
-      <div className="max-w-7xl mx-auto px-4 py-6 lg:py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
-          {/* Main Content */}
+      <div className="max-w-7xl mx-auto px-4 py-8">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          {/* Left Column - Character Grid */}
           <div className="lg:col-span-2">
-            {/* Search and Filters - Desktop */}
-            <div className="hidden lg:block mb-8 space-y-4">
-              <div className="flex gap-4">
+            {/* Search and Filters */}
+            <div className="mb-8 space-y-4">
+              <div className="flex flex-col md:flex-row gap-4">
                 <div className="flex-1 relative">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
                   <input
                     type="text"
-                    placeholder="Search katakana, romaji, or meaning..."
+                    placeholder="Search katakana, romaji, or explanation..."
                     className="w-full pl-10 pr-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-300"
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                   />
                 </div>
                 
-                <div className="flex gap-2">
-                  {getColumnFilterOptions().map((option) => (
+                <div className="flex gap-2 overflow-x-auto pb-2">
+                  {["all", "basic", "vowels", "tenten", "maru", "combinations"].map((type) => (
                     <button
-                      key={option.value}
-                      className={`px-4 py-3 rounded-lg whitespace-nowrap transition ${
-                        filterType === option.value
+                      key={type}
+                      className={`px-4 py-2 rounded-lg whitespace-nowrap transition flex items-center gap-2 ${
+                        filterType === type
                           ? "bg-blue-600 text-white"
                           : "bg-gray-100 text-gray-700 hover:bg-gray-200"
                       }`}
-                      onClick={() => setFilterType(option.value as any)}
+                      onClick={() => setFilterType(type as any)}
                     >
-                      {option.label}
+                      <span>{getCategoryIcon(type)}</span>
+                      <span>
+                        {type === "all" ? "All" : 
+                         type === "basic" ? "Basic" :
+                         type === "vowels" ? "Vowels" :
+                         type === "tenten" ? "Dakuten" :
+                         type === "maru" ? "Handakuten" : "Combinations"}
+                      </span>
                     </button>
                   ))}
                 </div>
               </div>
               
-              {/* Stats */}
+              {/* Quick Stats */}
               <div className="flex flex-wrap gap-4">
                 <div className="px-4 py-2 bg-blue-50 rounded-lg">
-                  <p className="text-sm text-gray-600">Total</p>
+                  <p className="text-sm text-gray-600">Total Characters</p>
                   <p className="text-2xl font-bold text-blue-600">{katakanaList.length}</p>
                 </div>
                 <div className="px-4 py-2 bg-green-50 rounded-lg">
@@ -328,72 +368,170 @@ const KatakanaPage = () => {
                   <p className="text-sm text-gray-600">Remaining</p>
                   <p className="text-2xl font-bold text-purple-600">{katakanaList.length - learnedChars.length}</p>
                 </div>
+                <div className="px-4 py-2 bg-orange-50 rounded-lg">
+                  <p className="text-sm text-gray-600">Mastery</p>
+                  <p className="text-2xl font-bold text-orange-600">{getProgress()}%</p>
+                </div>
+              </div>
+
+              {/* View Mode Toggle */}
+              <div className="flex justify-end">
+                <div className="flex bg-gray-100 p-1 rounded-lg">
+                  <button
+                    onClick={() => setViewMode("grid")}
+                    className={`px-4 py-2 rounded-md transition flex items-center gap-2 ${
+                      viewMode === "grid" ? "bg-white shadow" : "hover:bg-gray-200"
+                    }`}
+                  >
+                    <Grid className="w-5 h-5" />
+                    <span className="hidden sm:inline">Grid</span>
+                  </button>
+                  <button
+                    onClick={() => setViewMode("chart")}
+                    className={`px-4 py-2 rounded-md transition flex items-center gap-2 ${
+                      viewMode === "chart" ? "bg-white shadow" : "hover:bg-gray-200"
+                    }`}
+                  >
+                    <BookOpen className="w-5 h-5" />
+                    <span className="hidden sm:inline">Chart</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Category Navigation */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                {groupByCategory().map((category) => (
+                  <div 
+                    key={category.title}
+                    className={`p-3 rounded-xl border-2 cursor-pointer hover:shadow-md transition-all ${
+                      filterType === category.title.toLowerCase().includes("dakuten") ? "tenten" :
+                      filterType === category.title.toLowerCase().includes("handakuten") ? "maru" :
+                      filterType === category.title.toLowerCase().includes("combination") ? "combinations" :
+                      filterType === category.title.toLowerCase().includes("basic") ? "basic" : ""
+                    } === category.title.toLowerCase().includes("dakuten") ? "tenten" :
+                      category.title.toLowerCase().includes("handakuten") ? "maru" :
+                      category.title.toLowerCase().includes("combination") ? "combinations" :
+                      category.title.toLowerCase().includes("basic") ? "basic" : "" ? 
+                      "ring-2 ring-blue-500" : ""} ${getCategoryColor(
+                        category.title.toLowerCase().includes("dakuten") ? "tenten" :
+                        category.title.toLowerCase().includes("handakuten") ? "maru" :
+                        category.title.toLowerCase().includes("combination") ? "combinations" :
+                        "basic"
+                      )}`}
+                    onClick={() => {
+                      const filter = 
+                        category.title.toLowerCase().includes("dakuten") ? "tenten" :
+                        category.title.toLowerCase().includes("handakuten") ? "maru" :
+                        category.title.toLowerCase().includes("combination") ? "combinations" : "basic";
+                      setFilterType(filter as any);
+                    }}
+                  >
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <h4 className="font-semibold">{category.title.split(" ")[0]}</h4>
+                        <p className="text-xs text-gray-600 mt-1">{category.description}</p>
+                      </div>
+                      <span className="text-2xl">
+                        {category.title.toLowerCase().includes("dakuten") ? "゛" :
+                         category.title.toLowerCase().includes("handakuten") ? "゜" :
+                         category.title.toLowerCase().includes("combination") ? "ャ" : "カ"}
+                      </span>
+                    </div>
+                    <div className="mt-2 flex justify-between text-sm">
+                      <span>{category.chars.length} chars</span>
+                      <span className="text-green-600">
+                        {Math.round((category.chars.filter(c => learnedChars.includes(c.id)).length / category.chars.length) * 100)}%
+                      </span>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
 
             {/* Content based on view mode */}
             {viewMode === "grid" ? (
               /* Grid View */
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 lg:gap-4">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
                 {filteredList.map((char) => (
                   <div
-                    key={char.symbol}
-                    className={`relative bg-white rounded-xl lg:rounded-2xl shadow-sm hover:shadow-lg transition-all duration-300 transform hover:-translate-y-1 cursor-pointer border ${
-                      selectedChar?.symbol === char.symbol
-                        ? "border-blue-500 border-2"
-                        : "border-gray-200"
-                    } ${learnedChars.includes(char.symbol) ? "ring-2 ring-green-200" : ""}`}
+                    key={char.id}
+                    className={`relative bg-white rounded-2xl shadow-md hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 cursor-pointer border-2 ${
+                      selectedChar?.id === char.id
+                        ? "border-blue-500"
+                        : "border-transparent"
+                    } ${learnedChars.includes(char.id) ? "ring-2 ring-green-200" : ""}`}
                     onClick={() => {
                       setSelectedChar(char);
                       setShowDetails(true);
                     }}
                   >
                     {/* Learned Badge */}
-                    {learnedChars.includes(char.symbol) && (
+                    {learnedChars.includes(char.id) && (
                       <div className="absolute -top-2 -right-2 bg-green-500 text-white p-1 rounded-full z-10">
-                        <CheckCircle className="w-4 h-4 lg:w-5 lg:h-5" />
+                        <CheckCircle className="w-5 h-5" />
                       </div>
                     )}
                     
-                    <div className="p-4 lg:p-6 text-center">
-                      <div className="text-4xl lg:text-5xl font-bold mb-2 lg:mb-3">{char.symbol}</div>
-                      <div className="text-xl lg:text-2xl font-mono text-gray-700 mb-1 lg:mb-2">{char.romaji}</div>
-                      <p className="text-xs lg:text-sm text-gray-600 line-clamp-2 h-10 lg:h-12">{char.explanation}</p>
+                    {/* Category Indicator */}
+                    <div className="absolute -top-2 -left-2">
+                      <span className={`text-xs px-2 py-1 rounded-full ${
+                        char.symbol.includes("゛") ? "bg-green-100 text-green-800" :
+                        char.symbol.includes("゜") ? "bg-purple-100 text-purple-800" :
+                        char.symbol.length > 1 || ["ャ", "ュ", "ョ", "ァ", "ィ", "ゥ", "ェ", "ォ"].includes(char.symbol) ? 
+                        "bg-orange-100 text-orange-800" : "bg-blue-100 text-blue-800"
+                      }`}>
+                        {char.symbol.includes("゛") ? "゛" :
+                         char.symbol.includes("゜") ? "゜" :
+                         char.symbol.length > 1 ? "ャ" : "カ"}
+                      </span>
+                    </div>
+                    
+                    <div className="p-6 text-center">
+                      <div className="text-5xl font-bold mb-3">{char.symbol}</div>
+                      <div className="text-2xl font-mono text-gray-700 mb-2">{char.romaji}</div>
+                      <p className="text-sm text-gray-600 line-clamp-2 h-10">{char.explanation}</p>
                       
-                      <div className="mt-3 lg:mt-4 flex justify-center space-x-2">
+                      <div className="mt-4 flex justify-center space-x-2">
                         <button
-                          className="p-1.5 lg:p-2 bg-blue-100 text-blue-600 rounded-full hover:bg-blue-200 transition"
+                          className="p-2 bg-blue-100 text-blue-600 rounded-full hover:bg-blue-200 transition disabled:opacity-50"
                           onClick={(e) => {
                             e.stopPropagation();
                             playAudio(char.symbol);
                           }}
-                          title="Listen"
+                          title="Listen to character"
+                          disabled={updatingChar === char.id}
                         >
-                          <Speaker className="w-3.5 h-3.5 lg:w-4 lg:h-4" />
+                          <Speaker className="w-4 h-4" />
                         </button>
                         <button
-                          className="p-1.5 lg:p-2 bg-purple-100 text-purple-600 rounded-full hover:bg-purple-200 transition"
+                          className="p-2 bg-purple-100 text-purple-600 rounded-full hover:bg-purple-200 transition disabled:opacity-50"
                           onClick={(e) => {
                             e.stopPropagation();
                             playAudio(char.example?.split(" ")[0] || char.symbol);
                           }}
                           title="Listen to example"
+                          disabled={updatingChar === char.id}
                         >
-                          <Volume2 className="w-3.5 h-3.5 lg:w-4 lg:h-4" />
+                          <Volume2 className="w-4 h-4" />
                         </button>
                         <button
-                          className={`p-1.5 lg:p-2 rounded-full transition ${
-                            learnedChars.includes(char.symbol)
-                              ? "bg-green-100 text-green-600"
+                          className={`p-2 rounded-full transition disabled:opacity-50 relative ${
+                            learnedChars.includes(char.id)
+                              ? "bg-green-100 text-green-600 hover:bg-green-200"
                               : "bg-gray-100 text-gray-600 hover:bg-gray-200"
                           }`}
                           onClick={(e) => {
                             e.stopPropagation();
-                            toggleLearned(char);
+                            toggleLearned(char.id, char.symbol);
                           }}
-                          title={learnedChars.includes(char.symbol) ? "Mark as unlearned" : "Mark as learned"}
+                          title={learnedChars.includes(char.id) ? "Mark as unlearned" : "Mark as learned"}
+                          disabled={updatingChar === char.id}
                         >
-                          <BookOpen className="w-3.5 h-3.5 lg:w-4 lg:h-4" />
+                          {updatingChar === char.id ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <Bookmark className={`w-4 h-4 ${learnedChars.includes(char.id) ? 'fill-green-600' : ''}`} />
+                          )}
                         </button>
                       </div>
                     </div>
@@ -402,39 +540,168 @@ const KatakanaPage = () => {
               </div>
             ) : (
               /* Chart View */
-              <div className="space-y-6">
-                {katakanaChartRows.map((row) => (
-                  <div key={row.title} className={`p-4 rounded-xl border ${row.color}`}>
-                    <h3 className="font-bold text-gray-800 mb-3 text-lg">{row.title}</h3>
-                    <div className="grid grid-cols-5 sm:grid-cols-10 gap-3">
-                      {row.chars.map((symbol) => {
-                        const char = katakanaList.find(c => c.symbol === symbol);
-                        if (!char) return null;
-                        
-                        return (
-                          <div
-                            key={symbol}
-                            className={`bg-white rounded-lg shadow-sm hover:shadow-md transition-all cursor-pointer p-3 ${
-                              learnedChars.includes(symbol) ? "ring-2 ring-green-300" : ""
-                            }`}
-                            onClick={() => {
-                              setSelectedChar(char);
-                              setShowDetails(true);
-                            }}
-                          >
-                            <div className="text-3xl font-bold text-center mb-1">{symbol}</div>
-                            <div className="text-center text-sm text-gray-600">{char.romaji}</div>
-                            {learnedChars.includes(symbol) && (
-                              <div className="absolute -top-1 -right-1">
-                                <CheckCircle className="w-4 h-4 text-green-500" />
+              <div className="space-y-8">
+                {/* Basic Katakana */}
+                <div className="space-y-4">
+                  <h3 className="text-xl font-bold text-gray-800 border-b pb-2">Basic Katakana</h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {groupByRow().basicRows.map((row) => (
+                      <div key={row.title} className={`p-4 rounded-xl border ${row.color}`}>
+                        <h4 className="font-bold text-gray-800 mb-3">{row.title}</h4>
+                        <div className="grid grid-cols-5 gap-2">
+                          {row.chars.map((symbol) => {
+                            const char = katakanaList.find(c => c.symbol === symbol);
+                            if (!char) return null;
+                            
+                            return (
+                              <div
+                                key={symbol}
+                                className={`bg-white rounded-lg shadow-sm hover:shadow-md transition-all cursor-pointer p-3 relative ${
+                                  learnedChars.includes(char.id) ? "ring-2 ring-green-300" : ""
+                                }`}
+                                onClick={() => {
+                                  setSelectedChar(char);
+                                  setShowDetails(true);
+                                }}
+                              >
+                                <div className="text-3xl font-bold text-center mb-1">{symbol}</div>
+                                <div className="text-center text-sm text-gray-600">{char.romaji}</div>
+                                {learnedChars.includes(char.id) && (
+                                  <div className="absolute -top-1 -right-1">
+                                    <CheckCircle className="w-4 h-4 text-green-500" />
+                                  </div>
+                                )}
                               </div>
-                            )}
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Dakuten (Tenten) */}
+                {groupByRow().tentenRows.length > 0 && (
+                  <div className="space-y-4">
+                    <h3 className="text-xl font-bold text-gray-800 border-b pb-2">Dakuten (゛)</h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-4">
+                      {groupByRow().tentenRows.map((row) => (
+                        <div key={row.title} className={`p-4 rounded-xl border ${row.color}`}>
+                          <h4 className="font-bold text-gray-800 mb-3">{row.title}</h4>
+                          <div className="grid grid-cols-5 gap-2">
+                            {row.chars.map((symbol) => {
+                              const char = katakanaList.find(c => c.symbol === symbol);
+                              if (!char) return null;
+                              
+                              return (
+                                <div
+                                  key={symbol}
+                                  className={`bg-white rounded-lg shadow-sm hover:shadow-md transition-all cursor-pointer p-3 relative ${
+                                    learnedChars.includes(char.id) ? "ring-2 ring-green-300" : ""
+                                  }`}
+                                  onClick={() => {
+                                    setSelectedChar(char);
+                                    setShowDetails(true);
+                                  }}
+                                >
+                                  <div className="text-3xl font-bold text-center mb-1">{symbol}</div>
+                                  <div className="text-center text-sm text-gray-600">{char.romaji}</div>
+                                  {learnedChars.includes(char.id) && (
+                                    <div className="absolute -top-1 -right-1">
+                                      <CheckCircle className="w-4 h-4 text-green-500" />
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
                           </div>
-                        );
-                      })}
+                        </div>
+                      ))}
                     </div>
                   </div>
-                ))}
+                )}
+
+                {/* Handakuten (Maru) */}
+                {groupByRow().maruRows.length > 0 && (
+                  <div className="space-y-4">
+                    <h3 className="text-xl font-bold text-gray-800 border-b pb-2">Handakuten (゜)</h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-4">
+                      {groupByRow().maruRows.map((row) => (
+                        <div key={row.title} className={`p-4 rounded-xl border ${row.color}`}>
+                          <h4 className="font-bold text-gray-800 mb-3">{row.title}</h4>
+                          <div className="grid grid-cols-5 gap-2">
+                            {row.chars.map((symbol) => {
+                              const char = katakanaList.find(c => c.symbol === symbol);
+                              if (!char) return null;
+                              
+                              return (
+                                <div
+                                  key={symbol}
+                                  className={`bg-white rounded-lg shadow-sm hover:shadow-md transition-all cursor-pointer p-3 relative ${
+                                    learnedChars.includes(char.id) ? "ring-2 ring-green-300" : ""
+                                  }`}
+                                  onClick={() => {
+                                    setSelectedChar(char);
+                                    setShowDetails(true);
+                                  }}
+                                >
+                                  <div className="text-3xl font-bold text-center mb-1">{symbol}</div>
+                                  <div className="text-center text-sm text-gray-600">{char.romaji}</div>
+                                  {learnedChars.includes(char.id) && (
+                                    <div className="absolute -top-1 -right-1">
+                                      <CheckCircle className="w-4 h-4 text-green-500" />
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Combinations */}
+                {groupByRow().combinationRows.length > 0 && (
+                  <div className="space-y-4">
+                    <h3 className="text-xl font-bold text-gray-800 border-b pb-2">Combinations (ャ, ュ, ョ)</h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {groupByRow().combinationRows.map((row) => (
+                        <div key={row.title} className={`p-4 rounded-xl border ${row.color}`}>
+                          <h4 className="font-bold text-gray-800 mb-3">{row.title}</h4>
+                          <div className="grid grid-cols-3 gap-2">
+                            {row.chars.map((symbol) => {
+                              const char = katakanaList.find(c => c.symbol === symbol);
+                              if (!char) return null;
+                              
+                              return (
+                                <div
+                                  key={symbol}
+                                  className={`bg-white rounded-lg shadow-sm hover:shadow-md transition-all cursor-pointer p-3 relative ${
+                                    learnedChars.includes(char.id) ? "ring-2 ring-green-300" : ""
+                                  }`}
+                                  onClick={() => {
+                                    setSelectedChar(char);
+                                    setShowDetails(true);
+                                  }}
+                                >
+                                  <div className="text-3xl font-bold text-center mb-1">{symbol}</div>
+                                  <div className="text-center text-sm text-gray-600">{char.romaji}</div>
+                                  {learnedChars.includes(char.id) && (
+                                    <div className="absolute -top-1 -right-1">
+                                      <CheckCircle className="w-4 h-4 text-green-500" />
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
@@ -442,15 +709,15 @@ const KatakanaPage = () => {
             {filteredList.length === 0 && (
               <div className="text-center py-12">
                 <div className="text-5xl mb-4">🔍</div>
-                <h3 className="text-xl font-semibold text-gray-700 mb-2">No katakana found</h3>
+                <h3 className="text-xl font-semibold text-gray-700 mb-2">No characters found</h3>
                 <p className="text-gray-500">Try a different search term or filter</p>
               </div>
             )}
           </div>
 
-          {/* Sidebar - Desktop */}
-          <div className="hidden lg:block lg:col-span-1">
-            <div className="sticky top-24">
+          {/* Right Column - Details Panel */}
+          <div className="lg:col-span-1">
+            <div className={`sticky top-24 ${showDetails ? "" : "lg:hidden"}`}>
               {selectedChar ? (
                 <div className="bg-white rounded-2xl shadow-lg border overflow-hidden">
                   {/* Header */}
@@ -459,6 +726,22 @@ const KatakanaPage = () => {
                       <div>
                         <div className="text-6xl font-bold mb-2">{selectedChar.symbol}</div>
                         <div className="text-3xl font-mono">{selectedChar.romaji}</div>
+                        <div className="flex items-center gap-2 mt-2">
+                          <span className={`px-2 py-1 rounded-full text-xs ${
+                            selectedChar.symbol.includes("゛") ? "bg-green-500/30" :
+                            selectedChar.symbol.includes("゜") ? "bg-purple-500/30" :
+                            selectedChar.symbol.length > 1 ? "bg-orange-500/30" : "bg-blue-500/30"
+                          }`}>
+                            {selectedChar.symbol.includes("゛") ? "Dakuten (゛)" :
+                             selectedChar.symbol.includes("゜") ? "Handakuten (゜)" :
+                             selectedChar.symbol.length > 1 ? "Combination" : "Basic"}
+                          </span>
+                          {selectedChar.isRead && (
+                            <span className="px-2 py-1 bg-green-500/30 rounded-full text-xs">
+                              ✓ Learned
+                            </span>
+                          )}
+                        </div>
                       </div>
                       <button
                         className="p-2 bg-white/20 rounded-full hover:bg-white/30 transition"
@@ -484,210 +767,318 @@ const KatakanaPage = () => {
 
                     {/* Example */}
                     <div className="mb-6">
-                      <h3 className="font-semibold text-gray-800 mb-2">Example</h3>
+                      <h3 className="font-semibold text-gray-800 mb-2">Example Word</h3>
                       <div className="bg-gray-50 p-4 rounded-lg">
                         <div className="flex items-center justify-between">
                           <div>
-                            <div className="text-xl font-bold">{selectedChar.example?.split(" ")[0]}</div>
-                            <div className="text-gray-600 text-sm">
-                              {selectedChar.example?.split("—")[1]?.trim() || selectedChar.example}
+                            <div className="text-2xl font-bold">
+                              {selectedChar.example?.split(" ")[0] || selectedChar.symbol}
+                            </div>
+                            <div className="text-gray-600">
+                              {selectedChar.example?.split("—")[1]?.trim() || "Japanese word example"}
                             </div>
                           </div>
                           <button
-                            className="p-2 bg-blue-100 text-blue-600 rounded-full hover:bg-blue-200 transition"
-                            onClick={() => playAudio(selectedChar.example?.split(" ")[0] || "")}
+                            className="p-2 bg-purple-100 text-purple-600 rounded-full hover:bg-purple-200 transition"
+                            onClick={() => playAudio(selectedChar.example?.split(" ")[0] || selectedChar.symbol)}
                           >
                             <Volume2 className="w-5 h-5" />
                           </button>
                         </div>
-                        <div className="mt-2 text-sm text-gray-500">
-                          {selectedChar.example}
-                        </div>
+                        {selectedChar.example && (
+                          <div className="mt-2 text-sm text-gray-500">
+                            {selectedChar.example}
+                          </div>
+                        )}
                       </div>
                     </div>
 
                     {/* Practice Button */}
                     <button
-                      className={`w-full py-3 rounded-lg font-semibold transition ${
-                        learnedChars.includes(selectedChar.symbol)
+                      className={`w-full py-3 rounded-lg font-semibold transition flex items-center justify-center gap-2 ${
+                        selectedChar.isRead
                           ? "bg-green-100 text-green-700 hover:bg-green-200"
                           : "bg-blue-100 text-blue-700 hover:bg-blue-200"
                       }`}
-                      onClick={() => toggleLearned(selectedChar)}
+                      onClick={() => toggleLearned(selectedChar.id, selectedChar.symbol)}
+                      disabled={updatingChar === selectedChar.id}
                     >
-                      {learnedChars.includes(selectedChar.symbol)
-                        ? "✓ Marked as Learned"
-                        : "Mark as Learned"}
+                      {updatingChar === selectedChar.id ? (
+                        <>
+                          <Loader2 className="w-5 h-5 animate-spin" />
+                          Updating...
+                        </>
+                      ) : selectedChar.isRead ? (
+                        <>
+                          <CheckCircle className="w-5 h-5" />
+                          ✓ Marked as Learned
+                        </>
+                      ) : (
+                        <>
+                          <Bookmark className="w-5 h-5" />
+                          Mark as Learned
+                        </>
+                      )}
                     </button>
+
+                    {/* Character Info */}
+                    <div className="mt-6 pt-6 border-t">
+                      <h3 className="font-semibold text-gray-800 mb-3">Character Info</h3>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="bg-gray-50 p-3 rounded-lg">
+                          <div className="text-xs text-gray-500">Type</div>
+                          <div className="font-medium">
+                            {selectedChar.symbol.includes("゛") ? "Dakuten" :
+                             selectedChar.symbol.includes("゜") ? "Handakuten" :
+                             selectedChar.symbol.length > 1 ? "Combination" : "Basic"}
+                          </div>
+                        </div>
+                        <div className="bg-gray-50 p-3 rounded-lg">
+                          <div className="text-xs text-gray-500">Romaji</div>
+                          <div className="font-mono font-medium">{selectedChar.romaji}</div>
+                        </div>
+                        <div className="bg-gray-50 p-3 rounded-lg">
+                          <div className="text-xs text-gray-500">Stroke Count</div>
+                          <div className="font-medium">Varies</div>
+                        </div>
+                        <div className="bg-gray-50 p-3 rounded-lg">
+                          <div className="text-xs text-gray-500">Status</div>
+                          <div className={`font-medium ${selectedChar.isRead ? 'text-green-600' : 'text-yellow-600'}`}>
+                            {selectedChar.isRead ? 'Learned' : 'To Learn'}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
               ) : (
                 <div className="bg-white rounded-2xl shadow-lg border p-8 text-center">
                   <div className="text-6xl mb-4">👈</div>
                   <h3 className="text-xl font-semibold text-gray-700 mb-2">Select a Character</h3>
-                  <p className="text-gray-500">Click on any katakana character to see details</p>
+                  <p className="text-gray-500">Click on any katakana character to see details and learning tips</p>
                   <div className="mt-6">
                     <div className="text-4xl font-bold text-blue-500 animate-pulse">カ</div>
                   </div>
                 </div>
               )}
 
-              {/* Chart Reference */}
-              <div className="mt-6 bg-white rounded-2xl shadow border p-6">
-                <h3 className="font-semibold text-gray-800 mb-4">Katakana Chart</h3>
+              {/* Katakana Categories Reference */}
+              {/* <div className="mt-6 bg-white rounded-2xl shadow border p-6">
+                <h3 className="font-semibold text-gray-800 mb-4">Katakana Categories</h3>
                 <div className="space-y-4">
-                  {katakanaChartRows.slice(0, 5).map((row) => (
-                    <div key={row.title}>
-                      <div className="text-sm font-medium text-gray-600 mb-2">{row.title}</div>
+                  {groupByCategory().map((category) => (
+                    <div key={category.title}>
+                      <div className="flex justify-between items-center mb-2">
+                        <div className="text-sm font-medium text-gray-800">{category.title}</div>
+                        <div className="text-xs text-gray-500">{category.chars.length} characters</div>
+                      </div>
                       <div className="flex flex-wrap gap-2">
-                        {row.chars.map((symbol) => {
-                          const char = katakanaList.find(c => c.symbol === symbol);
-                          return char ? (
-                            <button
-                              key={symbol}
-                              className={`w-10 h-10 rounded-lg flex items-center justify-center transition ${
-                                learnedChars.includes(symbol)
-                                  ? "bg-green-100 text-green-700 border border-green-300"
-                                  : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                              } ${
-                                selectedChar?.symbol === symbol
-                                  ? "ring-2 ring-blue-300"
-                                  : ""
-                              }`}
-                              onClick={() => {
-                                setSelectedChar(char);
-                                setShowDetails(true);
-                              }}
-                              title={`${symbol} - ${char?.romaji}`}
-                            >
-                              <span className="font-bold">{symbol}</span>
-                            </button>
-                          ) : null;
-                        })}
+                        {category.chars.slice(0, 8).map((char) => (
+                          <button
+                            key={char.id}
+                            className={`w-10 h-10 rounded-lg flex items-center justify-center transition ${
+                              learnedChars.includes(char.id)
+                                ? "bg-green-100 text-green-700 border border-green-300"
+                                : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                            } ${
+                              selectedChar?.id === char.id
+                                ? "ring-2 ring-blue-300"
+                                : ""
+                            }`}
+                            onClick={() => {
+                              setSelectedChar(char);
+                              setShowDetails(true);
+                            }}
+                            title={`${char.symbol} - ${char.romaji}`}
+                          >
+                            <span className="font-bold">{char.symbol}</span>
+                          </button>
+                        ))}
+                        {category.chars.length > 8 && (
+                          <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center text-gray-500 text-sm">
+                            +{category.chars.length - 8}
+                          </div>
+                        )}
                       </div>
                     </div>
                   ))}
                 </div>
-              </div>
+              </div> */}
             </div>
           </div>
         </div>
-      </div>
 
-      {/* Mobile Details Modal */}
-      {showDetails && selectedChar && (
-        <div className="fixed inset-0 bg-black/50 z-50 lg:hidden">
-          <div className="absolute bottom-0 left-0 right-0 bg-white rounded-t-3xl max-h-[90vh] overflow-y-auto animate-slide-up">
-            {/* Close Button */}
-            <div className="sticky top-0 bg-white border-b flex justify-end p-4">
+        {/* Mobile Details Overlay */}
+        {showDetails && selectedChar && (
+          <div className="fixed inset-0 z-50 lg:hidden">
+            {/* Backdrop */}
+            <div 
+              className="absolute inset-0 bg-black/50 transition-opacity duration-300"
+              onClick={() => setShowDetails(false)}
+            />
+            
+            {/* Slide-up Panel */}
+            <div 
+              className="absolute inset-x-0 bottom-0 bg-white rounded-t-3xl overflow-hidden transition-transform duration-300 ease-out transform"
+              onClick={(e) => e.stopPropagation()}
+              style={{ 
+                maxHeight: '95vh',
+                height: 'auto'
+              }}
+            >
+              {/* Drag handle */}
+              <div className="flex justify-center pt-3">
+                <div className="w-12 h-1.5 bg-gray-300 rounded-full"></div>
+              </div>
+              
+              {/* Close button */}
               <button
-                className="p-2 rounded-full bg-gray-100"
+                className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center bg-gray-100 hover:bg-gray-200 rounded-full z-10"
                 onClick={() => setShowDetails(false)}
               >
-                <X className="w-6 h-6" />
+                <X className="w-5 h-5 text-gray-600" />
               </button>
-            </div>
-            
-            {/* Content */}
-            <div className="p-6">
-              {/* Character Header */}
-              <div className="bg-gradient-to-r from-blue-500 to-purple-500 p-6 text-white rounded-2xl -mx-4 mt-4">
-                <div className="text-center">
-                  <div className="text-6xl font-bold mb-2">{selectedChar.symbol}</div>
-                  <div className="text-3xl font-mono">{selectedChar.romaji}</div>
-                </div>
-              </div>
-
-              {/* Details */}
-              <div className="space-y-6 mt-6">
-                {/* Memory Tip */}
-                <div>
-                  <div className="flex items-center gap-2 mb-3">
-                    <Lightbulb className="w-5 h-5 text-yellow-500" />
-                    <h3 className="font-semibold text-gray-800">Memory Tip</h3>
-                  </div>
-                  <p className="text-gray-700 bg-yellow-50 p-4 rounded-lg">
-                    {selectedChar.explanation}
-                  </p>
-                </div>
-
-                {/* Example */}
-                <div>
-                  <h3 className="font-semibold text-gray-800 mb-2">Example</h3>
-                  <div className="bg-gray-50 p-4 rounded-lg">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <div className="text-xl font-bold">{selectedChar.example?.split(" ")[0]}</div>
-                        <div className="text-gray-600 text-sm">
-                          {selectedChar.example?.split("—")[1]?.trim() || selectedChar.example}
-                        </div>
+              
+              {/* Scrollable content */}
+              <div className="overflow-y-auto" style={{ maxHeight: 'calc(95vh - 40px)' }}>
+                {/* Header */}
+                <div className="bg-gradient-to-r from-blue-500 to-purple-500 p-6 text-white">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <div className="text-6xl font-bold mb-2">{selectedChar.symbol}</div>
+                      <div className="text-3xl font-mono">{selectedChar.romaji}</div>
+                      <div className="flex items-center gap-2 mt-2">
+                        <span className={`px-2 py-1 rounded-full text-xs ${
+                          selectedChar.symbol.includes("゛") ? "bg-green-500/30" :
+                          selectedChar.symbol.includes("゜") ? "bg-purple-500/30" :
+                          selectedChar.symbol.length > 1 ? "bg-orange-500/30" : "bg-blue-500/30"
+                        }`}>
+                          {selectedChar.symbol.includes("゛") ? "Dakuten (゛)" :
+                           selectedChar.symbol.includes("゜") ? "Handakuten (゜)" :
+                           selectedChar.symbol.length > 1 ? "Combination" : "Basic"}
+                        </span>
+                        {selectedChar.isRead && (
+                          <span className="px-2 py-1 bg-green-500/30 rounded-full text-xs">
+                            ✓ Learned
+                          </span>
+                        )}
                       </div>
-                      <button
-                        className="p-2 bg-blue-100 text-blue-600 rounded-full hover:bg-blue-200 transition"
-                        onClick={() => playAudio(selectedChar.example?.split(" ")[0] || "")}
-                      >
-                        <Volume2 className="w-5 h-5" />
-                      </button>
+                    </div>
+                    <button
+                      className="p-2 bg-white/20 rounded-full hover:bg-white/30 transition"
+                      onClick={() => playAudio(selectedChar.symbol)}
+                    >
+                      <Speaker className="w-6 h-6" />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Content */}
+                <div className="p-6">
+                  {/* Memory Tip */}
+                  <div className="mb-6">
+                    <div className="flex items-center gap-2 mb-3">
+                      <Lightbulb className="w-5 h-5 text-yellow-500" />
+                      <h3 className="font-semibold text-gray-800">Memory Tip</h3>
+                    </div>
+                    <p className="text-gray-700 bg-yellow-50 p-4 rounded-lg">
+                      {selectedChar.explanation}
+                    </p>
+                  </div>
+
+                  {/* Example */}
+                  <div className="mb-6">
+                    <h3 className="font-semibold text-gray-800 mb-2">Example Word</h3>
+                    <div className="bg-gray-50 p-4 rounded-lg">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <div className="text-2xl font-bold">
+                            {selectedChar.example?.split(" ")[0] || selectedChar.symbol}
+                          </div>
+                          <div className="text-gray-600">
+                            {selectedChar.example?.split("—")[1]?.trim() || "Japanese word example"}
+                          </div>
+                        </div>
+                        <button
+                          className="p-2 bg-purple-100 text-purple-600 rounded-full hover:bg-purple-200 transition"
+                          onClick={() => playAudio(selectedChar.example?.split(" ")[0] || selectedChar.symbol)}
+                        >
+                          <Volume2 className="w-5 h-5" />
+                        </button>
+                      </div>
+                      {selectedChar.example && (
+                        <div className="mt-2 text-sm text-gray-500">
+                          {selectedChar.example}
+                        </div>
+                      )}
                     </div>
                   </div>
-                </div>
 
-                {/* Practice Button */}
-                <button
-                  className={`w-full py-4 rounded-xl font-semibold text-lg transition ${
-                    learnedChars.includes(selectedChar.symbol)
-                      ? "bg-green-100 text-green-700 border-2 border-green-300"
-                      : "bg-blue-100 text-blue-700 border-2 border-blue-300"
-                  }`}
-                  onClick={() => {
-                    toggleLearned(selectedChar);
-                    setShowDetails(false);
-                  }}
-                >
-                  {learnedChars.includes(selectedChar.symbol)
-                    ? "✓ Character Learned"
-                    : "Mark as Learned"}
-                </button>
-
-                {/* Similar Characters */}
-                <div>
-                  <h3 className="font-semibold text-gray-800 mb-3">Similar Characters</h3>
-                  <div className="grid grid-cols-4 gap-3">
-                    {katakanaList
-                      .filter(c => c.romaji[0] === selectedChar.romaji[0] && c.symbol !== selectedChar.symbol)
-                      .slice(0, 4)
-                      .map(c => (
-                        <button
-                          key={c.symbol}
-                          className="p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition text-center"
-                          onClick={() => setSelectedChar(c)}
-                        >
-                          <div className="text-2xl font-bold">{c.symbol}</div>
-                          <div className="text-sm text-gray-600">{c.romaji}</div>
-                        </button>
-                      ))}
+                  {/* Character Info */}
+                  <div className="mb-6">
+                    <h3 className="font-semibold text-gray-800 mb-3">Character Info</h3>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="bg-gray-50 p-3 rounded-lg">
+                        <div className="text-xs text-gray-500">Type</div>
+                        <div className="font-medium">
+                          {selectedChar.symbol.includes("゛") ? "Dakuten" :
+                           selectedChar.symbol.includes("゜") ? "Handakuten" :
+                           selectedChar.symbol.length > 1 ? "Combination" : "Basic"}
+                        </div>
+                      </div>
+                      <div className="bg-gray-50 p-3 rounded-lg">
+                        <div className="text-xs text-gray-500">Romaji</div>
+                        <div className="font-mono font-medium">{selectedChar.romaji}</div>
+                      </div>
+                      <div className="bg-gray-50 p-3 rounded-lg">
+                        <div className="text-xs text-gray-500">Stroke Count</div>
+                        <div className="font-medium">Varies</div>
+                      </div>
+                      <div className="bg-gray-50 p-3 rounded-lg">
+                        <div className="text-xs text-gray-500">Status</div>
+                        <div className={`font-medium ${selectedChar.isRead ? 'text-green-600' : 'text-yellow-600'}`}>
+                          {selectedChar.isRead ? 'Learned' : 'To Learn'}
+                        </div>
+                      </div>
+                    </div>
                   </div>
+
+                  {/* Practice Button */}
+                  <button
+                    className={`w-full py-3 rounded-lg font-semibold transition flex items-center justify-center gap-2 ${
+                      selectedChar.isRead
+                        ? "bg-green-100 text-green-700 hover:bg-green-200"
+                        : "bg-blue-100 text-blue-700 hover:bg-blue-200"
+                    }`}
+                    onClick={() => {
+                      toggleLearned(selectedChar.id, selectedChar.symbol);
+                      setShowDetails(false);
+                    }}
+                    disabled={updatingChar === selectedChar.id}
+                  >
+                    {updatingChar === selectedChar.id ? (
+                      <>
+                        <Loader2 className="w-5 h-5 animate-spin" />
+                        Updating...
+                      </>
+                    ) : selectedChar.isRead ? (
+                      <>
+                        <CheckCircle className="w-5 h-5" />
+                        ✓ Marked as Learned
+                      </>
+                    ) : (
+                      <>
+                        <Bookmark className="w-5 h-5" />
+                        Mark as Learned
+                      </>
+                    )}
+                  </button>
                 </div>
               </div>
             </div>
           </div>
-        </div>
-      )}
-
-      {/* Add CSS for slide-up animation */}
-      <style jsx>{`
-        @keyframes slide-up {
-          from {
-            transform: translateY(100%);
-          }
-          to {
-            transform: translateY(0);
-          }
-        }
-        .animate-slide-up {
-          animation: slide-up 0.3s ease-out;
-        }
-      `}</style>
+        )}
+      </div>
     </div>
   );
 };
