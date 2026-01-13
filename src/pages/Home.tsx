@@ -178,9 +178,9 @@ const Home = () => {
 
   const quickActions = [
     {
-      title: "Kana Quiz",
+      title: "Vocabulary Builder",
       description: "Test your knowledge with customizable quiz",
-      action: () => navigate("/kana-quiz"),
+      action: () => navigate("/vocabulary"),
       color: "from-purple-500 to-pink-500",
       icon: Target,
       badge: "NEW"
