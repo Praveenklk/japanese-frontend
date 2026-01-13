@@ -1,5 +1,5 @@
 // pages/VocabularyBuilder.tsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
   BookOpen, 
   Volume2, 
@@ -18,674 +18,1118 @@ import {
   Clock,
   Award,
   ChevronRight,
-  Sparkles
+  Sparkles,
+  Loader2,
+  RefreshCw,
+  AlertCircle,
+  VolumeX,
+  List,
+  Grid,
+  Settings,
+  Calendar,
+  BarChart,
+  Target,
+  Shield,
+  ChevronLeft,
+  Heart,
+  Share2,
+  Download,
+  Eye,
+  EyeOff,
+  Maximize2,
+  Minimize2,
+  Pause,
+  Play,
+  Menu,
+  X,
+  ChevronDown,
+  ChevronUp,
+  Bell,
+  Target as TargetIcon,
+  Flame,
+  Hash,
+  Type,
+  Mic,
+  MicOff
 } from 'lucide-react';
+import * as vocabularyAPI from '../service/vocabulary.service';
+import type { Vocabulary } from '../pages/types/vocabulary';
+import { format, addDays, differenceInDays, isToday } from 'date-fns';
+import VocabularyFlashcard from '../component/flashcards/VocabularyFlashcard';
 
-type Difficulty = 'beginner' | 'intermediate' | 'advanced';
-type Category = 'greetings' | 'food' | 'travel' | 'business' | 'daily' | 'numbers' | 'time';
+// Types matching your Prisma schema
+type Difficulty = 'BEGINNER' | 'INTERMEDIATE' | 'ADVANCED' | 'ALL';
+type JLPT = 'N5' | 'N4' | 'N3' | 'N2' | 'N1';
+type ReviewRating = 'again' | 'good' | 'easy';
+type ViewMode = 'flashcard' | 'list' | 'grid' | 'detailed';
 
-interface VocabularyWord {
+interface Category {
   id: string;
-  japanese: string;
-  reading: string;
-  english: string;
-  category: Category;
-  difficulty: Difficulty;
-  example: string;
-  exampleReading: string;
-  exampleEnglish: string;
-  isLearned: boolean;
-  isBookmarked: boolean;
-  reviews: number;
-  lastReviewed?: Date;
-  nextReview?: Date;
-  streak: number;
+  name: string;
+  icon: string;
+  color: string;
+  bgColor: string;
 }
 
 const VocabularyBuilder = () => {
-  const [words, setWords] = useState<VocabularyWord[]>([]);
+  // State Management
+  const [words, setWords] = useState<Vocabulary[]>([]);
+  const [filteredWords, setFilteredWords] = useState<Vocabulary[]>([]);
+  const [dueCards, setDueCards] = useState<Vocabulary[]>([]);
   const [currentWordIndex, setCurrentWordIndex] = useState(0);
   const [showAnswer, setShowAnswer] = useState(false);
-  const [selectedCategory, setSelectedCategory] = useState<Category>('greetings');
-  const [selectedDifficulty, setSelectedDifficulty] = useState<Difficulty>('beginner');
+  const [showTranslation, setShowTranslation] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [selectedDifficulty, setSelectedDifficulty] = useState<Difficulty>('ALL');
+  const [selectedJlpt, setSelectedJlpt] = useState<JLPT | 'ALL'>('ALL');
   const [searchTerm, setSearchTerm] = useState('');
-  const [stats, setStats] = useState({
-    totalLearned: 0,
-    totalWords: 0,
-    streak: 0,
-    accuracy: 0
-  });
   const [isLoading, setIsLoading] = useState(true);
+  const [isReviewing, setIsReviewing] = useState(false);
+  const [showDueOnly, setShowDueOnly] = useState(false);
+  const [viewMode, setViewMode] = useState<ViewMode>('flashcard');
+  const [audioPlaying, setAudioPlaying] = useState(false);
+  const [fullscreen, setFullscreen] = useState(false);
+  const [autoPlay, setAutoPlay] = useState(false);
+  const [showHints, setShowHints] = useState(true);
+  const [studyMode, setStudyMode] = useState<'review' | 'learn' | 'master'>('review');
+  const [showMobileMenu, setShowMobileMenu] = useState(false);
+  const [expandedFilters, setExpandedFilters] = useState(false);
+  const [micActive, setMicActive] = useState(false);
+  const [stats, setStats] = useState({
+    totalWords: 0,
+    learnedWords: 0,
+    dueToday: 0,
+    totalReviews: 0,
+    accuracy: 0,
+    streak: 0,
+    mastery: 0,
+    dailyGoal: 20
+  });
 
-  // Sample vocabulary data
-  const vocabularyData: VocabularyWord[] = [
-    {
-      id: '1',
-      japanese: 'こんにちは',
-      reading: 'Konnichiwa',
-      english: 'Hello / Good afternoon',
-      category: 'greetings',
-      difficulty: 'beginner',
-      example: 'こんにちは、お元気ですか？',
-      exampleReading: 'Konnichiwa, ogenki desu ka?',
-      exampleEnglish: 'Hello, how are you?',
-      isLearned: false,
-      isBookmarked: false,
-      reviews: 0,
-      streak: 0
-    },
-    {
-      id: '2',
-      japanese: 'ありがとう',
-      reading: 'Arigatou',
-      english: 'Thank you',
-      category: 'greetings',
-      difficulty: 'beginner',
-      example: 'ありがとうございます。',
-      exampleReading: 'Arigatou gozaimasu.',
-      exampleEnglish: 'Thank you very much.',
-      isLearned: false,
-      isBookmarked: false,
-      reviews: 0,
-      streak: 0
-    },
-    {
-      id: '3',
-      japanese: 'すみません',
-      reading: 'Sumimasen',
-      english: 'Excuse me / Sorry',
-      category: 'greetings',
-      difficulty: 'beginner',
-      example: 'すみません、駅はどこですか？',
-      exampleReading: 'Sumimasen, eki wa doko desu ka?',
-      exampleEnglish: 'Excuse me, where is the station?',
-      isLearned: false,
-      isBookmarked: false,
-      reviews: 0,
-      streak: 0
-    },
-    {
-      id: '4',
-      japanese: '寿司',
-      reading: 'Sushi',
-      english: 'Sushi',
-      category: 'food',
-      difficulty: 'beginner',
-      example: '寿司を食べたいです。',
-      exampleReading: 'Sushi o tabetai desu.',
-      exampleEnglish: 'I want to eat sushi.',
-      isLearned: false,
-      isBookmarked: false,
-      reviews: 0,
-      streak: 0
-    },
-    {
-      id: '5',
-      japanese: 'おいしい',
-      reading: 'Oishii',
-      english: 'Delicious',
-      category: 'food',
-      difficulty: 'beginner',
-      example: 'このラーメンはおいしいです。',
-      exampleReading: 'Kono raamen wa oishii desu.',
-      exampleEnglish: 'This ramen is delicious.',
-      isLearned: false,
-      isBookmarked: false,
-      reviews: 0,
-      streak: 0
-    },
-    {
-      id: '6',
-      japanese: '水',
-      reading: 'Mizu',
-      english: 'Water',
-      category: 'food',
-      difficulty: 'beginner',
-      example: '水をください。',
-      exampleReading: 'Mizu o kudasai.',
-      exampleEnglish: 'Water, please.',
-      isLearned: false,
-      isBookmarked: false,
-      reviews: 0,
-      streak: 0
-    },
-    {
-      id: '7',
-      japanese: '駅',
-      reading: 'Eki',
-      english: 'Station',
-      category: 'travel',
-      difficulty: 'beginner',
-      example: '駅まで行きましょう。',
-      exampleReading: 'Eki made ikimashou.',
-      exampleEnglish: "Let's go to the station.",
-      isLearned: false,
-      isBookmarked: false,
-      reviews: 0,
-      streak: 0
-    },
-    {
-      id: '8',
-      japanese: 'ホテル',
-      reading: 'Hoteru',
-      english: 'Hotel',
-      category: 'travel',
-      difficulty: 'beginner',
-      example: 'ホテルを予約しました。',
-      exampleReading: 'Hoteru o yoyaku shimashita.',
-      exampleEnglish: 'I booked a hotel.',
-      isLearned: false,
-      isBookmarked: false,
-      reviews: 0,
-      streak: 0
-    },
-    {
-      id: '9',
-      japanese: '観光',
-      reading: 'Kankou',
-      english: 'Sightseeing',
-      category: 'travel',
-      difficulty: 'intermediate',
-      example: '京都で観光を楽しみました。',
-      exampleReading: 'Kyouto de kankou o tanoshimimashita.',
-      exampleEnglish: 'I enjoyed sightseeing in Kyoto.',
-      isLearned: false,
-      isBookmarked: false,
-      reviews: 0,
-      streak: 0
-    }
-  ];
-
-  const categories = [
-    { id: 'greetings' as Category, name: 'Greetings', icon: '👋', count: 3 },
-    { id: 'food' as Category, name: 'Food & Dining', icon: '🍣', count: 3 },
-    { id: 'travel' as Category, name: 'Travel', icon: '✈️', count: 3 },
-    { id: 'business' as Category, name: 'Business', icon: '💼', count: 0 },
-    { id: 'daily' as Category, name: 'Daily Life', icon: '🏠', count: 0 },
-    { id: 'numbers' as Category, name: 'Numbers', icon: '🔢', count: 0 },
-    { id: 'time' as Category, name: 'Time', icon: '⏰', count: 0 }
+  // Categories matching your data structure
+  const categories: Category[] = [
+    { id: 'all', name: 'All', icon: '📚', color: 'text-purple-600', bgColor: 'bg-purple-100' },
+    { id: 'greetings', name: 'Greetings', icon: '👋', color: 'text-blue-600', bgColor: 'bg-blue-100' },
+    { id: 'pronouns', name: 'Pronouns', icon: '👤', color: 'text-green-600', bgColor: 'bg-green-100' },
+    { id: 'occupations', name: 'Occupations', icon: '💼', color: 'text-yellow-600', bgColor: 'bg-yellow-100' },
+    { id: 'grammar', name: 'Grammar', icon: '📖', color: 'text-red-600', bgColor: 'bg-red-100' },
+    { id: 'food_drink', name: 'Food & Drink', icon: '🍣', color: 'text-orange-600', bgColor: 'bg-orange-100' },
+    { id: 'places', name: 'Places', icon: '🗺️', color: 'text-teal-600', bgColor: 'bg-teal-100' },
+    { id: 'adjectives', name: 'Adjectives', icon: '🎯', color: 'text-cyan-600', bgColor: 'bg-cyan-100' },
   ];
 
   const difficulties = [
-    { id: 'beginner' as Difficulty, name: 'Beginner', color: 'bg-green-100 text-green-700' },
-    { id: 'intermediate' as Difficulty, name: 'Intermediate', color: 'bg-yellow-100 text-yellow-700' },
-    { id: 'advanced' as Difficulty, name: 'Advanced', color: 'bg-red-100 text-red-700' }
+    { id: 'ALL' as Difficulty, name: 'All Levels', color: 'text-gray-600', bgColor: 'bg-gray-100', icon: '🌐' },
+    { id: 'BEGINNER' as Difficulty, name: 'Beginner', color: 'text-emerald-600', bgColor: 'bg-emerald-100', icon: '🌱' },
+    { id: 'INTERMEDIATE' as Difficulty, name: 'Intermediate', color: 'text-amber-600', bgColor: 'bg-amber-100', icon: '🌿' },
+    { id: 'ADVANCED' as Difficulty, name: 'Advanced', color: 'text-rose-600', bgColor: 'bg-rose-100', icon: '🎯' },
   ];
 
+  const jlptLevels = [
+    { id: 'ALL' as JLPT | 'ALL', name: 'All JLPT', color: 'text-gray-600', bgColor: 'bg-gray-100', icon: '🎓' },
+    { id: 'N5' as JLPT, name: 'N5', color: 'text-blue-600', bgColor: 'bg-blue-100', icon: '5' },
+    { id: 'N4' as JLPT, name: 'N4', color: 'text-green-600', bgColor: 'bg-green-100', icon: '4' },
+    { id: 'N3' as JLPT, name: 'N3', color: 'text-yellow-600', bgColor: 'bg-yellow-100', icon: '3' },
+    { id: 'N2' as JLPT, name: 'N2', color: 'text-orange-600', bgColor: 'bg-orange-100', icon: '2' },
+    { id: 'N1' as JLPT, name: 'N1', color: 'text-red-600', bgColor: 'bg-red-100', icon: '1' },
+  ];
+
+  // Initialize data
   useEffect(() => {
     loadVocabulary();
+    loadDueCards();
   }, []);
 
-  const loadVocabulary = () => {
-    setIsLoading(true);
-    setTimeout(() => {
-      setWords(vocabularyData);
-      updateStats();
+  // Filter words when criteria change
+  useEffect(() => {
+    filterWords();
+  }, [words, selectedCategory, selectedDifficulty, selectedJlpt, searchTerm, showDueOnly]);
+
+  const loadVocabulary = async () => {
+    try {
+      setIsLoading(true);
+      const response = await vocabularyAPI.getAllVocabulary();
+      setWords(response.data);
+      calculateStats(response.data);
+    } catch (error) {
+      console.error('Failed to load vocabulary:', error);
+    } finally {
       setIsLoading(false);
-    }, 500);
+    }
   };
 
-  const updateStats = () => {
-    const learned = vocabularyData.filter(w => w.isLearned).length;
-    const total = vocabularyData.length;
+  const loadDueCards = async () => {
+    try {
+      const response = await vocabularyAPI.getDueVocabulary();
+      setDueCards(response.data);
+    } catch (error) {
+      console.error('Failed to load due cards:', error);
+    }
+  };
+
+  const filterWords = useCallback(() => {
+    let filtered = [...words];
+
+    // Filter by category
+    if (selectedCategory !== 'all') {
+      filtered = filtered.filter(word => word.category === selectedCategory);
+    }
+
+    // Filter by difficulty
+    if (selectedDifficulty !== 'ALL') {
+      filtered = filtered.filter(word => word.difficulty === selectedDifficulty);
+    }
+
+    // Filter by JLPT level
+    if (selectedJlpt !== 'ALL') {
+      filtered = filtered.filter(word => word.jlptLevel === selectedJlpt);
+    }
+
+    // Filter by due cards only
+    if (showDueOnly) {
+      const now = new Date();
+      filtered = filtered.filter(word => 
+        word.nextReviewAt && new Date(word.nextReviewAt) <= now
+      );
+    }
+
+    // Filter by search term
+    if (searchTerm) {
+      const term = searchTerm.toLowerCase();
+      filtered = filtered.filter(word => 
+        word.japanese.toLowerCase().includes(term) ||
+        word.reading.toLowerCase().includes(term) ||
+        word.english.toLowerCase().includes(term) ||
+        word.example?.toLowerCase().includes(term) ||
+        word.tags?.some(tag => tag.toLowerCase().includes(term))
+      );
+    }
+
+    // Sort by due date first
+    filtered.sort((a, b) => {
+      if (!a.nextReviewAt && !b.nextReviewAt) return 0;
+      if (!a.nextReviewAt) return 1;
+      if (!b.nextReviewAt) return -1;
+      return new Date(a.nextReviewAt).getTime() - new Date(b.nextReviewAt).getTime();
+    });
+
+    setFilteredWords(filtered);
+    
+    // Reset to first word if current index is out of bounds
+    if (currentWordIndex >= filtered.length) {
+      setCurrentWordIndex(0);
+    }
+  }, [words, selectedCategory, selectedDifficulty, selectedJlpt, searchTerm, showDueOnly, currentWordIndex]);
+
+  const calculateStats = (wordList: Vocabulary[]) => {
+    const totalWords = wordList.length;
+    const learnedWords = wordList.filter(w => w.isLearned).length;
+    const dueToday = wordList.filter(w => {
+      if (!w.nextReviewAt) return false;
+      const reviewDate = new Date(w.nextReviewAt);
+      return reviewDate <= new Date() || isToday(reviewDate);
+    }).length;
+    const totalReviews = wordList.reduce((sum, w) => sum + w.reviews, 0);
+    const correctCount = wordList.reduce((sum, w) => sum + w.correctCount, 0);
+    const totalAttempts = wordList.reduce((sum, w) => sum + w.reviews, 0);
+    const accuracy = totalAttempts > 0 ? Math.round((correctCount / totalAttempts) * 100) : 0;
+    const mastery = totalWords > 0 ? Math.round((learnedWords / totalWords) * 100) : 0;
+
     setStats({
-      totalLearned: learned,
-      totalWords: total,
-      streak: Math.floor(Math.random() * 10),
-      accuracy: total > 0 ? Math.round((learned / total) * 100) : 0
+      totalWords,
+      learnedWords,
+      dueToday,
+      totalReviews,
+      accuracy,
+      streak: Math.max(...wordList.map(w => w.streak), 0),
+      mastery,
+      dailyGoal: 20
     });
   };
 
-  const filteredWords = words.filter(word => {
-    const matchesCategory = selectedCategory === 'all' || word.category === selectedCategory;
-    const matchesDifficulty = selectedDifficulty === 'all' || word.difficulty === selectedDifficulty;
-    const matchesSearch = word.japanese.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         word.reading.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         word.english.toLowerCase().includes(searchTerm.toLowerCase());
-    return matchesCategory && matchesDifficulty && matchesSearch;
-  });
-
   const currentWord = filteredWords[currentWordIndex];
 
-  const playAudio = (text: string) => {
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = 'ja-JP';
-    utterance.rate = 0.8;
-    speechSynthesis.speak(utterance);
+  // Text-to-Speech function for Japanese
+  const playJapaneseAudio = async (text: string) => {
+    try {
+      setAudioPlaying(true);
+      
+      // Use Web Speech API
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = 'ja-JP';
+      utterance.rate = 0.8;
+      utterance.pitch = 1;
+      utterance.volume = 1;
+      
+      // Add event listeners
+      utterance.onend = () => setAudioPlaying(false);
+      utterance.onerror = () => setAudioPlaying(false);
+      
+      speechSynthesis.speak(utterance);
+    } catch (error) {
+      console.error('Audio playback failed:', error);
+      setAudioPlaying(false);
+    }
   };
 
-  const markAsKnown = () => {
+  const stopAudio = () => {
+    speechSynthesis.cancel();
+    setAudioPlaying(false);
+  };
+
+  // Anki-style review system
+  const reviewWord = async (rating: ReviewRating) => {
     if (!currentWord) return;
     
-    const updatedWords = [...words];
-    const wordIndex = words.findIndex(w => w.id === currentWord.id);
-    
-    updatedWords[wordIndex] = {
-      ...currentWord,
-      isLearned: true,
-      reviews: currentWord.reviews + 1,
-      streak: currentWord.streak + 1,
-      lastReviewed: new Date(),
-      nextReview: new Date(Date.now() + 24 * 60 * 60 * 1000) // 1 day later
-    };
-    
-    setWords(updatedWords);
-    updateStats();
-    
-    // Move to next word
-    if (currentWordIndex < filteredWords.length - 1) {
-      setCurrentWordIndex(prev => prev + 1);
-    } else {
-      setCurrentWordIndex(0);
+    setIsReviewing(true);
+    try {
+      await vocabularyAPI.reviewVocabulary(currentWord.id, { rating });
+      
+      // Update local state
+      const updatedWords = words.map(word => {
+        if (word.id === currentWord.id) {
+          const newInterval = rating === 'again' ? 1 : 
+                            rating === 'good' ? word.intervalDays * 2 : 
+                            word.intervalDays * 3;
+          
+          return {
+            ...word,
+            isLearned: rating !== 'again',
+            reviews: word.reviews + 1,
+            correctCount: rating !== 'again' ? word.correctCount + 1 : word.correctCount,
+            incorrectCount: rating === 'again' ? word.incorrectCount + 1 : word.incorrectCount,
+            streak: rating !== 'again' ? word.streak + 1 : 0,
+            intervalDays: newInterval,
+            lastReviewedAt: new Date(),
+            nextReviewAt: addDays(new Date(), newInterval)
+          };
+        }
+        return word;
+      });
+      
+      setWords(updatedWords);
+      calculateStats(updatedWords);
+      
+      // Move to next word
+      if (currentWordIndex < filteredWords.length - 1) {
+        setCurrentWordIndex(prev => prev + 1);
+      } else {
+        setCurrentWordIndex(0);
+      }
+      
+      setShowAnswer(false);
+      setShowTranslation(false);
+    } catch (error) {
+      console.error('Review failed:', error);
+    } finally {
+      setIsReviewing(false);
     }
-    setShowAnswer(false);
   };
 
-  const markAsUnknown = () => {
-    if (!currentWord) return;
-    
-    const updatedWords = [...words];
-    const wordIndex = words.findIndex(w => w.id === currentWord.id);
-    
-    updatedWords[wordIndex] = {
-      ...currentWord,
-      isLearned: false,
-      reviews: currentWord.reviews + 1,
-      streak: 0,
-      lastReviewed: new Date(),
-      nextReview: new Date(Date.now() + 1 * 60 * 60 * 1000) // 1 hour later
-    };
-    
-    setWords(updatedWords);
-    updateStats();
-    
-    if (currentWordIndex < filteredWords.length - 1) {
-      setCurrentWordIndex(prev => prev + 1);
-    } else {
-      setCurrentWordIndex(0);
+  const toggleBookmark = async (wordId: string) => {
+    try {
+      const word = words.find(w => w.id === wordId);
+      if (!word) return;
+      
+      await vocabularyAPI.updateVocabulary(wordId, {
+        isBookmarked: !word.isBookmarked
+      });
+      
+      const updatedWords = words.map(w => 
+        w.id === wordId ? { ...w, isBookmarked: !w.isBookmarked } : w
+      );
+      setWords(updatedWords);
+    } catch (error) {
+      console.error('Failed to toggle bookmark:', error);
     }
-    setShowAnswer(false);
   };
 
-  const toggleBookmark = (wordId: string) => {
-    const updatedWords = words.map(word => 
-      word.id === wordId 
-        ? { ...word, isBookmarked: !word.isBookmarked }
-        : word
-    );
-    setWords(updatedWords);
+  const resetFilters = () => {
+    setSelectedCategory('all');
+    setSelectedDifficulty('ALL');
+    setSelectedJlpt('ALL');
+    setSearchTerm('');
+    setShowDueOnly(false);
+    setStudyMode('review');
+    setExpandedFilters(false);
   };
+
+  const getDueStatus = (nextReviewDate?: Date) => {
+    if (!nextReviewDate) return 'no-date';
+    const now = new Date();
+    const reviewDate = new Date(nextReviewDate);
+    
+    if (reviewDate <= now) return 'overdue';
+    if (reviewDate <= addDays(now, 1)) return 'due-soon';
+    return 'future';
+  };
+
+  const getDueStatusColor = (status: string) => {
+    switch(status) {
+      case 'overdue': return 'bg-rose-500 text-white';
+      case 'due-soon': return 'bg-amber-500 text-white';
+      default: return 'bg-emerald-500 text-white';
+    }
+  };
+
+  const nextCard = () => {
+    setCurrentWordIndex(prev => prev < filteredWords.length - 1 ? prev + 1 : 0);
+    setShowAnswer(false);
+    setShowTranslation(false);
+  };
+
+  const prevCard = () => {
+    setCurrentWordIndex(prev => prev > 0 ? prev - 1 : filteredWords.length - 1);
+    setShowAnswer(false);
+    setShowTranslation(false);
+  };
+
+  const handleKeyPress = useCallback((event: KeyboardEvent) => {
+    if (viewMode !== 'flashcard') return;
+    
+    switch(event.key) {
+      case 'ArrowLeft':
+        prevCard();
+        break;
+      case 'ArrowRight':
+        nextCard();
+        break;
+      case ' ':
+        event.preventDefault();
+        setShowAnswer(!showAnswer);
+        break;
+      case '1':
+        reviewWord('again');
+        break;
+      case '2':
+        reviewWord('good');
+        break;
+      case '3':
+        reviewWord('easy');
+        break;
+      case 'a':
+        if (currentWord) playJapaneseAudio(currentWord.japanese);
+        break;
+      case 'b':
+        if (currentWord) toggleBookmark(currentWord.id);
+        break;
+    }
+  }, [viewMode, showAnswer, currentWord, filteredWords.length, currentWordIndex]);
+
+  useEffect(() => {
+    document.addEventListener('keydown', handleKeyPress);
+    return () => document.removeEventListener('keydown', handleKeyPress);
+  }, [handleKeyPress]);
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading vocabulary...</p>
+      <div className="min-h-screen bg-gradient-to-br from-white to-gray-50 flex items-center justify-center p-4">
+        <div className="text-center space-y-4">
+          <div className="relative inline-block">
+            <div className="w-16 h-16 rounded-2xl bg-gradient-to-r from-blue-500 to-purple-500 flex items-center justify-center">
+              <BookOpen className="w-8 h-8 text-white" />
+            </div>
+            <div className="absolute -inset-2 border-4 border-blue-200 rounded-2xl animate-ping"></div>
+          </div>
+          <div>
+            <h3 className="text-lg font-semibold text-gray-900">Loading Vocabulary</h3>
+            <p className="text-sm text-gray-500 mt-1">Preparing your learning materials...</p>
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white">
-      <div className="max-w-7xl mx-auto px-4 py-8">
-        {/* Header */}
-        <div className="mb-8">
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-8">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900 mb-2 flex items-center gap-3">
-                <BookOpen className="w-8 h-8 text-red-600" />
-                Vocabulary Builder
-              </h1>
-              <p className="text-gray-600">Learn essential Japanese words with context and examples</p>
+    <div className={`min-h-screen bg-gradient-to-br from-white to-gray-50 ${fullscreen ? 'fixed inset-0 z-50 bg-white' : ''}`}>
+      <div className={`${fullscreen ? 'h-screen overflow-hidden' : 'max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6'}`}>
+        {/* Mobile Header */}
+        <div className={`${fullscreen ? 'hidden' : 'lg:hidden'}`}>
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-3">
+              <button 
+                onClick={() => setShowMobileMenu(!showMobileMenu)}
+                className="p-2 rounded-lg bg-white border border-gray-200 shadow-sm"
+              >
+                <Menu className="w-5 h-5 text-gray-700" />
+              </button>
+              <div>
+                <h1 className="text-xl font-bold text-gray-900">Vocabulary</h1>
+                <p className="text-sm text-gray-500">{stats.totalWords} words</p>
+              </div>
             </div>
-            <button className="px-6 py-3 bg-gradient-to-r from-red-500 to-blue-500 text-white rounded-xl hover:shadow-lg transition-all flex items-center gap-2">
-              <Plus className="w-5 h-5" />
-              Add Custom Word
-            </button>
+            <div className="flex items-center gap-2">
+              <button 
+                onClick={loadVocabulary}
+                className="p-2 rounded-lg bg-white border border-gray-200 shadow-sm"
+              >
+                <RefreshCw className="w-5 h-5 text-gray-700" />
+              </button>
+              <button 
+                onClick={() => setFullscreen(!fullscreen)}
+                className="p-2 rounded-lg bg-white border border-gray-200 shadow-sm"
+              >
+                <Maximize2 className="w-5 h-5 text-gray-700" />
+              </button>
+            </div>
           </div>
 
-          {/* Stats */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-            <div className="bg-white p-4 rounded-xl shadow-sm border">
-              <div className="text-2xl font-bold text-green-600">{stats.totalLearned}</div>
-              <div className="text-sm text-gray-600">Words Learned</div>
+          {/* Mobile Stats */}
+          <div className="grid grid-cols-4 gap-2 mb-6">
+            <div className="bg-white p-3 rounded-xl shadow-sm border border-gray-100">
+              <div className="text-xs text-gray-500 mb-1">Total</div>
+              <div className="text-lg font-bold text-gray-900">{stats.totalWords}</div>
             </div>
-            <div className="bg-white p-4 rounded-xl shadow-sm border">
-              <div className="text-2xl font-bold text-blue-600">{stats.totalWords}</div>
-              <div className="text-sm text-gray-600">Total Words</div>
+            <div className="bg-white p-3 rounded-xl shadow-sm border border-gray-100">
+              <div className="text-xs text-gray-500 mb-1">Mastered</div>
+              <div className="text-lg font-bold text-emerald-600">{stats.learnedWords}</div>
             </div>
-            <div className="bg-white p-4 rounded-xl shadow-sm border">
-              <div className="text-2xl font-bold text-purple-600">{stats.streak}</div>
-              <div className="text-sm text-gray-600">Day Streak</div>
+            <div className="bg-white p-3 rounded-xl shadow-sm border border-gray-100">
+              <div className="text-xs text-gray-500 mb-1">Due</div>
+              <div className="text-lg font-bold text-amber-600">{stats.dueToday}</div>
             </div>
-            <div className="bg-white p-4 rounded-xl shadow-sm border">
-              <div className="text-2xl font-bold text-amber-600">{stats.accuracy}%</div>
-              <div className="text-sm text-gray-600">Accuracy</div>
-            </div>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Left Column - Filters */}
-          <div className="lg:col-span-1 space-y-6">
-            {/* Search */}
-            <div className="bg-white rounded-xl shadow-sm p-4 border">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-                <input
-                  type="text"
-                  placeholder="Search vocabulary..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"
-                />
-              </div>
-            </div>
-
-            {/* Categories */}
-            <div className="bg-white rounded-xl shadow-sm p-4 border">
-              <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                <Layers className="w-5 h-5 text-blue-600" />
-                Categories
-              </h3>
-              <div className="space-y-2">
-                {categories.map((category) => (
-                  <button
-                    key={category.id}
-                    onClick={() => setSelectedCategory(category.id)}
-                    className={`w-full flex items-center justify-between p-3 rounded-lg transition-all ${
-                      selectedCategory === category.id
-                        ? 'bg-blue-50 text-blue-600 border border-blue-200'
-                        : 'hover:bg-gray-50 text-gray-700'
-                    }`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <span className="text-xl">{category.icon}</span>
-                      <span>{category.name}</span>
-                    </div>
-                    <span className="text-sm bg-gray-100 px-2 py-1 rounded">{category.count}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Difficulty */}
-            <div className="bg-white rounded-xl shadow-sm p-4 border">
-              <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                <Filter className="w-5 h-5 text-red-600" />
-                Difficulty
-              </h3>
-              <div className="space-y-2">
-                {difficulties.map((difficulty) => (
-                  <button
-                    key={difficulty.id}
-                    onClick={() => setSelectedDifficulty(difficulty.id)}
-                    className={`w-full text-left p-3 rounded-lg transition-all ${
-                      selectedDifficulty === difficulty.id
-                        ? 'border font-medium'
-                        : 'hover:bg-gray-50'
-                    } ${difficulty.color}`}
-                  >
-                    {difficulty.name}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Bookmarked Words */}
-            <div className="bg-white rounded-xl shadow-sm p-4 border">
-              <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                <Bookmark className="w-5 h-5 text-amber-600" />
-                Bookmarked Words
-              </h3>
-              <div className="space-y-2">
-                {words.filter(w => w.isBookmarked).slice(0, 5).map((word) => (
-                  <div key={word.id} className="flex items-center justify-between p-3 bg-amber-50 rounded-lg">
-                    <div>
-                      <div className="font-medium">{word.japanese}</div>
-                      <div className="text-sm text-gray-600">{word.english}</div>
-                    </div>
-                    <button
-                      onClick={() => toggleBookmark(word.id)}
-                      className="text-amber-600 hover:text-amber-700"
-                    >
-                      <Bookmark className="w-5 h-5 fill-current" />
-                    </button>
-                  </div>
-                ))}
-                {words.filter(w => w.isBookmarked).length === 0 && (
-                  <p className="text-gray-500 text-center py-4">No bookmarked words yet</p>
-                )}
+            <div className="bg-white p-3 rounded-xl shadow-sm border border-gray-100">
+              <div className="text-xs text-gray-500 mb-1">Streak</div>
+              <div className="text-lg font-bold text-rose-600 flex items-center gap-1">
+                <Flame className="w-4 h-4" />{stats.streak}
               </div>
             </div>
           </div>
 
-          {/* Right Column - Learning Interface */}
-          <div className="lg:col-span-2">
-            {filteredWords.length > 0 ? (
-              <div className="bg-white rounded-2xl shadow-lg overflow-hidden border">
-                {/* Progress Bar */}
-                <div className="px-6 pt-6">
-                  <div className="flex justify-between text-sm mb-2">
-                    <span>Progress</span>
-                    <span>{currentWordIndex + 1} / {filteredWords.length}</span>
-                  </div>
-                  <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
-                    <div 
-                      className="h-full bg-gradient-to-r from-red-500 to-blue-500 transition-all"
-                      style={{ width: `${((currentWordIndex + 1) / filteredWords.length) * 100}%` }}
-                    />
-                  </div>
-                </div>
-
-                {/* Word Display */}
-                <div className="p-6 md:p-8">
-                  <div className="text-center mb-8">
-                    {/* Word */}
-                    <div className="text-5xl md:text-6xl font-bold mb-6 text-gray-900">
-                      {currentWord?.japanese}
-                    </div>
-
-                    {/* Reading (Romaji) */}
-                    {!showAnswer && (
-                      <div className="text-2xl text-gray-600 mb-6">
-                        {currentWord?.reading}
-                      </div>
-                    )}
-
-                    {/* English Meaning */}
-                    {showAnswer ? (
-                      <div className="animate-fade-in">
-                        <div className="text-2xl font-bold text-green-600 mb-4">
-                          {currentWord?.english}
-                        </div>
-                        
-                        {/* Example Sentence */}
-                        <div className="mt-8 p-6 bg-gray-50 rounded-xl">
-                          <div className="text-xl font-medium text-gray-900 mb-2">
-                            {currentWord?.example}
-                          </div>
-                          <div className="text-gray-600 mb-2">
-                            {currentWord?.exampleReading}
-                          </div>
-                          <div className="text-gray-700">
-                            {currentWord?.exampleEnglish}
-                          </div>
-                        </div>
-                      </div>
-                    ) : (
-                      <button
-                        onClick={() => setShowAnswer(true)}
-                        className="px-6 py-3 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-xl hover:shadow-lg transition-all flex items-center gap-2 mx-auto"
-                      >
-                        <Sparkles className="w-5 h-5" />
-                        Show Answer
-                      </button>
-                    )}
-                  </div>
-
-                  {/* Controls */}
-                  <div className="flex flex-col sm:flex-row gap-4 justify-center mt-8">
-                    <button
-                      onClick={() => playAudio(currentWord?.japanese || '')}
-                      className="px-6 py-3 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 transition-all flex items-center gap-2"
-                    >
-                      <Volume2 className="w-5 h-5" />
-                      Listen
-                    </button>
-
-                    <div className="flex gap-4">
-                      <button
-                        onClick={markAsUnknown}
-                        className="px-6 py-3 bg-red-100 text-red-700 rounded-xl hover:bg-red-200 transition-all flex items-center gap-2"
-                      >
-                        <XCircle className="w-5 h-5" />
-                        Don't Know
-                      </button>
-                      
-                      <button
-                        onClick={markAsKnown}
-                        className="px-6 py-3 bg-green-100 text-green-700 rounded-xl hover:bg-green-200 transition-all flex items-center gap-2"
-                      >
-                        <CheckCircle className="w-5 h-5" />
-                        I Know It
-                      </button>
-                    </div>
-
-                    <button
-                      onClick={() => toggleBookmark(currentWord?.id || '')}
-                      className={`px-6 py-3 rounded-xl transition-all flex items-center gap-2 ${
-                        currentWord?.isBookmarked
-                          ? 'bg-amber-100 text-amber-700 hover:bg-amber-200'
-                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                      }`}
-                    >
-                      <Bookmark className={`w-5 h-5 ${currentWord?.isBookmarked ? 'fill-current' : ''}`} />
-                      {currentWord?.isBookmarked ? 'Bookmarked' : 'Bookmark'}
-                    </button>
-                  </div>
-
-                  {/* Word Stats */}
-                  {currentWord && (
-                    <div className="mt-8 pt-6 border-t grid grid-cols-4 gap-4">
-                      <div className="text-center">
-                        <div className="text-sm text-gray-600">Reviews</div>
-                        <div className="text-lg font-bold">{currentWord.reviews}</div>
-                      </div>
-                      <div className="text-center">
-                        <div className="text-sm text-gray-600">Streak</div>
-                        <div className="text-lg font-bold text-blue-600">{currentWord.streak}</div>
-                      </div>
-                      <div className="text-center">
-                        <div className="text-sm text-gray-600">Status</div>
-                        <div className={`text-lg font-bold ${
-                          currentWord.isLearned ? 'text-green-600' : 'text-yellow-600'
-                        }`}>
-                          {currentWord.isLearned ? 'Learned' : 'Learning'}
-                        </div>
-                      </div>
-                      <div className="text-center">
-                        <div className="text-sm text-gray-600">Difficulty</div>
-                        <div className={`text-lg font-bold ${
-                          currentWord.difficulty === 'beginner' ? 'text-green-600' :
-                          currentWord.difficulty === 'intermediate' ? 'text-yellow-600' : 'text-red-600'
-                        }`}>
-                          {currentWord.difficulty}
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            ) : (
-              <div className="bg-white rounded-2xl shadow-lg p-8 text-center">
-                <BookOpen className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                <h3 className="text-xl font-bold text-gray-900 mb-2">No words found</h3>
-                <p className="text-gray-600 mb-6">Try changing your filters or search term</p>
+          {/* Mobile Search & Filters */}
+          <div className="mb-6 space-y-3">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+              <input
+                type="text"
+                placeholder="Search vocabulary..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-10 pr-4 py-3 bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+              {searchTerm && (
                 <button
-                  onClick={() => {
-                    setSelectedCategory('greetings');
-                    setSelectedDifficulty('beginner');
-                    setSearchTerm('');
-                  }}
-                  className="px-6 py-3 bg-gradient-to-r from-red-500 to-blue-500 text-white rounded-xl hover:shadow-lg transition-all"
+                  onClick={() => setSearchTerm('')}
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              )}
+            </div>
+
+            <div className="flex gap-2 overflow-x-auto pb-2">
+              <button
+                onClick={() => setExpandedFilters(!expandedFilters)}
+                className={`px-3 py-2 rounded-lg flex items-center gap-2 whitespace-nowrap ${
+                  expandedFilters ? 'bg-blue-50 text-blue-600 border border-blue-200' : 'bg-white text-gray-700 border border-gray-200'
+                }`}
+              >
+                <Filter className="w-4 h-4" />
+                Filters
+                {expandedFilters ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+              </button>
+              
+              <button
+                onClick={() => setShowDueOnly(!showDueOnly)}
+                className={`px-3 py-2 rounded-lg flex items-center gap-2 whitespace-nowrap ${
+                  showDueOnly ? 'bg-amber-50 text-amber-600 border border-amber-200' : 'bg-white text-gray-700 border border-gray-200'
+                }`}
+              >
+                <Bell className="w-4 h-4" />
+                Due Only
+                {dueCards.length > 0 && (
+                  <span className="px-1.5 py-0.5 text-xs bg-rose-500 text-white rounded-full min-w-5">
+                    {dueCards.length}
+                  </span>
+                )}
+              </button>
+            </div>
+
+            {/* Expanded Mobile Filters */}
+            {expandedFilters && (
+              <div className="bg-white rounded-xl border border-gray-200 p-4 space-y-4 animate-fadeIn">
+                <div>
+                  <h4 className="text-sm font-semibold text-gray-900 mb-2">Category</h4>
+                  <div className="flex flex-wrap gap-2">
+                    {categories.map((category) => (
+                      <button
+                        key={category.id}
+                        onClick={() => setSelectedCategory(category.id)}
+                        className={`px-3 py-2 rounded-lg flex items-center gap-2 ${
+                          selectedCategory === category.id
+                            ? `${category.bgColor} ${category.color} border`
+                            : 'bg-gray-100 text-gray-700'
+                        }`}
+                      >
+                        <span>{category.icon}</span>
+                        <span className="text-sm">{category.name}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <h4 className="text-sm font-semibold text-gray-900 mb-2">Level</h4>
+                  <div className="flex flex-wrap gap-2">
+                    {difficulties.map((level) => (
+                      <button
+                        key={level.id}
+                        onClick={() => setSelectedDifficulty(level.id)}
+                        className={`px-3 py-2 rounded-lg ${
+                          selectedDifficulty === level.id
+                            ? `${level.bgColor} ${level.color} border`
+                            : 'bg-gray-100 text-gray-700'
+                        }`}
+                      >
+                        {level.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <h4 className="text-sm font-semibold text-gray-900 mb-2">JLPT</h4>
+                  <div className="flex flex-wrap gap-2">
+                    {jlptLevels.map((level) => (
+                      <button
+                        key={level.id}
+                        onClick={() => setSelectedJlpt(level.id)}
+                        className={`px-3 py-2 rounded-lg ${
+                          selectedJlpt === level.id
+                            ? `${level.bgColor} ${level.color} border`
+                            : 'bg-gray-100 text-gray-700'
+                        }`}
+                      >
+                        {level.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <button
+                  onClick={resetFilters}
+                  className="w-full py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
                 >
                   Reset Filters
                 </button>
               </div>
             )}
+          </div>
+        </div>
 
-            {/* Learning Tips */}
-            <div className="mt-8 bg-gradient-to-r from-blue-50 to-purple-50 rounded-2xl p-6 border border-blue-100">
-              <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
-                <Brain className="w-5 h-5 text-blue-600" />
-                Learning Tips
-              </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="bg-white p-4 rounded-lg shadow-sm">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Volume2 className="w-4 h-4 text-green-600" />
-                    <h4 className="font-semibold">Practice Pronunciation</h4>
+        {/* Desktop Header */}
+        {!fullscreen && (
+          <div className="hidden lg:block">
+            <div className="flex justify-between items-start mb-8">
+              <div>
+                <div className="flex items-center gap-4 mb-3">
+                  <div className="w-12 h-12 rounded-2xl bg-gradient-to-r from-blue-500 to-purple-500 flex items-center justify-center shadow-lg">
+                    <BookOpen className="w-6 h-6 text-white" />
                   </div>
-                  <p className="text-sm text-gray-600">Always listen to the audio and repeat the words out loud.</p>
+                  <div>
+                    <h1 className="text-3xl font-bold text-gray-900">Vocabulary Builder</h1>
+                    <p className="text-gray-600 mt-1">Spaced repetition system for Japanese learning</p>
+                  </div>
                 </div>
-                <div className="bg-white p-4 rounded-lg shadow-sm">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Clock className="w-4 h-4 text-purple-600" />
-                    <h4 className="font-semibold">Review Regularly</h4>
+                
+                <div className="flex items-center gap-4 mt-6">
+                  <div className="flex items-center gap-2">
+                    <div className="px-3 py-1.5 bg-white border border-gray-200 rounded-lg">
+                      <span className="text-lg font-bold text-gray-900">{stats.totalWords}</span>
+                      <span className="text-gray-500 ml-1">words</span>
+                    </div>
+                    <div className="px-3 py-1.5 bg-white border border-gray-200 rounded-lg">
+                      <span className="text-lg font-bold text-emerald-600">{stats.mastery}%</span>
+                      <span className="text-gray-500 ml-1">mastered</span>
+                    </div>
+                    <div className="px-3 py-1.5 bg-white border border-gray-200 rounded-lg">
+                      <span className="text-lg font-bold text-rose-600 flex items-center gap-1">
+                        <Flame className="w-4 h-4" />{stats.streak}
+                      </span>
+                      <span className="text-gray-500 ml-1">day streak</span>
+                    </div>
                   </div>
-                  <p className="text-sm text-gray-600">Use spaced repetition for better long-term retention.</p>
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-3">
+                <div className="flex gap-3">
+                  <button 
+                    onClick={loadVocabulary}
+                    className="px-4 py-2 bg-white text-gray-700 rounded-xl hover:bg-gray-50 transition-all duration-200 flex items-center gap-2 border border-gray-200"
+                  >
+                    <RefreshCw className="w-4 h-4" />
+                    Refresh
+                  </button>
+                  <button className="px-5 py-2.5 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-xl hover:shadow-lg transition-all duration-200 flex items-center gap-2 shadow-md">
+                    <Plus className="w-5 h-5" />
+                    Add Word
+                  </button>
+                  <button 
+                    onClick={() => setFullscreen(!fullscreen)}
+                    className="px-4 py-2 bg-white text-gray-700 rounded-xl hover:bg-gray-50 transition-all duration-200 flex items-center gap-2 border border-gray-200"
+                  >
+                    {fullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+                  </button>
+                </div>
+                
+                {/* Desktop Quick Actions */}
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setShowDueOnly(!showDueOnly)}
+                    className={`px-3 py-1.5 rounded-lg text-sm ${
+                      showDueOnly
+                        ? 'bg-amber-50 text-amber-600 border border-amber-200'
+                        : 'bg-white text-gray-700 border border-gray-200 hover:bg-gray-50'
+                    }`}
+                  >
+                    Due Cards {dueCards.length > 0 && `(${dueCards.length})`}
+                  </button>
+                  <div className="flex gap-1">
+                    <button
+                      onClick={() => setViewMode('flashcard')}
+                      className={`px-3 py-1.5 rounded-l-lg text-sm ${
+                        viewMode === 'flashcard'
+                          ? 'bg-blue-50 text-blue-600 border border-blue-200'
+                          : 'bg-white text-gray-700 border border-gray-200 hover:bg-gray-50'
+                      }`}
+                    >
+                      Cards
+                    </button>
+                    <button
+                      onClick={() => setViewMode('list')}
+                      className={`px-3 py-1.5 rounded-r-lg text-sm ${
+                        viewMode === 'list'
+                          ? 'bg-blue-50 text-blue-600 border border-blue-200'
+                          : 'bg-white text-gray-700 border border-gray-200 hover:bg-gray-50'
+                      }`}
+                    >
+                      List
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Desktop Main Filters */}
+            <div className="bg-white rounded-2xl border border-gray-200 p-6 mb-8">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-gray-900">Filter Vocabulary</h3>
+                <button
+                  onClick={resetFilters}
+                  className="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1"
+                >
+                  <RotateCw className="w-4 h-4" />
+                  Reset
+                </button>
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {/* Search */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Search</label>
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+                    <input
+                      type="text"
+                      placeholder="Japanese, English, or reading..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+                </div>
+
+                {/* Category */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Category</label>
+                  <select
+                    value={selectedCategory}
+                    onChange={(e) => setSelectedCategory(e.target.value)}
+                    className="w-full py-3 px-4 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  >
+                    {categories.map((category) => (
+                      <option key={category.id} value={category.id}>
+                        {category.icon} {category.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Difficulty & JLPT */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Level</label>
+                    <select
+                      value={selectedDifficulty}
+                      onChange={(e) => setSelectedDifficulty(e.target.value as Difficulty)}
+                      className="w-full py-3 px-4 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    >
+                      {difficulties.map((level) => (
+                        <option key={level.id} value={level.id}>
+                          {level.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">JLPT</label>
+                    <select
+                      value={selectedJlpt}
+                      onChange={(e) => setSelectedJlpt(e.target.value as JLPT | 'ALL')}
+                      className="w-full py-3 px-4 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    >
+                      {jlptLevels.map((level) => (
+                        <option key={level.id} value={level.id}>
+                          {level.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
-        </div>
+        )}
 
-        {/* Category Progress */}
-        <div className="mt-12">
-          <h2 className="text-2xl font-bold text-gray-900 mb-6">Category Progress</h2>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {categories.map((category) => {
-              const categoryWords = words.filter(w => w.category === category.id);
-              const learnedWords = categoryWords.filter(w => w.isLearned).length;
-              const progress = categoryWords.length > 0 ? Math.round((learnedWords / categoryWords.length) * 100) : 0;
-              
-              return (
-                <div key={category.id} className="bg-white p-4 rounded-xl shadow-sm border">
-                  <div className="flex items-center gap-3 mb-3">
-                    <span className="text-2xl">{category.icon}</span>
-                    <div>
-                      <h4 className="font-semibold">{category.name}</h4>
-                      <p className="text-sm text-gray-500">{learnedWords}/{categoryWords.length} words</p>
-                    </div>
+        <div className={`${fullscreen ? 'h-full' : ''}`}>
+          {viewMode === 'flashcard' ? (
+            // Flashcard View
+            filteredWords.length > 0 ? (
+              <div className={`${fullscreen ? 'h-full' : ''}`}>
+                <VocabularyFlashcard
+                  word={currentWord}
+                  showAnswer={showAnswer}
+                  showTranslation={showTranslation}
+                  audioPlaying={audioPlaying}
+                  isReviewing={isReviewing}
+                  currentIndex={currentWordIndex}
+                  totalCards={filteredWords.length}
+                  onShowAnswer={() => setShowAnswer(true)}
+                  onToggleTranslation={() => setShowTranslation(!showTranslation)}
+                  onPlayAudio={(text) => playJapaneseAudio(text)}
+                  onStopAudio={stopAudio}
+                  onReview={reviewWord}
+                  onToggleBookmark={() => currentWord && toggleBookmark(currentWord.id)}
+                  onNextCard={nextCard}
+                  onPrevCard={prevCard}
+                  fullscreen={fullscreen}
+                  showHints={showHints}
+                />
+              </div>
+            ) : (
+              // No words found
+              <div className="bg-white rounded-2xl border border-gray-200 p-8 md:p-12 text-center">
+                <div className="max-w-md mx-auto">
+                  <div className="w-20 h-20 mx-auto mb-6 rounded-2xl bg-gradient-to-r from-blue-100 to-purple-100 flex items-center justify-center">
+                    <BookOpen className="w-10 h-10 text-blue-600" />
                   </div>
-                  <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
-                    <div 
-                      className="h-full bg-gradient-to-r from-blue-500 to-purple-500 transition-all"
-                      style={{ width: `${progress}%` }}
-                    />
-                  </div>
-                  <div className="text-right mt-1">
-                    <span className="text-sm font-medium">{progress}%</span>
+                  <h3 className="text-xl font-bold text-gray-900 mb-3">
+                    {showDueOnly ? "All Caught Up! 🎉" : "No Words Found"}
+                  </h3>
+                  <p className="text-gray-600 mb-6">
+                    {showDueOnly 
+                      ? "No cards are due for review. Great work! You can review mastered cards or add new words." 
+                      : "Try adjusting your filters or search term to find vocabulary."}
+                  </p>
+                  <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                    <button
+                      onClick={resetFilters}
+                      className="px-5 py-2.5 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-xl hover:shadow-lg transition-all duration-200"
+                    >
+                      Reset All Filters
+                    </button>
+                    {showDueOnly && (
+                      <button
+                        onClick={() => setShowDueOnly(false)}
+                        className="px-5 py-2.5 bg-white text-gray-700 rounded-xl hover:bg-gray-50 transition-all duration-200 border border-gray-200"
+                      >
+                        Show All Cards
+                      </button>
+                    )}
                   </div>
                 </div>
-              );
-            })}
-          </div>
+              </div>
+            )
+          ) : (
+            // List View
+            <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="py-4 px-6 text-left text-sm font-semibold text-gray-700 border-b border-gray-200">Japanese</th>
+                      <th className="py-4 px-6 text-left text-sm font-semibold text-gray-700 border-b border-gray-200">Reading</th>
+                      <th className="py-4 px-6 text-left text-sm font-semibold text-gray-700 border-b border-gray-200">English</th>
+                      <th className="py-4 px-6 text-left text-sm font-semibold text-gray-700 border-b border-gray-200">Category</th>
+                      <th className="py-4 px-6 text-left text-sm font-semibold text-gray-700 border-b border-gray-200">Status</th>
+                      <th className="py-4 px-6 text-left text-sm font-semibold text-gray-700 border-b border-gray-200">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200">
+                    {filteredWords.map((word) => (
+                      <tr key={word.id} className="hover:bg-gray-50/50 transition-colors duration-150">
+                        <td className="py-4 px-6">
+                          <div className="font-japanese text-lg font-semibold text-gray-900">{word.japanese}</div>
+                          <div className="flex items-center gap-2 mt-1">
+                            <span className="text-sm text-gray-500">{word.difficulty}</span>
+                            <span className="text-xs text-gray-400">•</span>
+                            <span className="text-sm text-gray-500">{word.jlptLevel}</span>
+                          </div>
+                        </td>
+                        <td className="py-4 px-6 font-mono text-gray-700">{word.reading}</td>
+                        <td className="py-4 px-6 text-gray-700">{word.english}</td>
+                        <td className="py-4 px-6">
+                          <span className="px-3 py-1 bg-gray-100 text-gray-700 rounded-full text-sm">
+                            {word.category}
+                          </span>
+                        </td>
+                        <td className="py-4 px-6">
+                          <div className="flex flex-col gap-1">
+                            <div className="flex items-center gap-2">
+                              <div className={`w-2 h-2 rounded-full ${
+                                word.isLearned ? 'bg-emerald-500' : 'bg-blue-500'
+                              }`}></div>
+                              <span className="text-sm text-gray-700">
+                                {word.isLearned ? 'Mastered' : 'Learning'}
+                              </span>
+                            </div>
+                            {word.nextReviewAt && (
+                              <span className={`text-xs px-2 py-1 rounded-full ${getDueStatusColor(getDueStatus(word.nextReviewAt))}`}>
+                                {getDueStatus(word.nextReviewAt)}
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="py-4 px-6">
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => {
+                                const index = filteredWords.findIndex(w => w.id === word.id);
+                                setCurrentWordIndex(index);
+                                setViewMode('flashcard');
+                              }}
+                              className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors duration-200"
+                              title="Review"
+                            >
+                              <BookOpen className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => toggleBookmark(word.id)}
+                              className={`p-2 rounded-lg transition-colors duration-200 ${
+                                word.isBookmarked 
+                                  ? 'text-amber-600 hover:bg-amber-50' 
+                                  : 'text-gray-600 hover:bg-gray-100'
+                              }`}
+                              title="Bookmark"
+                            >
+                              <Bookmark className={`w-4 h-4 ${word.isBookmarked ? 'fill-current' : ''}`} />
+                            </button>
+                            <button
+                              onClick={() => playJapaneseAudio(word.japanese)}
+                              className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors duration-200"
+                              title="Play Audio"
+                            >
+                              <Volume2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </div>
+
+        {/* Mobile Bottom Navigation */}
+        {!fullscreen && viewMode === 'flashcard' && filteredWords.length > 0 && (
+          <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-4 shadow-lg">
+            <div className="flex items-center justify-between">
+              <button
+                onClick={prevCard}
+                disabled={isReviewing}
+                className="p-3 text-gray-600 hover:text-gray-900 disabled:opacity-50"
+              >
+                <ChevronLeft className="w-6 h-6" />
+              </button>
+              
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => currentWord && playJapaneseAudio(currentWord.japanese)}
+                  disabled={audioPlaying}
+                  className="p-3 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-full shadow-lg"
+                >
+                  {audioPlaying ? (
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                  ) : (
+                    <Volume2 className="w-5 h-5" />
+                  )}
+                </button>
+                
+                {/* <div className="text-center">
+                  <div className="text-sm font-medium text-gray-900">
+                    {currentIndex + 1} / {filteredWords.length}
+                  </div>
+                  <div className="text-xs text-gray-500">Cards</div>
+                </div>
+                 */}
+                <button
+                  onClick={() => currentWord && toggleBookmark(currentWord.id)}
+                  className="p-3 text-gray-600 hover:text-amber-600"
+                >
+                  <Bookmark className={`w-5 h-5 ${currentWord?.isBookmarked ? 'fill-current text-amber-600' : ''}`} />
+                </button>
+              </div>
+              
+              <button
+                onClick={nextCard}
+                disabled={isReviewing}
+                className="p-3 text-gray-600 hover:text-gray-900 disabled:opacity-50"
+              >
+                <ChevronRight className="w-6 h-6" />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Progress Summary */}
+        {!fullscreen && !showMobileMenu && (
+          <div className="mt-8 lg:mt-12">
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">Category Progress</h2>
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
+              {categories.slice(1, 7).map((category) => {
+                const categoryWords = words.filter(w => w.category === category.id);
+                const learnedWords = categoryWords.filter(w => w.isLearned).length;
+                const progress = categoryWords.length > 0 ? Math.round((learnedWords / categoryWords.length) * 100) : 0;
+                
+                return (
+                  <div key={category.id} className="bg-white p-4 rounded-xl border border-gray-200 hover:border-gray-300 transition-colors">
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className={`p-2 rounded-lg ${category.bgColor}`}>
+                        <span className="text-xl">{category.icon}</span>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h4 className="font-medium text-gray-900 truncate">{category.name}</h4>
+                        <p className="text-sm text-gray-500">
+                          {learnedWords}/{categoryWords.length}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+                        <div 
+                          className="h-full bg-gradient-to-r from-blue-500 to-purple-500 transition-all duration-500"
+                          style={{ width: `${progress}%` }}
+                        />
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-500">Progress</span>
+                        <span className="font-semibold text-gray-900">{progress}%</span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </div>
 
-      <style jsx>{`
-        .animate-fade-in {
-          animation: fadeIn 0.3s ease-out;
-        }
-        @keyframes fadeIn {
-          from { opacity: 0; transform: translateY(10px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-      `}</style>
+      {/* Mobile Menu Overlay */}
+      {showMobileMenu && (
+        <div className="fixed inset-0 bg-white z-50 p-6 overflow-y-auto">
+          <div className="flex justify-between items-center mb-8">
+            <h2 className="text-2xl font-bold text-gray-900">Menu</h2>
+            <button
+              onClick={() => setShowMobileMenu(false)}
+              className="p-2 rounded-lg bg-gray-100"
+            >
+              <X className="w-6 h-6 text-gray-700" />
+            </button>
+          </div>
+          
+          <div className="space-y-6">
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">Study Mode</h3>
+              <div className="space-y-3">
+                {['review', 'learn', 'master'].map((mode) => (
+                  <button
+                    key={mode}
+                    onClick={() => {
+                      setStudyMode(mode as 'review' | 'learn' | 'master');
+                      setShowMobileMenu(false);
+                    }}
+                    className={`w-full text-left p-4 rounded-xl ${
+                      studyMode === mode
+                        ? 'bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-200'
+                        : 'bg-gray-50 hover:bg-gray-100'
+                    }`}
+                  >
+                    <div className="flex items-center gap-4">
+                      <div className={`p-3 rounded-xl ${
+                        mode === 'review' ? 'bg-blue-100 text-blue-600' :
+                        mode === 'learn' ? 'bg-emerald-100 text-emerald-600' :
+                        'bg-purple-100 text-purple-600'
+                      }`}>
+                        {mode === 'review' && <RotateCw className="w-5 h-5" />}
+                        {mode === 'learn' && <BookOpen className="w-5 h-5" />}
+                        {mode === 'master' && <Award className="w-5 h-5" />}
+                      </div>
+                      <div className="flex-1">
+                        <div className="font-semibold capitalize text-gray-900">{mode}</div>
+                        <div className="text-sm text-gray-500">
+                          {mode === 'review' ? 'Spaced repetition' :
+                           mode === 'learn' ? 'Learn new words' :
+                           'Master difficult words'}
+                        </div>
+                      </div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+            
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">Settings</h3>
+              <div className="space-y-3">
+                <button
+                  onClick={() => {
+                    setShowHints(!showHints);
+                    setShowMobileMenu(false);
+                  }}
+                  className="w-full flex items-center justify-between p-3 bg-gray-50 hover:bg-gray-100 rounded-xl"
+                >
+                  <span className="text-gray-900">Show Hints</span>
+                  <div className={`w-12 h-6 rounded-full transition-colors ${
+                    showHints ? 'bg-blue-500' : 'bg-gray-300'
+                  }`}>
+                    <div className={`w-6 h-6 bg-white rounded-full transform transition-transform ${
+                      showHints ? 'translate-x-6' : ''
+                    }`}></div>
+                  </div>
+                </button>
+                
+                <button className="w-full flex items-center justify-between p-3 bg-gray-50 hover:bg-gray-100 rounded-xl">
+                  <span className="text-gray-900">Auto-play Audio</span>
+                  <div className={`w-12 h-6 rounded-full transition-colors ${
+                    autoPlay ? 'bg-green-500' : 'bg-gray-300'
+                  }`}>
+                    <div className={`w-6 h-6 bg-white rounded-full transform transition-transform ${
+                      autoPlay ? 'translate-x-6' : ''
+                    }`}></div>
+                  </div>
+                </button>
+              </div>
+            </div>
+            
+            <button className="w-full py-4 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-xl font-semibold">
+              Export Progress
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
