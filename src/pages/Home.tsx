@@ -19,7 +19,8 @@ import {
   Clock,
   Star,
   TrophyIcon,
-  GraduationCap
+  GraduationCap,
+  Book
 } from "lucide-react";
 
 const Home = () => {
@@ -76,16 +77,18 @@ const Home = () => {
       status: "available",
       buttonText: "View Progress"
     },
-    {
-      title: "Audio Pronunciation",
-      description: "Practice listening and speaking with native pronunciation",
-      icon: <Volume2 className="w-10 h-10 text-cyan-600" />,
-      link: "/pronunciation",
-      color: "bg-cyan-50 hover:bg-cyan-100",
-      stats: "Audio Guide",
-      status: "available",
-      buttonText: "Listen & Learn"
-    },
+    
+{
+  title: "Kanji Explorer",
+  description: "Explore kanji with meanings, readings, stroke count, and JLPT levels",
+  icon: <Book className="w-10 h-10 text-cyan-600" />,
+  link: "/kanji", // ✅ correct route
+  color: "bg-cyan-50 hover:bg-cyan-100",
+  stats: "JLPT N5–N1",
+   status: "new",
+  buttonText: "Explore Kanji"
+},
+
     // In Home.tsx, add to learningFeatures array
 {
   title: "Learning Hub",
@@ -99,6 +102,9 @@ const Home = () => {
   buttonText: "Explore All",
   progress: null
 }
+
+
+
   ];
 
   const quizFeatures = [

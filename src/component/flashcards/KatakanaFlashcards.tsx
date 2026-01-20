@@ -84,6 +84,13 @@ const KatakanaFlashcards: React.FC<KatakanaFlashcardProps> = ({
   const [includeYoon, setIncludeYoon] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
 
+
+  const normalizeAnswer = (value: string) =>
+  value.trim().toLowerCase();
+
+const isCorrectAnswer = (a: string | null, b: string) =>
+  normalizeAnswer(a ?? '') === normalizeAnswer(b);
+
   useEffect(() => {
     fetchKatakana();
     return () => {
@@ -208,6 +215,8 @@ const KatakanaFlashcards: React.FC<KatakanaFlashcardProps> = ({
         isCorrect: null,
         timeSpent: 0
       };
+
+      
 
       switch (type) {
         case 'multiple-choice':
@@ -391,7 +400,7 @@ const KatakanaFlashcards: React.FC<KatakanaFlashcardProps> = ({
 
   const handleQuizAnswer = (answer: string) => {
     const question = quizQuestions[currentQuestion];
-    const isCorrect = answer === question.correctAnswer;
+   const isCorrect = isCorrectAnswer(answer, question.correctAnswer);
     const currentCard = flashcards[currentQuestion] || flashcards[0];
     
     setSelectedAnswer(answer);
@@ -538,7 +547,8 @@ const KatakanaFlashcards: React.FC<KatakanaFlashcardProps> = ({
       
       return question.options.map((option, index) => {
         let buttonClass = "p-4 border rounded-xl transition-all duration-300 ";
-        let isCorrect = option === question.correctAnswer;
+       let isCorrect = isCorrectAnswer(option, question.correctAnswer);
+
         let isSelected = option === selectedAnswer;
         
         if (showQuizFeedback) {
@@ -585,17 +595,19 @@ const KatakanaFlashcards: React.FC<KatakanaFlashcardProps> = ({
             
             {showQuizFeedback && (
               <div className={`text-center p-4 rounded-lg animate-fade-in ${
-                selectedAnswer === question.correctAnswer 
+                isCorrectAnswer(selectedAnswer, question.correctAnswer)
+
                   ? 'bg-green-50 text-green-700 border border-green-200'
                   : 'bg-red-50 text-red-700 border border-red-200'
               }`}>
                 <div className="flex items-center justify-center gap-2">
-                  {selectedAnswer === question.correctAnswer ? (
-                    <>
-                      <Check className="w-5 h-5" />
-                      <span className="font-bold">Correct!</span>
-                    </>
-                  ) : (
+                {isCorrectAnswer(selectedAnswer, question.correctAnswer) ? (
+  <>
+    <Check className="w-5 h-5" />
+    <span className="font-bold">Correct!</span>
+  </>
+) : (
+
                     <>
                       <AlertCircle className="w-5 h-5" />
                       <span className="font-bold">Incorrect</span>
@@ -636,12 +648,13 @@ const KatakanaFlashcards: React.FC<KatakanaFlashcardProps> = ({
               
               {showQuizFeedback && (
                 <div className={`text-center p-4 rounded-lg animate-fade-in ${
-                  userAnswer === question.correctAnswer 
+isCorrectAnswer(userAnswer, question.correctAnswer)
                     ? 'bg-green-50 text-green-700 border border-green-200'
                     : 'bg-red-50 text-red-700 border border-red-200'
                 }`}>
                   <div className="flex items-center justify-center gap-2">
-                    {userAnswer === question.correctAnswer ? (
+                 {isCorrectAnswer(userAnswer, question.correctAnswer) ? (
+
                       <>
                         <Check className="w-5 h-5" />
                         <span className="font-bold">Correct!</span>
@@ -663,8 +676,9 @@ const KatakanaFlashcards: React.FC<KatakanaFlashcardProps> = ({
                 onClick={() => !showQuizFeedback && handleQuizAnswer(userAnswer)}
                 disabled={showQuizFeedback || !userAnswer.trim()}
                 className={`w-full p-4 text-white rounded-lg transition-all ${
-                  showQuizFeedback
-                    ? userAnswer === question.correctAnswer
+showQuizFeedback
+  ? isCorrectAnswer(userAnswer, question.correctAnswer)
+
                       ? 'bg-green-600'
                       : 'bg-red-600'
                     : userAnswer.trim()
@@ -690,7 +704,8 @@ const KatakanaFlashcards: React.FC<KatakanaFlashcardProps> = ({
                   : 'bg-red-50 text-red-700 border border-red-200'
               }`}>
                 <div className="flex items-center justify-center gap-2">
-                  {selectedAnswer === question.correctAnswer ? (
+                {isCorrectAnswer(selectedAnswer, question.correctAnswer) ? (
+
                     <>
                       <Check className="w-5 h-5" />
                       <span className="font-bold">Correct!</span>
@@ -708,7 +723,8 @@ const KatakanaFlashcards: React.FC<KatakanaFlashcardProps> = ({
             <div className="grid grid-cols-2 gap-4">
               {question.options?.map((option, index) => {
                 const [symbol, romaji] = option.split('=');
-                let isCorrect = option === question.correctAnswer;
+              let isCorrect = isCorrectAnswer(option, question.correctAnswer);
+
                 let isSelected = option === selectedAnswer;
                 
                 let buttonClass = "p-4 border rounded-xl transition-all duration-300 ";

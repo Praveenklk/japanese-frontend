@@ -1,43 +1,13 @@
 // components/VocabularyFlashcard.tsx
 import React, { useState, useEffect } from 'react';
 import {
-  Volume2,
-  VolumeX,
-  Bookmark,
-  ChevronLeft,
-  ChevronRight,
-  Heart,
-  Share2,
-  Maximize2,
-  Minimize2,
-  RotateCw,
-  Loader2,
-  Star,
-  Award,
-  Clock,
-  Zap,
-  CheckCircle,
-  XCircle,
-  Sparkles,
-  Eye,
-  EyeOff,
-  AlertCircle,
-  Target,
-  Brain,
-  ChevronUp,
-  ChevronDown,
-  Lightbulb,
-  Users,
-  Book,
-  Calendar,
-  TrendingUp,
-  Target as TargetIcon,
-  Flame,
-  Brain as BrainIcon,
-  Timer,
-  CheckSquare,
-  XSquare,
-  HelpCircle
+  Volume2, VolumeX, Bookmark, ChevronLeft, ChevronRight,
+  Heart, Share2, Maximize2, Minimize2, RotateCw, Loader2,
+  Star, Award, Clock, Zap, CheckCircle, XCircle, Sparkles,
+  Eye, EyeOff, AlertCircle, Target, Brain, ChevronUp,
+  ChevronDown, Lightbulb, Users, Book, Calendar, TrendingUp,
+  Target as TargetIcon, Flame, Brain as BrainIcon,
+  Timer, CheckSquare, XSquare, HelpCircle
 } from 'lucide-react';
 import type { Vocabulary } from '../../pages/types/vocabulary';
 
@@ -97,7 +67,7 @@ const VocabularyFlashcard: React.FC<VocabularyFlashcardProps> = ({
     setTimeout(() => {
       onShowAnswer();
       setIsFlipping(false);
-    }, 300);
+    }, 220);
   };
 
   const handleReview = (rating: 'again' | 'good' | 'easy') => {
@@ -109,22 +79,22 @@ const VocabularyFlashcard: React.FC<VocabularyFlashcardProps> = ({
     if (!nextReviewDate) return 'New';
     const now = new Date();
     const reviewDate = new Date(nextReviewDate);
-    
+
     if (reviewDate <= now) return 'Overdue';
     if (reviewDate <= new Date(now.getTime() + 24 * 60 * 60 * 1000)) return 'Due Soon';
     return 'Scheduled';
   };
 
   const getDueStatusColor = (status: string) => {
-    switch(status) {
-      case 'Overdue': return 'bg-gradient-to-r from-rose-500 to-pink-500';
-      case 'Due Soon': return 'bg-gradient-to-r from-amber-500 to-orange-500';
-      default: return 'bg-gradient-to-r from-emerald-500 to-teal-500';
+    switch (status) {
+      case 'Overdue': return 'from-rose-500 to-pink-500';
+      case 'Due Soon': return 'from-amber-500 to-orange-500';
+      default: return 'from-emerald-500 to-teal-500';
     }
   };
 
   const getDifficultyColor = (difficulty: string) => {
-    switch(difficulty) {
+    switch (difficulty) {
       case 'BEGINNER': return 'from-emerald-400 to-green-500';
       case 'INTERMEDIATE': return 'from-amber-400 to-orange-500';
       case 'ADVANCED': return 'from-rose-400 to-red-500';
@@ -135,449 +105,345 @@ const VocabularyFlashcard: React.FC<VocabularyFlashcardProps> = ({
   if (!word) return null;
 
   return (
-    <div className={`${fullscreen ? 'h-screen' : 'min-h-screen'} relative overflow-hidden`}>
-      {/* Confetti Effect */}
+    <div className={`relative ${fullscreen ? 'h-screen' : 'min-h-screen'} overflow-hidden bg-gray-50/40 pb-28 sm:pb-0`}>
+      {/* Confetti */}
       {showConfetti && (
         <div className="absolute inset-0 pointer-events-none z-50">
-          {[...Array(50)].map((_, i) => (
+          {[...Array(30)].map((_, i) => (
             <div
               key={i}
-              className="absolute w-2 h-2 animate-confetti"
+              className="absolute w-2.5 h-2.5 animate-confetti rounded-sm"
               style={{
                 left: `${Math.random() * 100}%`,
-                top: '-10%',
-                animationDelay: `${Math.random() * 2}s`,
-                backgroundColor: ['#ff6b6b', '#4ecdc4', '#45b7d1', '#96ceb4', '#feca57'][i % 5]
+                top: '-5%',
+                animationDelay: `${Math.random() * 1.6}s`,
+                backgroundColor: ['#ff6b6b','#4ecdc4','#45b7d1','#96ceb4','#feca57'][i % 5]
               }}
             />
           ))}
         </div>
       )}
 
-      {/* Main Container */}
-      <div className={`${fullscreen ? 'p-0' : 'p-4 lg:p-6'} max-w-6xl mx-auto h-full`}>
+      <div className={`${fullscreen ? 'p-3 sm:p-5' : 'p-4 sm:p-6'} max-w-5xl mx-auto h-full`}>
         <div className="h-full flex flex-col">
           {/* Header */}
-          <div className="mb-6">
-            {/* Progress Bar */}
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-3">
+          <div className="mb-4 sm:mb-6">
+            <div className="flex flex-wrap items-center justify-between gap-3 mb-3 sm:mb-4">
+              <div className="flex items-center gap-2.5 sm:gap-4">
                 <div className="relative">
-                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-sm font-bold">
+                  <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-gradient-to-br from-blue-600 to-purple-600 flex items-center justify-center text-white font-bold text-base sm:text-lg">
                     {currentIndex + 1}
                   </div>
-                  <div className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-white border-2 border-blue-500 flex items-center justify-center">
-                    <div className="w-2 h-2 rounded-full bg-gradient-to-r from-blue-500 to-purple-600"></div>
-                  </div>
                 </div>
-                <div className="text-sm text-gray-600">
-                  <span className="font-bold text-gray-900">{currentIndex + 1}</span>
-                  <span className="mx-1">of</span>
-                  <span className="font-bold text-gray-900">{totalCards}</span>
+                <div className="text-sm sm:text-base text-gray-700">
+                  <span className="font-bold">{currentIndex + 1}</span>
+                  <span className="mx-1.5">/</span>
+                  <span className="font-bold">{totalCards}</span>
                 </div>
               </div>
-              
-              <div className="flex items-center gap-3">
+
+              <div className="flex items-center gap-2 sm:gap-3">
                 <button
                   onClick={onToggleBookmark}
-                  className={`p-2 rounded-lg transition-all duration-300 transform hover:scale-110 ${
-                    word.isBookmarked 
-                      ? 'text-amber-500 bg-gradient-to-br from-amber-50 to-yellow-50 shadow-lg' 
-                      : 'text-gray-400 hover:text-gray-600 hover:bg-gray-50'
-                  }`}
+                  className={`p-2 rounded-lg transition-all ${word.isBookmarked ? 'text-amber-500 bg-amber-50/80' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'}`}
+                  aria-pressed={word.isBookmarked}
                 >
-                  <Bookmark className={`w-5 h-5 ${word.isBookmarked ? 'fill-current' : ''}`} />
+                  <Bookmark className={`w-5 h-5 sm:w-6 sm:h-6 ${word.isBookmarked ? 'fill-current' : ''}`} />
                 </button>
-                
-                <div className="flex gap-2">
-                  <span className={`px-3 py-1.5 rounded-full text-xs font-semibold text-white ${getDueStatusColor(getDueStatus(word.nextReviewAt))}`}>
+
+                <div className="flex gap-1.5 sm:gap-2 flex-wrap">
+                  <span className={`px-2.5 py-1 text-xs sm:text-sm font-semibold text-white rounded-full bg-gradient-to-r ${getDueStatusColor(getDueStatus(word.nextReviewAt))}`}>
                     {getDueStatus(word.nextReviewAt)}
                   </span>
-                  <span className={`px-3 py-1.5 rounded-full text-xs font-semibold ${
-                    word.isLearned 
-                      ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white' 
-                      : 'bg-gradient-to-r from-blue-500 to-cyan-500 text-white'
-                  }`}>
-                    {word.isLearned ? '🎓 Mastered' : '📚 Learning'}
+                  <span className={`px-2.5 py-1 text-xs sm:text-sm font-semibold text-white rounded-full ${word.isLearned ? 'bg-gradient-to-r from-emerald-500 to-teal-500' : 'bg-gradient-to-r from-blue-500 to-cyan-500'}`}>
+                    {word.isLearned ? 'Mastered' : 'Learning'}
                   </span>
                 </div>
               </div>
             </div>
 
-            {/* Progress Indicator */}
-            <div className="relative h-2 bg-gray-200 rounded-full overflow-hidden">
-              <div 
-                className="h-full bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 transition-all duration-700 ease-out"
+            {/* Progress bar */}
+            <div className="h-2.5 bg-gray-200 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 transition-all duration-700"
                 style={{ width: `${((currentIndex + 1) / totalCards) * 100}%` }}
-              >
-                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-shimmer"></div>
-              </div>
+              />
             </div>
           </div>
 
-          {/* Main Flashcard Area */}
-          <div className="flex-1 flex flex-col">
-            {/* Flashcard Container */}
-            <div className={`relative flex-1 ${fullscreen ? '' : 'mb-6'}`}>
-              {/* Card Background Glow */}
-              <div className="absolute inset-0 bg-gradient-to-br from-blue-50/50 via-purple-50/30 to-pink-50/50 rounded-3xl blur-xl"></div>
-              
-              {/* The Flashcard */}
-              <div 
-                className={`relative h-full bg-white rounded-3xl shadow-2xl border border-gray-200/50 overflow-hidden transition-all duration-500 ${
-                  isFlipping ? 'scale-95 opacity-90' : 'scale-100 opacity-100'
-                }`}
-              >
+          {/* Main flashcard */}
+          <div className="flex-1 flex flex-col min-h-0">
+            <div className="relative flex-1 mb-4 sm:mb-6">
+              <div className="absolute inset-0 bg-gradient-to-br from-blue-50/40 via-purple-50/20 to-pink-50/30 rounded-2xl sm:rounded-3xl blur-lg" />
+
+              <div className={`relative h-full bg-white rounded-2xl sm:rounded-3xl shadow-xl sm:shadow-2xl border border-gray-200/60 transition-all duration-400 ${isFlipping ? 'scale-[0.98] opacity-95' : 'scale-100 opacity-100'}`}>
                 {/* Card Header */}
-                <div className="p-6 border-b border-gray-100">
-                  <div className="flex flex-wrap items-center gap-3">
-                    <span className={`px-4 py-2 rounded-xl text-sm font-bold text-white bg-gradient-to-r ${getDifficultyColor(word.difficulty)} shadow-lg`}>
+                <div className="p-4 sm:p-6 border-b border-gray-100">
+                  <div className="flex flex-wrap gap-2 sm:gap-3 items-center">
+                    <span className={`px-3 py-1 text-xs sm:text-sm font-bold text-white rounded-lg sm:rounded-xl bg-gradient-to-r ${getDifficultyColor(word.difficulty)}`}>
                       {word.difficulty}
                     </span>
-                    <span className="px-4 py-2 bg-gradient-to-r from-blue-600 to-cyan-600 text-white rounded-xl text-sm font-bold shadow-lg">
+                    <span className="px-3 py-1 text-xs sm:text-sm font-bold text-white rounded-lg sm:rounded-xl bg-gradient-to-r from-blue-600 to-cyan-600">
                       {word.jlptLevel}
                     </span>
-                    <span className="px-4 py-2 bg-gradient-to-r from-gray-600 to-gray-800 text-white rounded-xl text-sm font-bold shadow-lg">
+                    <span className="px-3 py-1 text-xs sm:text-sm font-bold text-white rounded-lg sm:rounded-xl bg-gradient-to-r from-gray-600 to-gray-800">
                       {word.category}
                     </span>
-                    
+
                     {/* Stats */}
-                    <div className="ml-auto flex items-center gap-6">
-                      <div className="text-center">
-                        <div className="flex items-center gap-2 text-sm text-gray-600">
-                          <BrainIcon className="w-4 h-4" />
-                          <span className="font-bold text-gray-900">{word.reviews}</span>
-                        </div>
-                        <div className="text-xs text-gray-400">Reviews</div>
+                    <div className="ml-auto flex gap-4 sm:gap-8 text-sm">
+                      <div className="text-center hidden xs:block">
+                        <div className="text-xs text-gray-500">Reviews</div>
+                        <div className="font-bold">{word.reviews}</div>
                       </div>
                       <div className="text-center">
-                        <div className="flex items-center gap-2 text-sm">
-                          <TargetIcon className="w-4 h-4 text-emerald-500" />
-                          <span className="font-bold text-emerald-600">{Math.round((word.correctCount / Math.max(word.reviews, 1)) * 100)}%</span>
+                        <div className="text-xs text-gray-500">Accuracy</div>
+                        <div className="font-bold text-emerald-600">
+                          {Math.round((word.correctCount / Math.max(word.reviews, 1)) * 100)}%
                         </div>
-                        <div className="text-xs text-gray-400">Accuracy</div>
                       </div>
                     </div>
                   </div>
                 </div>
 
-                {/* Card Content */}
-                <div className="p-8 lg:p-12 h-[calc(100%-88px)]">
+                {/* Main Content - make back/front content scrollable so bottom controls stay visible */}
+                <div className="p-5 sm:p-8 lg:p-10 h-[calc(100%-76px)] sm:h-[calc(100%-88px)] overflow-y-auto">
                   {!showAnswer ? (
-                    /* Front Side - Question */
-                    <div className="h-full flex flex-col items-center justify-center animate-fade-in">
-                      {/* Japanese Characters */}
-                      <div className="mb-8 text-center">
-                        <div className="text-6xl lg:text-7xl font-bold text-gray-900 font-japanese leading-tight mb-6">
+                    // Front
+                    <div className="h-full flex flex-col items-center justify-center">
+                      <div className="text-center mb-6 sm:mb-10">
+                        <div className="text-4xl sm:text-6xl lg:text-7xl font-bold text-gray-900 font-japanese mb-2 leading-tight">
                           {word.japanese}
                         </div>
-                        <div className="text-2xl lg:text-3xl text-gray-600 font-mono tracking-wider">
+                        <div className="text-lg sm:text-2xl text-gray-600 font-mono tracking-wide">
                           {word.reading}
                         </div>
                       </div>
 
-                      {/* Hint Button */}
                       {showHint && (
-                        <div className="mb-8 animate-slide-up">
-                          <div className="p-4 bg-gradient-to-r from-blue-50 to-cyan-50 rounded-2xl border border-blue-200 max-w-md">
-                            <div className="flex items-start gap-3">
+                        <div className="mb-6 sm:mb-10 max-w-md w-full px-3">
+                          <div className="p-3 sm:p-4 bg-blue-50/70 rounded-xl border border-blue-200 text-sm">
+                            <div className="flex items-start gap-2.5">
                               <Lightbulb className="w-5 h-5 text-amber-500 mt-0.5 flex-shrink-0" />
-                              <div className="text-sm text-gray-700">
-                                <span className="font-semibold text-gray-900">Hint:</span> This word is often used in {word.category.toLowerCase()} contexts.
+                              <div>
+                                <span className="font-semibold">Hint: </span>
+                                Often used in {word.category.toLowerCase()} context.
                               </div>
                             </div>
                           </div>
                         </div>
                       )}
 
-                      {/* Show Answer Button */}
-                      <div className="mt-8">
+                      <div className="flex flex-col items-center gap-3">
                         <button
                           onClick={handleShowAnswer}
                           disabled={isReviewing}
-                          className="group relative px-12 py-5 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-2xl hover:shadow-2xl transition-all duration-300 hover:-translate-y-1 disabled:opacity-50 disabled:cursor-not-allowed overflow-hidden"
+                          className="px-10 sm:px-14 py-3 sm:py-4 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl sm:rounded-2xl font-bold text-base sm:text-lg shadow-lg hover:shadow-xl transition-all hover:-translate-y-0.5 disabled:opacity-60"
                         >
-                          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
-                          <div className="relative flex items-center gap-3">
-                            <Lightbulb className="w-6 h-6" />
-                            <span className="font-bold text-lg">Show Answer</span>
-                          </div>
+                          Show Answer
                         </button>
-                        
-                        {/* Hint Toggle */}
+
                         <button
                           onClick={() => setShowHint(!showHint)}
-                          className="mt-4 mx-auto flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700 transition-colors"
+                          className="mt-3 text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1.5"
                         >
-                          {showHint ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                          <span>{showHint ? 'Hide Hint' : 'Show Hint'}</span>
+                          {showHint ? <EyeOff size={16} /> : <Eye size={16} />}
+                          {showHint ? 'Hide hint' : 'Show hint'}
                         </button>
-                      </div>
-
-                      {/* Keyboard Shortcut Hint */}
-                      <div className="mt-6 text-xs text-gray-400">
-                        Press <kbd className="px-2 py-1 bg-gray-100 rounded-md">Space</kbd> to reveal answer
                       </div>
                     </div>
                   ) : (
-                    /* Back Side - Answer */
-                    <div className="h-full flex flex-col animate-fade-in">
-                      {/* English Meaning */}
-                      <div className="text-center mb-8">
-                        <div className="inline-block mb-2">
-                          <div className="px-4 py-1.5 bg-gradient-to-r from-emerald-500 to-green-500 text-white text-sm font-bold rounded-full">
-                            ANSWER
-                          </div>
+                    // Back
+                    <div className="h-full flex flex-col">
+                      <div className="text-center mb-4 sm:mb-8">
+                        <div className="inline-block px-4 py-1.5 mb-3 bg-gradient-to-r from-emerald-500 to-green-600 text-white text-sm font-bold rounded-full">
+                          ANSWER
                         </div>
-                        <div className="text-4xl lg:text-5xl font-bold text-gray-900 mb-3">
+                        <div className="text-2xl sm:text-4xl font-bold text-gray-900 mb-1">
                           {word.english}
                         </div>
-                        {word.pronunciation && (
-                          <div className="text-lg text-gray-500 font-mono">
-                            /{word.pronunciation}/
-                          </div>
+                        {showTranslation && (
+                          <div className="text-sm text-gray-600 mt-1">{word.translation}</div>
                         )}
                       </div>
 
-                      {/* Details Section */}
-                      <div className="grid lg:grid-cols-2 gap-6 mb-8">
-                        {/* Example Sentence */}
+                      <div className="grid sm:grid-cols-2 gap-5 sm:gap-6 mb-6 sm:mb-8 flex-1 overflow-y-auto">
+                        {/* Example */}
                         {word.example && (
-                          <div className="bg-gradient-to-br from-blue-50/80 to-white p-6 rounded-2xl border border-blue-200/50 shadow-sm">
-                            <div className="flex items-center gap-3 mb-4">
-                              <div className="p-2 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-lg">
-                                <Book className="w-5 h-5 text-white" />
-                              </div>
-                              <h4 className="font-bold text-gray-900">Example Usage</h4>
+                          <div className="bg-blue-50/60 p-4 sm:p-6 rounded-xl border border-blue-100">
+                            <h4 className="font-bold mb-2 flex items-center gap-2 text-gray-800">
+                              <Book size={18} className="text-blue-600" />
+                              Example
+                            </h4>
+                            <div className="text-lg sm:text-xl font-medium font-japanese mb-2">
+                              {word.example}
                             </div>
-                            <div className="space-y-4">
-                              <div className="text-xl font-medium text-gray-900 font-japanese leading-relaxed">
-                                {word.example}
-                              </div>
-                              <div className="text-gray-600 font-mono text-sm">
-                                {word.exampleReading}
-                              </div>
-                              <div className="text-gray-700 border-t border-gray-100 pt-3">
-                                "{word.exampleEnglish}"
-                              </div>
+                            <div className="text-sm text-gray-600 font-mono mb-3">
+                              {word.exampleReading}
                             </div>
-                            <button
-                              onClick={() => onPlayAudio(word.example || '')}
-                              className="mt-4 flex items-center gap-2 text-blue-600 hover:text-blue-700 text-sm font-medium"
-                            >
-                              <Volume2 className="w-4 h-4" />
-                              <span>Listen to pronunciation</span>
-                            </button>
+                            <div className="text-gray-700 text-sm">
+                              "{word.exampleEnglish}"
+                            </div>
                           </div>
                         )}
 
-                        {/* Additional Info */}
-                        <div className="bg-gradient-to-br from-gray-50 to-white p-6 rounded-2xl border border-gray-200/50 shadow-sm">
-                          <div className="flex items-center gap-3 mb-4">
-                            <div className="p-2 bg-gradient-to-br from-gray-600 to-gray-800 rounded-lg">
-                              <Brain className="w-5 h-5 text-white" />
-                            </div>
-                            <h4 className="font-bold text-gray-900">Memory Stats</h4>
-                          </div>
-                          <div className="space-y-4">
-                            <div className="flex justify-between items-center">
+                        {/* Stats */}
+                        <div className="bg-gray-50 p-4 sm:p-6 rounded-xl border border-gray-200">
+                          <h4 className="font-bold mb-3 flex items-center gap-2 text-gray-800">
+                            <Brain size={18} className="text-gray-700" />
+                            Memory Stats
+                          </h4>
+                          <div className="space-y-2.5 text-sm">
+                            <div className="flex justify-between">
                               <span className="text-gray-600">Interval</span>
-                              <span className="font-bold text-gray-900 flex items-center gap-2">
-                                <Timer className="w-4 h-4" />
-                                {word.intervalDays} days
-                              </span>
+                              <span className="font-medium">{word.intervalDays}d</span>
                             </div>
-                            <div className="flex justify-between items-center">
-                              <span className="text-gray-600">Ease Factor</span>
-                              <span className="font-bold text-emerald-600">250%</span>
-                            </div>
-                            <div className="flex justify-between items-center">
-                              <span className="text-gray-600">Next Review</span>
-                              <span className="font-bold text-blue-600">
+                            <div className="flex justify-between">
+                              <span className="text-gray-600">Next review</span>
+                              <span className="font-medium text-blue-600">
                                 {word.nextReviewAt ? new Date(word.nextReviewAt).toLocaleDateString() : 'Now'}
                               </span>
                             </div>
-                            <div className="flex justify-between items-center">
-                              <span className="text-gray-600">Mastery Level</span>
-                              <div className="flex items-center gap-1">
-                                {[...Array(5)].map((_, i) => (
-                                  <Star
-                                    key={i}
-                                    className={`w-4 h-4 ${i < Math.min(5, Math.floor(word.correctCount / 3)) ? 'text-amber-500 fill-current' : 'text-gray-300'}`}
-                                  />
-                                ))}
-                              </div>
+                            <div className="flex justify-between">
+                              <span className="text-gray-600">Accuracy</span>
+                              <span className="font-medium text-emerald-600">
+                                {Math.round((word.correctCount / Math.max(word.reviews, 1)) * 100)}%
+                              </span>
                             </div>
                           </div>
                         </div>
                       </div>
 
-                      {/* Review Buttons */}
-                      <div className="mt-auto pt-6">
-                        <div className="text-center mb-6">
-                          <h4 className="font-bold text-gray-900 text-lg mb-2">Rate your recall</h4>
-                          <p className="text-gray-500 text-sm">Select how well you remembered this card</p>
-                        </div>
-                        <div className="grid grid-cols-3 gap-4">
+                      {/* Review buttons - Desktop: grid, Mobile: sticky bottom bar */}
+                      <div className="mt-auto pt-4 sm:pt-6">
+                        {/* Desktop / Tablet */}
+                        <div className="hidden sm:grid grid-cols-3 gap-3 sm:gap-5">
                           {[
-                            { rating: 'again', label: 'Again', color: 'rose', icon: XCircle, days: 1 },
-                            { rating: 'good', label: 'Good', color: 'amber', icon: CheckCircle, days: word.intervalDays * 2 },
-                            { rating: 'easy', label: 'Easy', color: 'emerald', icon: Award, days: word.intervalDays * 3 }
-                          ].map(({ rating, label, color, icon: Icon, days }) => (
+                            { rating: 'again', label: 'Again', color: 'rose', icon: XCircle },
+                            { rating: 'good', label: 'Good', color: 'amber', icon: CheckCircle },
+                            { rating: 'easy', label: 'Easy', color: 'emerald', icon: Award }
+                          ].map(({ rating, label, color, icon: Icon }) => (
                             <button
                               key={rating}
                               onClick={() => handleReview(rating as any)}
                               disabled={isReviewing}
-                              className={`group p-5 bg-gradient-to-b from-white to-gray-50 border-2 border-${color}-200 hover:border-${color}-300 rounded-2xl hover:shadow-xl transition-all duration-300 hover:-translate-y-1 disabled:opacity-50 disabled:cursor-not-allowed`}
+                              className={`
+                                p-4 sm:p-5 rounded-xl border-2 transition-all duration-200
+                                border-${color}-200 hover:border-${color}-300
+                                bg-gradient-to-b from-white to-gray-50
+                                hover:shadow-lg hover:-translate-y-1
+                                disabled:opacity-60 disabled:cursor-not-allowed
+                                flex flex-col items-center gap-2 sm:gap-3
+                              `}
                             >
-                              <div className="flex flex-col items-center gap-4">
-                                <div className={`p-3 bg-gradient-to-br from-${color}-100 to-${color}-50 rounded-xl group-hover:scale-110 transition-transform duration-300`}>
-                                  <Icon className={`w-7 h-7 text-${color}-600`} />
-                                </div>
-                                <div>
-                                  <div className={`font-bold text-${color}-700 text-lg`}>{label}</div>
-                                  <div className="text-xs text-gray-500 mt-1">in {days} day{days !== 1 ? 's' : ''}</div>
-                                </div>
+                              <Icon className={`w-7 h-7 sm:w-8 sm:h-8 text-${color}-600`} />
+                              <div className={`font-bold text-${color}-700 text-sm sm:text-base`}>
+                                {label}
                               </div>
                             </button>
                           ))}
+                        </div>
+
+                        {/* Mobile sticky bottom bar */}
+                        <div className="sm:hidden fixed left-3 right-3 bottom-4 z-40">
+                          <div className="bg-white/95 backdrop-blur-md border border-gray-200 rounded-xl p-2 shadow-lg flex gap-2">
+                            <button
+                              onClick={() => handleReview('again')}
+                              disabled={isReviewing}
+                              className="flex-1 py-2 px-3 rounded-md bg-white border border-rose-200 hover:bg-rose-50 disabled:opacity-60 flex items-center justify-center gap-2"
+                              aria-label="Again"
+                            >
+                              <XCircle className="w-5 h-5 text-rose-500" />
+                              <span className="text-sm font-semibold text-rose-600">Again</span>
+                            </button>
+                            <button
+                              onClick={() => handleReview('good')}
+                              disabled={isReviewing}
+                              className="flex-1 py-2 px-3 rounded-md bg-white border border-amber-200 hover:bg-amber-50 disabled:opacity-60 flex items-center justify-center gap-2"
+                              aria-label="Good"
+                            >
+                              <CheckCircle className="w-5 h-5 text-amber-500" />
+                              <span className="text-sm font-semibold text-amber-600">Good</span>
+                            </button>
+                            <button
+                              onClick={() => handleReview('easy')}
+                              disabled={isReviewing}
+                              className="flex-1 py-2 px-3 rounded-md bg-white border border-emerald-200 hover:bg-emerald-50 disabled:opacity-60 flex items-center justify-center gap-2"
+                              aria-label="Easy"
+                            >
+                              <Award className="w-5 h-5 text-emerald-500" />
+                              <span className="text-sm font-semibold text-emerald-600">Easy</span>
+                            </button>
+                          </div>
                         </div>
                       </div>
                     </div>
                   )}
                 </div>
-
-                {/* Card Corner Decoration */}
-                <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-bl from-blue-500/10 to-purple-500/10 rounded-bl-full"></div>
-                <div className="absolute bottom-0 left-0 w-24 h-24 bg-gradient-to-tr from-pink-500/10 to-rose-500/10 rounded-tr-full"></div>
               </div>
             </div>
 
-            {/* Bottom Controls */}
-            <div className="mt-6">
-              <div className="flex items-center justify-between">
-                {/* Left Controls */}
-                <div className="flex items-center gap-3">
-                  <button
-                    onClick={onPrevCard}
-                    disabled={isReviewing || currentIndex === 0}
-                    className="p-3 bg-white text-gray-700 rounded-xl hover:bg-gray-50 border border-gray-300 hover:border-gray-400 transition-all duration-200 disabled:opacity-30 flex items-center gap-2"
-                  >
-                    <ChevronLeft className="w-5 h-5" />
-                    <span className="hidden sm:inline">Previous</span>
-                  </button>
-                  
-                  <button
-                    onClick={() => onPlayAudio(word.japanese)}
-                    disabled={audioPlaying}
-                    className="p-3 bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-xl hover:shadow-lg transition-all duration-200 hover:-translate-y-0.5 disabled:opacity-50"
-                  >
-                    {audioPlaying ? (
-                      <Loader2 className="w-5 h-5 animate-spin" />
-                    ) : (
-                      <Volume2 className="w-5 h-5" />
-                    )}
-                  </button>
-                </div>
+            {/* Bottom controls (prev, play, next) - keep above mobile sticky bar */}
+            <div className="flex items-center justify-between gap-3 py-2">
+              <button
+                onClick={onPrevCard}
+                disabled={isReviewing || currentIndex === 0}
+                className="p-3 bg-white border rounded-xl hover:bg-gray-50 disabled:opacity-40"
+                aria-label="Previous card"
+              >
+                <ChevronLeft size={20} />
+              </button>
 
-                {/* Center Stats */}
-                <div className="hidden md:flex items-center gap-6">
-                  <div className="text-center">
-                    <div className="text-xs text-gray-500">Streak</div>
-                    <div className="flex items-center gap-1 text-amber-600 font-bold">
-                      <Flame className="w-4 h-4" />
-                      {word.streak || 0}
-                    </div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-xs text-gray-500">Avg Time</div>
-                    <div className="text-gray-900 font-bold flex items-center gap-1">
-                      <Clock className="w-4 h-4" />
-                      {word.averageTime || 0}s
-                    </div>
-                  </div>
-                </div>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => onPlayAudio(word.japanese)}
+                  disabled={audioPlaying}
+                  className="p-3 sm:p-4 bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-full shadow-md hover:shadow-lg transition-all disabled:opacity-60"
+                  aria-label="Play audio"
+                >
+                  {audioPlaying ? (
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                  ) : (
+                    <Volume2 className="w-5 h-5" />
+                  )}
+                </button>
 
-                {/* Right Controls */}
-                <div className="flex items-center gap-3">
-                  <button
-                    onClick={onNextCard}
-                    disabled={isReviewing || currentIndex === totalCards - 1}
-                    className="p-3 bg-white text-gray-700 rounded-xl hover:bg-gray-50 border border-gray-300 hover:border-gray-400 transition-all duration-200 disabled:opacity-30 flex items-center gap-2"
-                  >
-                    <span className="hidden sm:inline">Next</span>
-                    <ChevronRight className="w-5 h-5" />
-                  </button>
-                  
-                  <button
-                    onClick={() => setShowHint(!showHint)}
-                    className={`p-3 rounded-xl transition-all duration-200 ${
-                      showHint 
-                        ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white' 
-                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                    }`}
-                  >
-                    <HelpCircle className="w-5 h-5" />
-                  </button>
-                </div>
+                <button
+                  onClick={onToggleTranslation}
+                  className="p-2.5 bg-white border rounded-lg hover:bg-gray-50 hidden sm:inline-flex items-center gap-2"
+                  aria-pressed={showTranslation}
+                >
+                  <HelpCircle className="w-5 h-5 text-gray-600" />
+                </button>
               </div>
+
+              <button
+                onClick={onNextCard}
+                disabled={isReviewing || currentIndex === totalCards - 1}
+                className="p-3 bg-white border rounded-xl hover:bg-gray-50 disabled:opacity-40"
+                aria-label="Next card"
+              >
+                <ChevronRight size={20} />
+              </button>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Global Styles */}
       <style jsx>{`
         @keyframes confetti {
-          0% {
-            transform: translateY(0) rotate(0deg);
-            opacity: 1;
-          }
-          100% {
-            transform: translateY(100vh) rotate(720deg);
-            opacity: 0;
-          }
-        }
-        @keyframes shimmer {
-          0% {
-            transform: translateX(-100%);
-          }
-          100% {
-            transform: translateX(100%);
-          }
+          0% { transform: translateY(-10vh) rotate(0deg); opacity: 1; }
+          100% { transform: translateY(110vh) rotate(720deg); opacity: 0; }
         }
         .animate-confetti {
-          animation: confetti 2s ease-out forwards;
-        }
-        .animate-shimmer {
-          animation: shimmer 2s infinite;
-        }
-        .animate-slide-up {
-          animation: slideUp 0.3s ease-out;
-        }
-        .animate-fade-in {
-          animation: fadeIn 0.5s ease-out;
-        }
-        @keyframes slideUp {
-          from {
-            opacity: 0;
-            transform: translateY(10px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
-        }
-        @keyframes fadeIn {
-          from {
-            opacity: 0;
-          }
-          to {
-            opacity: 1;
-          }
+          animation: confetti 2.2s ease-out forwards;
         }
         .font-japanese {
           font-family: 'Noto Sans JP', 'Hiragino Kaku Gothic Pro', 'Yu Gothic', sans-serif;
+        }
+        /* Ensure mobile content has room for the sticky bar */
+        @media (max-width: 640px) {
+          /* Outer container already has pb-28; this avoids content being hidden */
         }
       `}</style>
     </div>

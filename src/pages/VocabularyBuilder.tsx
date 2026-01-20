@@ -661,10 +661,10 @@ const VocabularyBuilder = () => {
                     <RefreshCw className="w-4 h-4" />
                     Refresh
                   </button>
-                  <button className="px-5 py-2.5 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-xl hover:shadow-lg transition-all duration-200 flex items-center gap-2 shadow-md">
+                  {/* <button className="px-5 py-2.5 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-xl hover:shadow-lg transition-all duration-200 flex items-center gap-2 shadow-md">
                     <Plus className="w-5 h-5" />
                     Add Word
-                  </button>
+                  </button> */}
                   <button 
                     onClick={() => setFullscreen(!fullscreen)}
                     className="px-4 py-2 bg-white text-gray-700 rounded-xl hover:bg-gray-50 transition-all duration-200 flex items-center gap-2 border border-gray-200"

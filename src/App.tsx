@@ -36,6 +36,9 @@ import DailyConversation from "./pages/DailyConversation";
 import VocabularyBuilder from "./pages/VocabularyBuilder";
 import ShortStories from "./pages/ShortStories";
 import CommunityLeaderboard from "./pages/CommunityLeaderboard";
+import KanjiView from "./kanji/KanjiView";
+import KanjiListPage from "./kanji/KanjiListPage";
+import KanjiDetailPage from "./kanji/KanjiDetailPage";
 
 function App() {
   return (
@@ -58,6 +61,9 @@ function App() {
           
           {/* ---------------- COMPREHENSIVE LEARNING ---------------- */}
           <Route path="/kanji" element={<KanjiLearning />} />
+                <Route path="/kanji/view" element={<KanjiView />} />
+                       <Route path="/kanji/new" element={<KanjiListPage />} />
+        <Route path="/kanji/:char" element={<KanjiDetailPage />} />
           <Route path="/grammar" element={<GrammarLessons />} />
           <Route path="/daily-conversation" element={<DailyConversation />} />
           <Route path="/vocabulary" element={<VocabularyBuilder />} />

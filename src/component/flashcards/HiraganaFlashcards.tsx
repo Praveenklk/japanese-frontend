@@ -331,10 +331,16 @@ const HiraganaFlashcards: React.FC<HiraganaFlashcardProps> = ({
     handleNextCard();
   };
 
+
+  const normalizeAnswer = (value: string) =>
+  value.trim().toLowerCase();
+
+
   const handleQuizAnswer = (answer: string) => {
     const question = quizQuestions[currentQuestion];
-    const isCorrect = answer === question.correctAnswer;
-    
+   const isCorrect =
+  normalizeAnswer(answer) === normalizeAnswer(question.correctAnswer);
+
     setSelectedAnswer(answer);
     setShowQuizFeedback(true);
     
@@ -356,6 +362,9 @@ const HiraganaFlashcards: React.FC<HiraganaFlashcardProps> = ({
       streak: isCorrect ? prev.streak + 1 : 0,
       maxStreak: Math.max(prev.maxStreak, isCorrect ? prev.streak + 1 : 0)
     }));
+
+
+    
 
     // Show feedback for 1.5 seconds before moving to next question
     setTimeout(() => {
@@ -420,7 +429,9 @@ const HiraganaFlashcards: React.FC<HiraganaFlashcardProps> = ({
       
       return question.options.map((option, index) => {
         let buttonClass = "p-4 border rounded-xl transition-all duration-300 ";
-        let isCorrect = option === question.correctAnswer;
+       let isCorrect =
+  normalizeAnswer(option) === normalizeAnswer(question.correctAnswer);
+
         let isSelected = option === selectedAnswer;
         
         if (showQuizFeedback) {
@@ -465,31 +476,37 @@ const HiraganaFlashcards: React.FC<HiraganaFlashcardProps> = ({
               <h3 className="text-2xl font-bold text-gray-700 mb-8">{question.question}</h3>
             </div>
             
-            {showQuizFeedback && (
-              <div className={`text-center p-4 rounded-lg animate-fade-in ${
-                selectedAnswer === question.correctAnswer 
-                  ? 'bg-green-50 text-green-700 border border-green-200'
-                  : 'bg-red-50 text-red-700 border border-red-200'
-              }`}>
-                <div className="flex items-center justify-center gap-2">
-                  {selectedAnswer === question.correctAnswer ? (
-                    <>
-                      <Check className="w-5 h-5" />
-                      <span className="font-bold">Correct!</span>
-                    </>
-                  ) : (
-                    <>
-                      <AlertCircle className="w-5 h-5" />
-                      <span className="font-bold">Incorrect</span>
-                    </>
-                  )}
-                </div>
-                <div className="mt-2">
-                  The correct answer is: <span className="font-bold">{question.correctAnswer}</span>
-                </div>
-              </div>
-            )}
-            
+       {showQuizFeedback && (
+  <div
+    className={`text-center p-4 rounded-lg animate-fade-in ${
+      normalizeAnswer(selectedAnswer ?? '') ===
+      normalizeAnswer(question.correctAnswer)
+        ? 'bg-green-50 text-green-700 border border-green-200'
+        : 'bg-red-50 text-red-700 border border-red-200'
+    }`}
+  >
+    <div className="flex items-center justify-center gap-2">
+      {normalizeAnswer(selectedAnswer ?? '') ===
+      normalizeAnswer(question.correctAnswer) ? (
+        <>
+          <Check className="w-5 h-5" />
+          <span className="font-bold">Correct!</span>
+        </>
+      ) : (
+        <>
+          <AlertCircle className="w-5 h-5" />
+          <span className="font-bold">Incorrect</span>
+        </>
+      )}
+    </div>
+
+    <div className="mt-2">
+      The correct answer is:{' '}
+      <span className="font-bold">{question.correctAnswer}</span>
+    </div>
+  </div>
+)}
+
             <div className="grid grid-cols-2 gap-4">
               {renderOptions()}
             </div>
@@ -518,12 +535,15 @@ const HiraganaFlashcards: React.FC<HiraganaFlashcardProps> = ({
               
               {showQuizFeedback && (
                 <div className={`text-center p-4 rounded-lg animate-fade-in ${
-                  userAnswer === question.correctAnswer 
+                 normalizeAnswer(userAnswer) === normalizeAnswer(question.correctAnswer)
+ 
                     ? 'bg-green-50 text-green-700 border border-green-200'
                     : 'bg-red-50 text-red-700 border border-red-200'
                 }`}>
                   <div className="flex items-center justify-center gap-2">
-                    {userAnswer === question.correctAnswer ? (
+                   {normalizeAnswer(userAnswer) ===
+ normalizeAnswer(question.correctAnswer) ? (
+
                       <>
                         <Check className="w-5 h-5" />
                         <span className="font-bold">Correct!</span>
@@ -545,8 +565,10 @@ const HiraganaFlashcards: React.FC<HiraganaFlashcardProps> = ({
                 onClick={() => !showQuizFeedback && handleQuizAnswer(userAnswer)}
                 disabled={showQuizFeedback || !userAnswer.trim()}
                 className={`w-full p-4 text-white rounded-lg transition-all ${
-                  showQuizFeedback
-                    ? userAnswer === question.correctAnswer
+showQuizFeedback
+  ? normalizeAnswer(userAnswer) ===
+    normalizeAnswer(question.correctAnswer)
+
                       ? 'bg-green-600'
                       : 'bg-red-600'
                     : userAnswer.trim()
@@ -567,7 +589,9 @@ const HiraganaFlashcards: React.FC<HiraganaFlashcardProps> = ({
             
             {showQuizFeedback && (
               <div className={`text-center p-4 rounded-lg animate-fade-in ${
-                selectedAnswer === question.correctAnswer 
+normalizeAnswer(selectedAnswer ?? '') ===
+normalizeAnswer(question.correctAnswer)
+
                   ? 'bg-green-50 text-green-700 border border-green-200'
                   : 'bg-red-50 text-red-700 border border-red-200'
               }`}>
@@ -590,7 +614,9 @@ const HiraganaFlashcards: React.FC<HiraganaFlashcardProps> = ({
             <div className="grid grid-cols-2 gap-4">
               {question.options?.map((option, index) => {
                 const [symbol, romaji] = option.split('=');
-                let isCorrect = option === question.correctAnswer;
+let isCorrect =
+  normalizeAnswer(option) === normalizeAnswer(question.correctAnswer);
+
                 let isSelected = option === selectedAnswer;
                 
                 let buttonClass = "p-4 border rounded-xl transition-all duration-300 ";
