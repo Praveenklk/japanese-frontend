@@ -39,6 +39,7 @@ import CommunityLeaderboard from "./pages/CommunityLeaderboard";
 import KanjiView from "./kanji/KanjiView";
 import KanjiListPage from "./kanji/KanjiListPage";
 import KanjiDetailPage from "./kanji/KanjiDetailPage";
+import VocabularyMaster from "./pages/Vocabulary/VocabularyMaster";
 
 function App() {
   return (
@@ -58,7 +59,8 @@ function App() {
 
           {/* ---------------- LEARNING HUB ---------------- */}
           <Route path="/learn" element={<LearningHub />} />
-          
+             <Route path="/master/vocab" element={<VocabularyMaster />} />
+
           {/* ---------------- COMPREHENSIVE LEARNING ---------------- */}
           <Route path="/kanji" element={<KanjiLearning />} />
                 <Route path="/kanji/view" element={<KanjiView />} />

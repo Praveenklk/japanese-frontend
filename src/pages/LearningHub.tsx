@@ -11,7 +11,8 @@ import {
   Sparkles,
   ArrowRight,
   Star,
-  Target
+  Target,
+  WholeWord
 } from "lucide-react";
 
 const LearningHub = () => {
@@ -62,6 +63,17 @@ const LearningHub = () => {
       status: "available",
       stats: "5,000+ Words"
     },
+        {
+      title: "JLPT Vocabulary",
+      description: "Monitor your learning journey with detailed analytics",
+      icon: <WholeWord className="w-10 h-10 text-amber-600" />,
+      path: "/master/vocab",
+      color: "bg-amber-50 hover:bg-amber-100",
+      stats: "Real-time Stats",
+      status: "available",
+      buttonText: "2,000+ Words"
+    },
+    
     {
       title: "Short Stories",
       japanese: "ショートストーリー",
