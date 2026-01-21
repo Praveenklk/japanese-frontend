@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { 
   BookOpen, 
   Volume2, 
@@ -50,9 +50,6 @@ import {
   ZoomIn,
   ZoomOut,
   MoreVertical,
-  Eye as EyeIcon,
-  EyeOff as EyeOffIcon,
-  Settings as SettingsIcon,
   ExternalLink,
   Share2,
   Printer,
@@ -62,8 +59,6 @@ import {
   Heart,
   HeartOff,
   Star as StarIcon,
-  Moon,
-  Sun,
   Languages,
   Globe,
   Home,
@@ -136,7 +131,7 @@ interface UserProgress {
 type Level = 'all' | '5' | '4' | '3' | '2' | '1';
 type ViewMode = 'flashcard' | 'list' | 'grid' | 'quiz';
 type ReviewRating = 'again' | 'hard' | 'good' | 'easy';
-type QuizType = 'multiple-choice' | 'typing' | 'matching';
+type QuizType = 'multiple-choice' | 'typing';
 type QuizDifficulty = 'easy' | 'medium' | 'hard';
 
 // Local Storage Utility
@@ -204,7 +199,6 @@ class ProgressStorage {
     if (index === -1) {
       progress.learnedWords.push(word);
       
-      // Update daily stats
       const today = new Date().toISOString().split('T')[0];
       if (!progress.dailyStats[today]) {
         progress.dailyStats[today] = { learned: 0, reviewed: 0, totalTime: 0 };
@@ -234,7 +228,6 @@ class ProgressStorage {
       easeFactor: 2.5
     };
     
-    // Update based on rating
     wordProgress.reviews++;
     
     switch(rating) {
@@ -263,23 +256,19 @@ class ProgressStorage {
         break;
     }
     
-    // Update next review date
     const nextReview = new Date();
     nextReview.setDate(nextReview.getDate() + wordProgress.intervalDays);
     wordProgress.nextReview = nextReview.toISOString();
     wordProgress.lastReviewed = new Date().toISOString();
     
-    // Update word progress
     progress.wordProgress[word] = wordProgress;
     
-    // Update daily stats
     const today = new Date().toISOString().split('T')[0];
     if (!progress.dailyStats[today]) {
       progress.dailyStats[today] = { learned: 0, reviewed: 0, totalTime: 0 };
     }
     progress.dailyStats[today].reviewed++;
     
-    // Update streak
     this.updateStreak(progress);
     
     progress.lastActive = new Date().toISOString();
@@ -294,7 +283,6 @@ class ProgressStorage {
     const yesterdayStr = yesterday.toISOString().split('T')[0];
     
     if (progress.dailyStats[today]?.reviewed > 0) {
-      // Check if we were active yesterday
       if (progress.dailyStats[yesterdayStr]) {
         progress.streak++;
       } else if (progress.streak === 0) {
@@ -379,7 +367,10 @@ const VocabularyMaster = () => {
   const [isCorrect, setIsCorrect] = useState(false);
   const [userInput, setUserInput] = useState('');
   const [timeLeft, setTimeLeft] = useState(30);
-  const [quizTime, setQuizTime] = useState(30);
+
+  // Refs for performance
+  const audioRef = useRef<SpeechSynthesisUtterance | null>(null);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
 
   // Stats
   const [stats, setStats] = useState({
@@ -396,24 +387,33 @@ const VocabularyMaster = () => {
 
   // Animation variants
   const cardVariants = {
-    hidden: { opacity: 0, x: 50, rotateY: 90 },
-    visible: { opacity: 1, x: 0, rotateY: 0 },
-    exit: { opacity: 0, x: -50, rotateY: -90 }
+    hidden: { opacity: 0, scale: 0.9, rotateX: -10 },
+    visible: { opacity: 1, scale: 1, rotateX: 0 },
+    exit: { opacity: 0, scale: 0.9, rotateX: 10 }
   };
 
-  const flipVariants = {
-    front: { rotateY: 0 },
-    back: { rotateY: 180 }
+  const fadeInUp = {
+    hidden: { opacity: 0, y: 20 },
+    visible: { opacity: 1, y: 0 }
   };
 
   // Initialize
   useEffect(() => {
     loadVocabulary();
     updateStats();
+    
+    return () => {
+      if (audioRef.current) {
+        speechSynthesis.cancel();
+      }
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+      }
+    };
   }, []);
 
   // Load vocabulary
-  const loadVocabulary = () => {
+  const loadVocabulary = useCallback(() => {
     setIsLoading(true);
     
     const combinedVocabulary = [
@@ -436,18 +436,16 @@ const VocabularyMaster = () => {
     setFilteredWords(enrichedVocabulary);
     setIsLoading(false);
     updateStats();
-  };
+  }, []);
 
-  // Filter words
+  // Filter words - optimized with useMemo
   useEffect(() => {
-    let filtered = [...allWords];
+    let filtered = allWords;
 
-    // Filter by level
     if (selectedLevel !== 'all') {
       filtered = filtered.filter(word => word.level.toString() === selectedLevel);
     }
 
-    // Filter by due cards only
     if (showDueOnly) {
       const now = new Date();
       filtered = filtered.filter(word => {
@@ -456,29 +454,25 @@ const VocabularyMaster = () => {
       });
     }
 
-    // Filter by search term
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
       filtered = filtered.filter(word => 
         word.word.toLowerCase().includes(term) ||
         word.meaning.toLowerCase().includes(term) ||
         word.furigana.toLowerCase().includes(term) ||
-        word.romaji.toLowerCase().includes(term) ||
-        word.tags?.some(tag => tag.toLowerCase().includes(term)) ||
-        word.example?.toLowerCase().includes(term)
+        word.romaji.toLowerCase().includes(term)
       );
     }
 
     setFilteredWords(filtered);
     
-    // Reset to first word if current index is out of bounds
-    if (currentWordIndex >= filtered.length) {
+    if (currentWordIndex >= filtered.length && filtered.length > 0) {
       setCurrentWordIndex(0);
     }
   }, [allWords, selectedLevel, searchTerm, showDueOnly, progress, currentWordIndex]);
 
   // Update stats
-  const updateStats = () => {
+  const updateStats = useCallback(() => {
     const currentProgress = ProgressStorage.getProgress();
     setProgress(currentProgress);
     
@@ -505,14 +499,17 @@ const VocabularyMaster = () => {
       totalReviews,
       quizStats: ProgressStorage.getQuizStats()
     });
-  };
+  }, [allWords]);
 
-  const currentWord = filteredWords[currentWordIndex];
+  const currentWord = filteredWords[currentWordIndex] || filteredWords[0];
 
-  // Text-to-Speech
-  const playJapaneseAudio = async (text: string) => {
+  // Text-to-Speech - optimized
+  const playJapaneseAudio = useCallback(async (text: string) => {
     try {
       setAudioPlaying(true);
+      
+      // Cancel any ongoing speech
+      speechSynthesis.cancel();
       
       const utterance = new SpeechSynthesisUtterance(text);
       utterance.lang = 'ja-JP';
@@ -520,29 +517,36 @@ const VocabularyMaster = () => {
       utterance.pitch = 1;
       utterance.volume = 1;
       
-      utterance.onend = () => setAudioPlaying(false);
-      utterance.onerror = () => setAudioPlaying(false);
+      utterance.onend = () => {
+        setAudioPlaying(false);
+        audioRef.current = null;
+      };
       
+      utterance.onerror = () => {
+        setAudioPlaying(false);
+        audioRef.current = null;
+      };
+      
+      audioRef.current = utterance;
       speechSynthesis.speak(utterance);
     } catch (error) {
       console.error('Audio playback failed:', error);
       setAudioPlaying(false);
+      audioRef.current = null;
     }
-  };
+  }, []);
 
-  const stopAudio = () => {
+  const stopAudio = useCallback(() => {
     speechSynthesis.cancel();
     setAudioPlaying(false);
-  };
+    audioRef.current = null;
+  }, []);
 
-  // Review word
-  const reviewWord = async (rating: ReviewRating) => {
+  // Review word - optimized
+  const reviewWord = useCallback(async (rating: ReviewRating) => {
     if (!currentWord) return;
     
     setIsReviewing(true);
-    
-    // Add small delay for better UX
-    await new Promise(resolve => setTimeout(resolve, 300));
     
     try {
       ProgressStorage.updateWordProgress(currentWord.word, rating);
@@ -574,35 +578,35 @@ const VocabularyMaster = () => {
     } finally {
       setIsReviewing(false);
     }
-  };
+  }, [currentWord, currentWordIndex, filteredWords.length, autoFlip, autoPlay, playJapaneseAudio, updateStats]);
 
-  const toggleBookmark = (word: string) => {
+  const toggleBookmark = useCallback((word: string) => {
     ProgressStorage.toggleBookmark(word);
     updateStats();
-  };
+  }, [updateStats]);
 
-  const toggleLearned = (word: string) => {
+  const toggleLearned = useCallback((word: string) => {
     ProgressStorage.toggleLearned(word);
     updateStats();
-  };
+  }, [updateStats]);
 
-  const resetFilters = () => {
+  const resetFilters = useCallback(() => {
     setSelectedLevel('all');
     setSearchTerm('');
     setShowDueOnly(false);
-  };
+  }, []);
 
-  const nextCard = () => {
+  const nextCard = useCallback(() => {
     setCurrentWordIndex(prev => prev < filteredWords.length - 1 ? prev + 1 : 0);
     setShowAnswer(false);
-  };
+  }, [filteredWords.length]);
 
-  const prevCard = () => {
+  const prevCard = useCallback(() => {
     setCurrentWordIndex(prev => prev > 0 ? prev - 1 : filteredWords.length - 1);
     setShowAnswer(false);
-  };
+  }, [filteredWords.length]);
 
-  const shuffleCards = () => {
+  const shuffleCards = useCallback(() => {
     const shuffled = [...filteredWords];
     for (let i = shuffled.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
@@ -611,10 +615,10 @@ const VocabularyMaster = () => {
     setFilteredWords(shuffled);
     setCurrentWordIndex(0);
     setShowAnswer(false);
-  };
+  }, [filteredWords]);
 
   // Quiz Functions
-  const startQuiz = (type: QuizType = 'multiple-choice', difficulty: QuizDifficulty = 'medium') => {
+  const startQuiz = useCallback((type: QuizType = 'multiple-choice', difficulty: QuizDifficulty = 'medium') => {
     setQuizType(type);
     setQuizDifficulty(difficulty);
     setQuizActive(true);
@@ -625,26 +629,25 @@ const VocabularyMaster = () => {
     setShowResult(false);
     setUserInput('');
     
-    // Select questions based on difficulty
+    // Select questions
     let pool = [...filteredWords];
     if (difficulty === 'easy') {
-      pool = pool.filter(word => word.level >= 4); // N4-N5
+      pool = pool.filter(word => word.level >= 4);
     } else if (difficulty === 'medium') {
-      pool = pool.filter(word => word.level >= 3); // N3-N5
+      pool = pool.filter(word => word.level >= 3);
     }
     
-    // Shuffle and select 10 questions
+    // Shuffle and select questions
     const shuffled = [...pool].sort(() => Math.random() - 0.5);
-    const questions = shuffled.slice(0, 10);
+    const questions = shuffled.slice(0, Math.min(10, shuffled.length));
     setQuizQuestions(questions);
     
-    // Set time based on difficulty
+    // Set time
     const time = difficulty === 'easy' ? 40 : difficulty === 'medium' ? 30 : 20;
     setTimeLeft(time);
-    setQuizTime(time);
-  };
+  }, [filteredWords]);
 
-  const checkAnswer = (answer: string) => {
+  const checkAnswer = useCallback((answer: string) => {
     if (!quizQuestions[currentQuestion]) return;
     
     const correct = answer.toLowerCase() === quizQuestions[currentQuestion].meaning.toLowerCase();
@@ -662,7 +665,6 @@ const VocabularyMaster = () => {
         setSelectedAnswer(null);
         setShowResult(false);
         setUserInput('');
-        // Reset timer for next question
         const time = quizDifficulty === 'easy' ? 40 : quizDifficulty === 'medium' ? 30 : 20;
         setTimeLeft(time);
       } else {
@@ -671,9 +673,9 @@ const VocabularyMaster = () => {
         updateStats();
       }
     }, 1500);
-  };
+  }, [quizQuestions, currentQuestion, quizDifficulty, score, updateStats]);
 
-  const checkTypingAnswer = () => {
+  const checkTypingAnswer = useCallback(() => {
     if (!userInput.trim() || !quizQuestions[currentQuestion]) return;
     
     const correct = userInput.toLowerCase() === quizQuestions[currentQuestion].meaning.toLowerCase();
@@ -689,7 +691,6 @@ const VocabularyMaster = () => {
         setCurrentQuestion(prev => prev + 1);
         setUserInput('');
         setShowResult(false);
-        // Reset timer for next question
         const time = quizDifficulty === 'easy' ? 40 : quizDifficulty === 'medium' ? 30 : 20;
         setTimeLeft(time);
       } else {
@@ -698,17 +699,20 @@ const VocabularyMaster = () => {
         updateStats();
       }
     }, 1500);
-  };
+  }, [userInput, quizQuestions, currentQuestion, quizDifficulty, score, updateStats]);
 
-  // Timer effect for quiz
+  // Timer effect for quiz - optimized
   useEffect(() => {
     if (!quizActive || quizCompleted || showResult) return;
     
-    const timer = setInterval(() => {
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+    }
+    
+    timerRef.current = setInterval(() => {
       setTimeLeft(prev => {
         if (prev <= 1) {
-          clearInterval(timer);
-          // Time's up - move to next question
+          clearInterval(timerRef.current!);
           if (currentQuestion < quizQuestions.length - 1) {
             setCurrentQuestion(prev => prev + 1);
             const time = quizDifficulty === 'easy' ? 40 : quizDifficulty === 'medium' ? 30 : 20;
@@ -724,9 +728,14 @@ const VocabularyMaster = () => {
       });
     }, 1000);
     
-    return () => clearInterval(timer);
-  }, [quizActive, quizCompleted, currentQuestion, showResult]);
+    return () => {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+      }
+    };
+  }, [quizActive, quizCompleted, currentQuestion, showResult, quizQuestions.length, quizDifficulty, score, updateStats]);
 
+  // Keyboard shortcuts
   const handleKeyPress = useCallback((event: KeyboardEvent) => {
     if (quizActive) {
       if (event.key === 'Enter' && quizType === 'typing') {
@@ -782,7 +791,7 @@ const VocabularyMaster = () => {
         startQuiz();
         break;
     }
-  }, [viewMode, showAnswer, currentWord, filteredWords.length, currentWordIndex, quizActive, quizType]);
+  }, [quizActive, quizType, viewMode, showAnswer, currentWord, prevCard, nextCard, reviewWord, playJapaneseAudio, toggleBookmark, toggleLearned, shuffleCards, loadVocabulary, startQuiz, checkTypingAnswer]);
 
   useEffect(() => {
     document.addEventListener('keydown', handleKeyPress);
@@ -810,6 +819,22 @@ const VocabularyMaster = () => {
     linkElement.click();
   };
 
+  // Skip question in quiz
+  const skipQuestion = useCallback(() => {
+    if (currentQuestion < quizQuestions.length - 1) {
+      setCurrentQuestion(prev => prev + 1);
+      setSelectedAnswer(null);
+      setShowResult(false);
+      setUserInput('');
+      const time = quizDifficulty === 'easy' ? 40 : quizDifficulty === 'medium' ? 30 : 20;
+      setTimeLeft(time);
+    } else {
+      setQuizCompleted(true);
+      ProgressStorage.updateQuizStats(score, quizQuestions.length);
+      updateStats();
+    }
+  }, [currentQuestion, quizQuestions.length, quizDifficulty, score, updateStats]);
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 flex items-center justify-center p-4">
@@ -826,16 +851,9 @@ const VocabularyMaster = () => {
             >
               <BookOpen className="w-10 h-10 text-white" />
             </motion.div>
-            <motion.div
-              className="absolute -inset-4 border-4 border-blue-200 rounded-2xl"
-              animate={{ rotate: 360 }}
-              transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
-            />
           </div>
           <div>
-            <h3 className="text-2xl font-bold text-gray-800 bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-purple-600">
-              Loading Vocabulary
-            </h3>
+            <h3 className="text-2xl font-bold text-gray-800">Loading Vocabulary</h3>
             <p className="text-gray-600 mt-2">Preparing your learning journey...</p>
           </div>
         </motion.div>
@@ -845,67 +863,52 @@ const VocabularyMaster = () => {
 
   return (
     <div className={`min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 ${fullscreen ? 'fixed inset-0 z-50' : ''}`}>
-      {/* Animated background elements */}
-      <div className="fixed inset-0 overflow-hidden pointer-events-none">
-        {[...Array(20)].map((_, i) => (
-          <motion.div
-            key={i}
-            className="absolute w-4 h-4 rounded-full bg-gradient-to-r from-blue-300 to-purple-300 opacity-20"
-            initial={{ x: Math.random() * window.innerWidth, y: Math.random() * window.innerHeight }}
-            animate={{ 
-              y: [null, Math.random() * 100 - 50],
-              x: [null, Math.random() * 100 - 50],
-            }}
-            transition={{ duration: 3 + Math.random() * 2, repeat: Infinity, repeatType: "reverse" }}
-          />
-        ))}
-      </div>
-
-      <div className={`relative ${fullscreen ? 'h-screen overflow-hidden' : 'max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6'}`}>
+      <div className={`relative ${fullscreen ? 'h-screen overflow-hidden' : 'max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6'}`}>
         {/* Header */}
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="mb-8"
+          className="mb-6 sm:mb-8"
         >
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-8">
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
             <div>
-              <h1 className="text-4xl font-bold text-gray-800 bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-purple-600">
+              <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-gray-800">
                 Japanese Vocabulary Master
               </h1>
-              <p className="text-gray-600 mt-2 text-lg">
+              <p className="text-gray-600 mt-1 sm:mt-2 text-sm sm:text-base">
                 Master <span className="font-bold text-blue-600">{stats.totalWords}</span> words across all JLPT levels
               </p>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
               <motion.button
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
                 onClick={() => startQuiz()}
-                className="px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-xl font-semibold hover:shadow-lg transition-all duration-200 flex items-center gap-2"
+                className="px-4 sm:px-6 py-2 sm:py-3 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-lg sm:rounded-xl font-semibold text-sm sm:text-base hover:shadow-lg transition-all duration-200 flex items-center gap-2"
               >
-                <Gamepad2 className="w-5 h-5" />
-                Start Quiz
+                <Gamepad2 className="w-4 h-4 sm:w-5 sm:h-5" />
+                <span className="hidden sm:inline">Start Quiz</span>
+                <span className="sm:hidden">Quiz</span>
               </motion.button>
               <button
                 onClick={() => setFullscreen(!fullscreen)}
-                className="p-3 rounded-xl bg-white/80 backdrop-blur-sm border border-gray-200 hover:bg-white transition-all hover:shadow-md"
+                className="p-2 sm:p-3 rounded-lg sm:rounded-xl bg-white/80 backdrop-blur-sm border border-gray-200 hover:bg-white transition-all hover:shadow-md"
                 title={fullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
               >
-                {fullscreen ? <Minimize2 className="w-5 h-5 text-gray-700" /> : <Maximize2 className="w-5 h-5 text-gray-700" />}
+                {fullscreen ? <Minimize2 className="w-4 h-4 sm:w-5 sm:h-5 text-gray-700" /> : <Maximize2 className="w-4 h-4 sm:w-5 sm:h-5 text-gray-700" />}
               </button>
               <button
                 onClick={() => setShowSettings(!showSettings)}
-                className="p-3 rounded-xl bg-white/80 backdrop-blur-sm border border-gray-200 hover:bg-white transition-all hover:shadow-md"
+                className="p-2 sm:p-3 rounded-lg sm:rounded-xl bg-white/80 backdrop-blur-sm border border-gray-200 hover:bg-white transition-all hover:shadow-md"
                 title="Settings"
               >
-                <Settings className="w-5 h-5 text-gray-700" />
+                <Settings className="w-4 h-4 sm:w-5 sm:h-5 text-gray-700" />
               </button>
             </div>
           </div>
 
           {/* Quick Stats */}
-          <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
+          <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4 mb-6 sm:mb-8">
             {[
               { icon: BookOpen, label: 'Total Words', value: stats.totalWords, color: 'from-blue-500 to-cyan-500' },
               { icon: Trophy, label: 'Mastered', value: stats.learnedWords, color: 'from-emerald-500 to-green-500' },
@@ -918,16 +921,16 @@ const VocabularyMaster = () => {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: index * 0.1 }}
-                whileHover={{ y: -5 }}
-                className="bg-white/80 backdrop-blur-sm rounded-2xl border border-gray-200 p-5 hover:shadow-lg transition-all duration-300"
+                whileHover={{ y: -3 }}
+                className="bg-white/80 backdrop-blur-sm rounded-xl sm:rounded-2xl border border-gray-200 p-3 sm:p-4 hover:shadow-lg transition-all duration-300"
               >
-                <div className="flex items-center gap-4">
-                  <div className={`p-3 rounded-xl bg-gradient-to-r ${stat.color}`}>
-                    <stat.icon className="w-6 h-6 text-white" />
+                <div className="flex items-center gap-2 sm:gap-3">
+                  <div className={`p-2 sm:p-3 rounded-lg sm:rounded-xl bg-gradient-to-r ${stat.color}`}>
+                    <stat.icon className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
                   </div>
-                  <div>
-                    <div className="text-2xl font-bold text-gray-800">{stat.value}</div>
-                    <div className="text-sm text-gray-600">{stat.label}</div>
+                  <div className="min-w-0">
+                    <div className="text-lg sm:text-xl font-bold text-gray-800 truncate">{stat.value}</div>
+                    <div className="text-xs sm:text-sm text-gray-600 truncate">{stat.label}</div>
                   </div>
                 </div>
               </motion.div>
@@ -939,88 +942,78 @@ const VocabularyMaster = () => {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.3 }}
-            className="bg-white/80 backdrop-blur-sm rounded-2xl border border-gray-200 p-6 mb-8 shadow-sm"
+            className="bg-white/80 backdrop-blur-sm rounded-xl sm:rounded-2xl border border-gray-200 p-4 sm:p-6 mb-6 sm:mb-8 shadow-sm"
           >
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:gap-6">
-  {/* 🔍 Search */}
-  <div className="w-full lg:flex-1">
-    <div className="relative">
-      <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
-      <input
-        type="text"
-        placeholder="Search Japanese, English, reading..."
-        value={searchTerm}
-        onChange={(e) => setSearchTerm(e.target.value)}
-        className="w-full pl-12 pr-10 py-3.5 bg-white border border-gray-300 rounded-xl
-                   focus:outline-none focus:ring-3 focus:ring-blue-500/30
-                   focus:border-blue-500 text-gray-900 placeholder-gray-500
-                   transition-all duration-300"
-      />
-      {searchTerm && (
-        <button
-          onClick={() => setSearchTerm('')}
-          className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-        >
-          <X className="w-5 h-5" />
-        </button>
-      )}
-    </div>
-  </div>
+            <div className="flex flex-col lg:flex-row lg:items-center gap-4 sm:gap-6">
+              {/* Search */}
+              <div className="flex-1">
+                <div className="relative">
+                  <Search className="absolute left-3 sm:left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4 sm:w-5 sm:h-5" />
+                  <input
+                    type="text"
+                    placeholder="Search Japanese, English, reading..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="w-full pl-9 sm:pl-12 pr-8 sm:pr-10 py-2.5 sm:py-3.5 bg-white border border-gray-300 rounded-lg sm:rounded-xl focus:outline-none focus:ring-2 sm:focus:ring-3 focus:ring-blue-500/30 focus:border-blue-500 text-gray-900 placeholder-gray-500 transition-all duration-300 text-sm sm:text-base"
+                  />
+                  {searchTerm && (
+                    <button
+                      onClick={() => setSearchTerm('')}
+                      className="absolute right-2 sm:right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    >
+                      <X className="w-4 h-4 sm:w-5 sm:h-5" />
+                    </button>
+                  )}
+                </div>
+              </div>
 
-  {/* 🎚 Filters + View */}
-  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
-    {/* JLPT Filter */}
-    <div className="relative w-full sm:w-auto">
-      <select
-        value={selectedLevel}
-        onChange={(e) => setSelectedLevel(e.target.value as Level)}
-        className="w-full sm:w-auto py-3.5 px-6 bg-white border border-gray-300
-                   rounded-xl focus:outline-none focus:ring-3 focus:ring-blue-500/30
-                   focus:border-blue-500 text-gray-900 appearance-none pr-10
-                   transition-all duration-300"
-      >
-        <option value="all">All JLPT Levels</option>
-        <option value="5">N5 (Beginner)</option>
-        <option value="4">N4 (Elementary)</option>
-        <option value="3">N3 (Intermediate)</option>
-        <option value="2">N2 (Advanced)</option>
-        <option value="1">N1 (Fluent)</option>
-      </select>
-      <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5 pointer-events-none" />
-    </div>
+              {/* Level Filter & View Mode */}
+              <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
+                <div className="relative">
+                  <select
+                    value={selectedLevel}
+                    onChange={(e) => setSelectedLevel(e.target.value as Level)}
+                    className="w-full py-2.5 sm:py-3.5 px-4 sm:px-6 bg-white border border-gray-300 rounded-lg sm:rounded-xl focus:outline-none focus:ring-2 sm:focus:ring-3 focus:ring-blue-500/30 focus:border-blue-500 text-gray-900 appearance-none pr-8 sm:pr-10 transition-all duration-300 text-sm sm:text-base"
+                  >
+                    <option value="all">All JLPT Levels</option>
+                    <option value="5">N5 (Beginner)</option>
+                    <option value="4">N4 (Elementary)</option>
+                    <option value="3">N3 (Intermediate)</option>
+                    <option value="2">N2 (Advanced)</option>
+                    <option value="1">N1 (Fluent)</option>
+                  </select>
+                  <ChevronDown className="absolute right-2 sm:right-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4 sm:w-5 sm:h-5 pointer-events-none" />
+                </div>
 
-    {/* 🧩 View Mode Toggle (scrollable on mobile) */}
-    <div className="bg-gray-100 p-1.5 rounded-xl overflow-x-auto scrollbar-hide">
-      <div className="flex gap-2 min-w-max">
-        {[
-          { mode: 'flashcard', icon: Layers, label: 'Cards' },
-          { mode: 'list', icon: List, label: 'List' },
-          { mode: 'grid', icon: Grid, label: 'Grid' },
-          { mode: 'quiz', icon: Gamepad2, label: 'Quiz' },
-        ].map(({ mode, icon: Icon, label }) => (
-          <motion.button
-            key={mode}
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            onClick={() => setViewMode(mode as ViewMode)}
-            className={`flex-shrink-0 px-4 py-2.5 rounded-lg transition-all duration-300
-                        flex items-center gap-2 whitespace-nowrap ${
-              viewMode === mode
-                ? 'bg-gradient-to-r from-blue-500 to-purple-500 text-white shadow-md'
-                : 'text-gray-700 hover:bg-gray-200'
-            }`}
-          >
-            <Icon className="w-4 h-4" />
-            <span className="text-sm font-medium">{label}</span>
-          </motion.button>
-        ))}
-      </div>
-    </div>
-  </div>
-</div>
+                {/* View Mode Toggle */}
+                <div className="flex bg-gray-100 p-1 rounded-lg sm:rounded-xl">
+                  {[
+                    { mode: 'flashcard', icon: Layers, label: 'Cards' },
+                    { mode: 'list', icon: List, label: 'List' },
+                    { mode: 'grid', icon: Grid, label: 'Grid' },
+                    { mode: 'quiz', icon: Gamepad2, label: 'Quiz' },
+                  ].map(({ mode, icon: Icon, label }) => (
+                    <motion.button
+                      key={mode}
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      onClick={() => setViewMode(mode as ViewMode)}
+                      className={`px-3 sm:px-4 py-1.5 sm:py-2.5 rounded-md sm:rounded-lg transition-all duration-300 flex items-center gap-1 sm:gap-2 text-xs sm:text-sm ${
+                        viewMode === mode 
+                          ? 'bg-gradient-to-r from-blue-500 to-purple-500 text-white shadow-sm sm:shadow-md' 
+                          : 'text-gray-700 hover:bg-gray-200'
+                      }`}
+                    >
+                      <Icon className="w-3 h-3 sm:w-4 sm:h-4" />
+                      <span className="font-medium">{label}</span>
+                    </motion.button>
+                  ))}
+                </div>
+              </div>
+            </div>
 
             {/* Quick Actions */}
-            <div className="flex flex-wrap gap-3 mt-6">
+            <div className="flex flex-wrap gap-2 sm:gap-3 mt-4 sm:mt-6">
               {[
                 { icon: Bell, label: `Due Only (${stats.dueToday})`, active: showDueOnly, onClick: () => setShowDueOnly(!showDueOnly), color: 'amber' },
                 { icon: Type, label: 'Furigana', active: showFurigana, onClick: () => setShowFurigana(!showFurigana), color: 'emerald' },
@@ -1033,14 +1026,14 @@ const VocabularyMaster = () => {
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
                   onClick={action.onClick}
-                  className={`px-4 py-2.5 rounded-xl flex items-center gap-2 transition-all duration-300 ${
+                  className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg sm:rounded-xl flex items-center gap-1 sm:gap-2 transition-all duration-300 text-xs sm:text-sm ${
                     action.active
                       ? `bg-${action.color}-100 text-${action.color}-700 border border-${action.color}-200`
                       : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                   }`}
                 >
-                  <action.icon className="w-4 h-4" />
-                  <span className="text-sm font-medium">{action.label}</span>
+                  <action.icon className="w-3 h-3 sm:w-4 sm:h-4" />
+                  <span className="font-medium">{action.label}</span>
                 </motion.button>
               ))}
             </div>
@@ -1055,21 +1048,21 @@ const VocabularyMaster = () => {
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.9 }}
-              className="bg-white/80 backdrop-blur-sm rounded-2xl border border-gray-200 p-12 text-center"
+              className="bg-white/80 backdrop-blur-sm rounded-xl sm:rounded-2xl border border-gray-200 p-6 sm:p-8 md:p-12 text-center"
             >
               <div className="max-w-md mx-auto">
-                <div className="w-24 h-24 mx-auto mb-6 rounded-2xl bg-gradient-to-r from-blue-100 to-purple-100 flex items-center justify-center">
-                  <Search className="w-12 h-12 text-blue-500" />
+                <div className="w-16 h-16 sm:w-20 sm:h-20 md:w-24 md:h-24 mx-auto mb-4 sm:mb-6 rounded-xl sm:rounded-2xl bg-gradient-to-r from-blue-100 to-purple-100 flex items-center justify-center">
+                  <Search className="w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 text-blue-500" />
                 </div>
-                <h3 className="text-2xl font-bold text-gray-800 mb-3">No Words Found</h3>
-                <p className="text-gray-600 mb-8">
+                <h3 className="text-lg sm:text-xl md:text-2xl font-bold text-gray-800 mb-2 sm:mb-3">No Words Found</h3>
+                <p className="text-gray-600 mb-4 sm:mb-6 md:mb-8 text-sm sm:text-base">
                   Try adjusting your filters or search term to find vocabulary.
                 </p>
                 <motion.button
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
                   onClick={resetFilters}
-                  className="px-6 py-3 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-xl font-semibold hover:shadow-lg transition-all duration-200"
+                  className="px-4 sm:px-5 md:px-6 py-2 sm:py-2.5 md:py-3 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-lg sm:rounded-xl font-semibold hover:shadow-lg transition-all duration-200 text-sm sm:text-base"
                 >
                   Reset All Filters
                 </motion.button>
@@ -1082,66 +1075,66 @@ const VocabularyMaster = () => {
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.9 }}
-              className="bg-white/80 backdrop-blur-sm rounded-2xl border border-gray-200 overflow-hidden shadow-lg"
+              className="bg-white/80 backdrop-blur-sm rounded-xl sm:rounded-2xl border border-gray-200 overflow-hidden shadow-lg"
             >
               {/* Quiz Header */}
-              <div className="flex items-center justify-between p-6 border-b border-gray-200 bg-gradient-to-r from-blue-500 to-purple-500">
-                <div className="flex items-center gap-4">
-                  <div className="p-2 bg-white/20 rounded-lg">
-                    <Gamepad2 className="w-6 h-6 text-white" />
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between p-4 sm:p-6 border-b border-gray-200 bg-gradient-to-r from-blue-500 to-purple-500">
+                <div className="flex items-center gap-2 sm:gap-4 mb-3 sm:mb-0">
+                  <div className="p-1.5 sm:p-2 bg-white/20 rounded-md sm:rounded-lg">
+                    <Gamepad2 className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
                   </div>
                   <div>
-                    <h3 className="text-xl font-bold text-white">Vocabulary Quiz</h3>
-                    <p className="text-white/80 text-sm">
+                    <h3 className="text-lg sm:text-xl font-bold text-white">Vocabulary Quiz</h3>
+                    <p className="text-white/80 text-xs sm:text-sm">
                       {quizType === 'multiple-choice' ? 'Multiple Choice' : 'Typing Challenge'} • {quizDifficulty} Level
                     </p>
                   </div>
                 </div>
                 
-                <div className="flex items-center gap-6">
+                <div className="flex items-center justify-between sm:justify-end gap-4 sm:gap-6">
                   <div className="text-center">
-                    <div className="text-2xl font-bold text-white">{score}/{quizQuestions.length}</div>
-                    <div className="text-white/80 text-sm">Score</div>
+                    <div className="text-xl sm:text-2xl font-bold text-white">{score}/{quizQuestions.length}</div>
+                    <div className="text-white/80 text-xs sm:text-sm">Score</div>
                   </div>
                   <div className="text-center">
-                    <div className="text-2xl font-bold text-white">{currentQuestion + 1}/{quizQuestions.length}</div>
-                    <div className="text-white/80 text-sm">Question</div>
+                    <div className="text-xl sm:text-2xl font-bold text-white">{currentQuestion + 1}/{quizQuestions.length}</div>
+                    <div className="text-white/80 text-xs sm:text-sm">Question</div>
                   </div>
                   <div className="text-center">
-                    <div className="text-2xl font-bold text-white">{timeLeft}s</div>
-                    <div className="text-white/80 text-sm">Time Left</div>
+                    <div className="text-xl sm:text-2xl font-bold text-white">{timeLeft}s</div>
+                    <div className="text-white/80 text-xs sm:text-sm">Time</div>
                   </div>
                 </div>
               </div>
 
               {/* Quiz Content */}
-              <div className="p-8">
+              <div className="p-4 sm:p-6 md:p-8">
                 {quizCompleted ? (
-                  <div className="max-w-2xl mx-auto text-center py-12">
+                  <div className="max-w-2xl mx-auto text-center py-6 sm:py-8 md:py-12">
                     <motion.div
                       initial={{ scale: 0 }}
                       animate={{ scale: 1 }}
-                      className="w-32 h-32 mx-auto mb-8 rounded-full bg-gradient-to-r from-emerald-400 to-green-500 flex items-center justify-center"
+                      className="w-20 h-20 sm:w-24 sm:h-24 md:w-32 md:h-32 mx-auto mb-4 sm:mb-6 md:mb-8 rounded-full bg-gradient-to-r from-emerald-400 to-green-500 flex items-center justify-center"
                     >
-                      <Trophy className="w-16 h-16 text-white" />
+                      <Trophy className="w-10 h-10 sm:w-12 sm:h-12 md:w-16 md:h-16 text-white" />
                     </motion.div>
                     
-                    <h3 className="text-3xl font-bold text-gray-800 mb-4">Quiz Completed!</h3>
+                    <h3 className="text-xl sm:text-2xl md:text-3xl font-bold text-gray-800 mb-3 sm:mb-4">Quiz Completed!</h3>
                     
-                    <div className="text-6xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-purple-600 mb-6">
+                    <div className="text-4xl sm:text-5xl md:text-6xl font-bold text-blue-600 mb-4 sm:mb-6">
                       {Math.round((score / quizQuestions.length) * 100)}%
                     </div>
                     
-                    <p className="text-gray-600 text-lg mb-8">
+                    <p className="text-gray-600 mb-4 sm:mb-6 md:mb-8 text-sm sm:text-base md:text-lg">
                       You got {score} out of {quizQuestions.length} questions correct
                     </p>
                     
-                    <div className="flex gap-4 justify-center">
+                    <div className="flex flex-col sm:flex-row gap-3 justify-center">
                       <motion.button
                         whileHover={{ scale: 1.05 }}
                         whileTap={{ scale: 0.95 }}
                         onClick={() => setQuizActive(false)}
-                        className="px-6 py-3 bg-gray-100 text-gray-700 rounded-xl font-semibold hover:bg-gray-200 transition-all duration-200"
+                        className="px-4 sm:px-5 md:px-6 py-2 sm:py-2.5 md:py-3 bg-gray-100 text-gray-700 rounded-lg sm:rounded-xl font-semibold hover:bg-gray-200 transition-all duration-200 text-sm sm:text-base"
                       >
                         Back to Study
                       </motion.button>
@@ -1149,7 +1142,7 @@ const VocabularyMaster = () => {
                         whileHover={{ scale: 1.05 }}
                         whileTap={{ scale: 0.95 }}
                         onClick={() => startQuiz(quizType, quizDifficulty)}
-                        className="px-6 py-3 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-xl font-semibold hover:shadow-lg transition-all duration-200"
+                        className="px-4 sm:px-5 md:px-6 py-2 sm:py-2.5 md:py-3 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-lg sm:rounded-xl font-semibold hover:shadow-lg transition-all duration-200 text-sm sm:text-base"
                       >
                         Try Again
                       </motion.button>
@@ -1158,36 +1151,35 @@ const VocabularyMaster = () => {
                 ) : quizQuestions[currentQuestion] ? (
                   <div className="max-w-4xl mx-auto">
                     {/* Question */}
-                    <div className="text-center mb-12">
-                      <div className="text-5xl font-bold text-gray-800 mb-6 font-japanese">
+                    <div className="text-center mb-6 sm:mb-8 md:mb-12">
+                      <div className="text-3xl sm:text-4xl md:text-5xl font-bold text-gray-800 mb-3 sm:mb-4 md:mb-6 font-japanese">
                         {quizQuestions[currentQuestion].word}
                       </div>
                       
                       {showFurigana && (
-                        <div className="text-2xl text-gray-600 mb-4">
+                        <div className="text-lg sm:text-xl md:text-2xl text-gray-600 mb-3 sm:mb-4">
                           {quizQuestions[currentQuestion].furigana}
                         </div>
                       )}
                       
-                      <div className="inline-flex items-center gap-2 px-4 py-2 bg-blue-100 text-blue-700 rounded-full text-sm font-medium">
-                        <Clock className="w-4 h-4" />
+                      <div className="inline-flex items-center gap-2 px-3 sm:px-4 py-1.5 sm:py-2 bg-blue-100 text-blue-700 rounded-full text-xs sm:text-sm font-medium">
+                        <Clock className="w-3 h-3 sm:w-4 sm:h-4" />
                         {timeLeft} seconds remaining
                       </div>
                     </div>
 
                     {/* Answer Section */}
                     {quizType === 'multiple-choice' ? (
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
                         {(() => {
-                          const current = quizQuestions[currentQuestion];
+                          const currentQ = quizQuestions[currentQuestion];
                           const otherWords = quizQuestions
                             .filter((_, i) => i !== currentQuestion)
                             .sort(() => Math.random() - 0.5)
                             .slice(0, 3)
                             .map(w => w.meaning);
                           
-                          const options = [current.meaning, ...otherWords]
-                            .sort(() => Math.random() - 0.5);
+                          const options = [currentQ.meaning, ...otherWords].sort(() => Math.random() - 0.5);
                           
                           return options.map((option, index) => (
                             <motion.button
@@ -1199,9 +1191,9 @@ const VocabularyMaster = () => {
                               whileTap={{ scale: 0.98 }}
                               onClick={() => checkAnswer(option)}
                               disabled={showResult}
-                              className={`p-6 rounded-xl text-left transition-all duration-300 ${
+                              className={`p-3 sm:p-4 md:p-6 rounded-lg sm:rounded-xl text-left transition-all duration-300 ${
                                 showResult
-                                  ? option.toLowerCase() === current.meaning.toLowerCase()
+                                  ? option.toLowerCase() === currentQ.meaning.toLowerCase()
                                     ? 'bg-emerald-100 border-2 border-emerald-500'
                                     : selectedAnswer === option
                                     ? 'bg-rose-100 border-2 border-rose-500'
@@ -1210,9 +1202,9 @@ const VocabularyMaster = () => {
                               }`}
                             >
                               <div className="flex items-center justify-between">
-                                <div className="text-lg font-medium text-gray-800">{option}</div>
-                                <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                                  showResult && option.toLowerCase() === current.meaning.toLowerCase()
+                                <div className="text-sm sm:text-base md:text-lg font-medium text-gray-800 truncate">{option}</div>
+                                <div className={`w-6 h-6 sm:w-7 sm:h-7 md:w-8 md:h-8 rounded-full flex items-center justify-center text-xs sm:text-sm font-medium ${
+                                  showResult && option.toLowerCase() === currentQ.meaning.toLowerCase()
                                     ? 'bg-emerald-500 text-white'
                                     : 'bg-gray-100 text-gray-600'
                                 }`}>
@@ -1225,15 +1217,15 @@ const VocabularyMaster = () => {
                       </div>
                     ) : (
                       <div className="max-w-md mx-auto">
-                        <div className="text-center mb-8">
-                          <p className="text-gray-600 mb-4">Type the English meaning of the word above:</p>
+                        <div className="text-center mb-4 sm:mb-6 md:mb-8">
+                          <p className="text-gray-600 mb-2 sm:mb-3 md:mb-4 text-sm sm:text-base">Type the English meaning:</p>
                           <input
                             type="text"
                             value={userInput}
                             onChange={(e) => setUserInput(e.target.value)}
                             onKeyPress={(e) => e.key === 'Enter' && checkTypingAnswer()}
                             disabled={showResult}
-                            className="w-full px-6 py-4 text-xl border-2 border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-center disabled:opacity-50"
+                            className="w-full px-4 sm:px-5 md:px-6 py-3 sm:py-3.5 md:py-4 text-base sm:text-lg md:text-xl border-2 border-gray-300 rounded-lg sm:rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-center disabled:opacity-50"
                             placeholder="Enter meaning..."
                             autoFocus
                           />
@@ -1244,7 +1236,7 @@ const VocabularyMaster = () => {
                           whileTap={{ scale: 0.95 }}
                           onClick={checkTypingAnswer}
                           disabled={!userInput.trim() || showResult}
-                          className="w-full py-4 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-xl font-semibold text-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                          className="w-full py-3 sm:py-3.5 md:py-4 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-lg sm:rounded-xl font-semibold text-sm sm:text-base md:text-lg disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           {showResult ? (isCorrect ? 'Correct! 🎉' : 'Wrong! 😢') : 'Submit Answer'}
                         </motion.button>
@@ -1256,20 +1248,20 @@ const VocabularyMaster = () => {
                       <motion.div
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
-                        className="mt-8 text-center"
+                        className="mt-4 sm:mt-6 md:mt-8 text-center"
                       >
-                        <div className={`inline-flex items-center gap-3 px-6 py-4 rounded-xl ${
+                        <div className={`inline-flex items-center gap-2 sm:gap-3 px-4 sm:px-5 md:px-6 py-2.5 sm:py-3 md:py-4 rounded-lg sm:rounded-xl ${
                           isCorrect ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'
                         }`}>
                           {isCorrect ? (
                             <>
-                              <CheckCircle className="w-6 h-6" />
-                              <span className="text-lg font-semibold">Correct! The meaning is "{quizQuestions[currentQuestion].meaning}"</span>
+                              <CheckCircle className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6" />
+                              <span className="text-sm sm:text-base md:text-lg font-semibold">Correct! "{quizQuestions[currentQuestion].meaning}"</span>
                             </>
                           ) : (
                             <>
-                              <X className="w-6 h-6" />
-                              <span className="text-lg font-semibold">The correct answer is "{quizQuestions[currentQuestion].meaning}"</span>
+                              <X className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6" />
+                              <span className="text-sm sm:text-base md:text-lg font-semibold">Correct: "{quizQuestions[currentQuestion].meaning}"</span>
                             </>
                           )}
                         </div>
@@ -1280,36 +1272,25 @@ const VocabularyMaster = () => {
               </div>
 
               {/* Quiz Footer */}
-              <div className="flex items-center justify-between p-6 border-t border-gray-200 bg-gray-50/50">
+              <div className="flex flex-col sm:flex-row items-center justify-between p-4 sm:p-6 border-t border-gray-200 bg-gray-50/50 gap-3 sm:gap-0">
                 <button
                   onClick={() => setQuizActive(false)}
-                  className="px-6 py-3 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 transition-colors flex items-center gap-2"
+                  className="w-full sm:w-auto px-4 sm:px-5 md:px-6 py-2 sm:py-2.5 bg-gray-100 text-gray-700 rounded-lg sm:rounded-xl hover:bg-gray-200 transition-colors flex items-center justify-center gap-2 text-sm sm:text-base"
                 >
-                  <ChevronLeft className="w-5 h-5" />
+                  <ChevronLeft className="w-4 h-4" />
                   Exit Quiz
                 </button>
                 
                 <div className="flex gap-2">
-                  {quizDifficulty === 'easy' && <span className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm">Easy</span>}
-                  {quizDifficulty === 'medium' && <span className="px-3 py-1 bg-yellow-100 text-yellow-700 rounded-full text-sm">Medium</span>}
-                  {quizDifficulty === 'hard' && <span className="px-3 py-1 bg-red-100 text-red-700 rounded-full text-sm">Hard</span>}
+                  {quizDifficulty === 'easy' && <span className="px-2 sm:px-3 py-1 bg-green-100 text-green-700 rounded-full text-xs sm:text-sm">Easy</span>}
+                  {quizDifficulty === 'medium' && <span className="px-2 sm:px-3 py-1 bg-yellow-100 text-yellow-700 rounded-full text-xs sm:text-sm">Medium</span>}
+                  {quizDifficulty === 'hard' && <span className="px-2 sm:px-3 py-1 bg-red-100 text-red-700 rounded-full text-xs sm:text-sm">Hard</span>}
                 </div>
                 
                 {!quizCompleted && (
                   <button
-                    onClick={() => {
-                      if (currentQuestion < quizQuestions.length - 1) {
-                        setCurrentQuestion(prev => prev + 1);
-                        setSelectedAnswer(null);
-                        setShowResult(false);
-                        setUserInput('');
-                        const time = quizDifficulty === 'easy' ? 40 : quizDifficulty === 'medium' ? 30 : 20;
-                        setTimeLeft(time);
-                      } else {
-                        setQuizCompleted(true);
-                      }
-                    }}
-                    className="px-6 py-3 bg-blue-100 text-blue-700 rounded-xl hover:bg-blue-200 transition-colors"
+                    onClick={skipQuestion}
+                    className="w-full sm:w-auto px-4 sm:px-5 md:px-6 py-2 sm:py-2.5 bg-blue-100 text-blue-700 rounded-lg sm:rounded-xl hover:bg-blue-200 transition-colors text-sm sm:text-base"
                   >
                     Skip Question
                   </button>
@@ -1323,52 +1304,52 @@ const VocabularyMaster = () => {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20 }}
-              className={`bg-white/80 backdrop-blur-sm rounded-2xl border border-gray-200 overflow-hidden shadow-lg ${fullscreen ? 'h-[calc(100vh-200px)]' : ''}`}
+              className={`bg-white/80 backdrop-blur-sm rounded-xl sm:rounded-2xl border border-gray-200 overflow-hidden shadow-lg ${fullscreen ? 'h-[calc(100vh-120px)]' : ''}`}
             >
               {/* Card Header */}
-              <div className="flex items-center justify-between p-6 border-b border-gray-200">
-                <div className="flex items-center gap-4">
-                  <div className={`px-4 py-2 rounded-full text-sm font-semibold ${
-                    currentWord.level === 5 ? 'bg-green-100 text-green-700' :
-                    currentWord.level === 4 ? 'bg-blue-100 text-blue-700' :
-                    currentWord.level === 3 ? 'bg-yellow-100 text-yellow-700' :
-                    currentWord.level === 2 ? 'bg-orange-100 text-orange-700' :
+              <div className="flex items-center justify-between p-3 sm:p-4 md:p-6 border-b border-gray-200">
+                <div className="flex items-center gap-2 sm:gap-3 md:gap-4">
+                  <div className={`px-2 sm:px-3 md:px-4 py-1 sm:py-1.5 md:py-2 rounded-full text-xs sm:text-sm font-semibold ${
+                    currentWord?.level === 5 ? 'bg-green-100 text-green-700' :
+                    currentWord?.level === 4 ? 'bg-blue-100 text-blue-700' :
+                    currentWord?.level === 3 ? 'bg-yellow-100 text-yellow-700' :
+                    currentWord?.level === 2 ? 'bg-orange-100 text-orange-700' :
                     'bg-red-100 text-red-700'
                   }`}>
-                    N{currentWord.level}
+                    N{currentWord?.level}
                   </div>
-                  <div className="text-sm text-gray-600">
+                  <div className="text-xs sm:text-sm text-gray-600">
                     Card {currentWordIndex + 1} of {filteredWords.length}
                   </div>
                 </div>
                 
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1 sm:gap-2">
                   <button
-                    onClick={() => toggleBookmark(currentWord.word)}
-                    className={`p-3 rounded-xl transition-all duration-300 ${
-                      progress.bookmarkedWords.includes(currentWord.word)
+                    onClick={() => currentWord && toggleBookmark(currentWord.word)}
+                    className={`p-2 sm:p-2.5 md:p-3 rounded-lg sm:rounded-xl transition-all duration-300 ${
+                      currentWord && progress.bookmarkedWords.includes(currentWord.word)
                         ? 'bg-amber-100 text-amber-600 hover:bg-amber-200'
                         : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                     }`}
                   >
-                    <Bookmark className={`w-5 h-5 ${progress.bookmarkedWords.includes(currentWord.word) ? 'fill-current' : ''}`} />
+                    <Bookmark className={`w-4 h-4 sm:w-5 sm:h-5 ${currentWord && progress.bookmarkedWords.includes(currentWord.word) ? 'fill-current' : ''}`} />
                   </button>
                   <button
-                    onClick={() => playJapaneseAudio(currentWord.word)}
+                    onClick={() => currentWord && playJapaneseAudio(currentWord.word)}
                     disabled={audioPlaying}
-                    className="p-3 rounded-xl bg-blue-100 text-blue-600 hover:bg-blue-200 disabled:opacity-50 transition-all duration-300"
+                    className="p-2 sm:p-2.5 md:p-3 rounded-lg sm:rounded-xl bg-blue-100 text-blue-600 hover:bg-blue-200 disabled:opacity-50 transition-all duration-300"
                   >
                     {audioPlaying ? (
-                      <VolumeX className="w-5 h-5" />
+                      <VolumeX className="w-4 h-4 sm:w-5 sm:h-5" />
                     ) : (
-                      <Volume2 className="w-5 h-5" />
+                      <Volume2 className="w-4 h-4 sm:w-5 sm:h-5" />
                     )}
                   </button>
                 </div>
               </div>
 
               {/* Card Content */}
-              <div className={`p-8 md:p-12 ${fullscreen ? 'h-[calc(100%-160px)] flex items-center' : ''}`}>
+              <div className={`p-4 sm:p-6 md:p-8 lg:p-12 ${fullscreen ? 'h-[calc(100%-64px)] sm:h-[calc(100%-80px)] flex items-center' : ''}`}>
                 <div className="max-w-3xl mx-auto text-center">
                   <motion.div
                     key={currentWordIndex}
@@ -1376,27 +1357,27 @@ const VocabularyMaster = () => {
                     initial="hidden"
                     animate="visible"
                     exit="exit"
-                    transition={{ duration: 0.5 }}
+                    transition={{ duration: 0.3 }}
                   >
                     {/* Japanese Word */}
-                    <div className="mb-10">
+                    <div className="mb-6 sm:mb-8 md:mb-10">
                       <motion.div
-                        className="text-6xl md:text-7xl font-bold text-gray-800 mb-6 font-japanese"
+                        className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold text-gray-800 mb-3 sm:mb-4 md:mb-6 font-japanese"
                         initial={{ scale: 0.8 }}
                         animate={{ scale: 1 }}
-                        transition={{ duration: 0.5 }}
+                        transition={{ duration: 0.3 }}
                       >
-                        {currentWord.word}
+                        {currentWord?.word}
                       </motion.div>
                       
                       {showFurigana && (
                         <motion.div
                           initial={{ opacity: 0, y: 10 }}
                           animate={{ opacity: 1, y: 0 }}
-                          transition={{ delay: 0.2 }}
-                          className="text-2xl text-gray-600 mb-3"
+                          transition={{ delay: 0.1 }}
+                          className="text-lg sm:text-xl md:text-2xl text-gray-600 mb-2 sm:mb-3"
                         >
-                          {currentWord.furigana}
+                          {currentWord?.furigana}
                         </motion.div>
                       )}
                       
@@ -1404,10 +1385,10 @@ const VocabularyMaster = () => {
                         <motion.div
                           initial={{ opacity: 0, y: 10 }}
                           animate={{ opacity: 1, y: 0 }}
-                          transition={{ delay: 0.3 }}
-                          className="text-lg text-gray-500"
+                          transition={{ delay: 0.2 }}
+                          className="text-sm sm:text-base md:text-lg text-gray-500"
                         >
-                          {currentWord.romaji}
+                          {currentWord?.romaji}
                         </motion.div>
                       )}
                     </div>
@@ -1417,17 +1398,17 @@ const VocabularyMaster = () => {
                       <motion.div
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
-                        transition={{ delay: 0.4 }}
+                        transition={{ delay: 0.3 }}
                       >
                         <motion.button
                           whileHover={{ scale: 1.05 }}
                           whileTap={{ scale: 0.95 }}
                           onClick={() => setShowAnswer(true)}
-                          className="px-10 py-5 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-2xl font-bold text-xl hover:shadow-xl transition-all duration-200 shadow-lg"
+                          className="px-6 sm:px-8 md:px-10 py-3 sm:py-4 md:py-5 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-xl sm:rounded-2xl font-bold text-base sm:text-lg md:text-xl hover:shadow-xl transition-all duration-200 shadow-lg"
                         >
                           Show Meaning
                         </motion.button>
-                        <p className="text-gray-500 mt-6">
+                        <p className="text-gray-500 mt-3 sm:mt-4 md:mt-6 text-xs sm:text-sm">
                           Press Space or click to reveal
                         </p>
                       </motion.div>
@@ -1435,16 +1416,16 @@ const VocabularyMaster = () => {
                       <motion.div
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
-                        transition={{ duration: 0.5 }}
-                        className="space-y-10"
+                        transition={{ duration: 0.3 }}
+                        className="space-y-6 sm:space-y-8 md:space-y-10"
                       >
                         {/* English Meaning */}
                         <div>
-                          <div className="text-4xl font-bold text-gray-800 mb-4">
-                            {currentWord.meaning}
+                          <div className="text-2xl sm:text-3xl md:text-4xl font-bold text-gray-800 mb-3 sm:mb-4">
+                            {currentWord?.meaning}
                           </div>
-                          {showExample && currentWord.example && (
-                            <div className="text-xl text-gray-600 italic mt-6 bg-gray-50 p-6 rounded-xl">
+                          {showExample && currentWord?.example && (
+                            <div className="text-sm sm:text-base md:text-lg lg:text-xl text-gray-600 italic mt-3 sm:mt-4 md:mt-6 bg-gray-50 p-3 sm:p-4 md:p-6 rounded-lg sm:rounded-xl">
                               "{currentWord.example}"
                             </div>
                           )}
@@ -1453,10 +1434,10 @@ const VocabularyMaster = () => {
                         {/* Review Buttons */}
                         {!isReviewing ? (
                           <motion.div 
-                            className="grid grid-cols-2 md:grid-cols-4 gap-4"
+                            className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-3 md:gap-4"
                             initial={{ y: 20, opacity: 0 }}
                             animate={{ y: 0, opacity: 1 }}
-                            transition={{ delay: 0.2 }}
+                            transition={{ delay: 0.1 }}
                           >
                             {[
                               { rating: 'again', label: 'Again (1)', color: 'red' },
@@ -1469,7 +1450,7 @@ const VocabularyMaster = () => {
                                 whileHover={{ scale: 1.05 }}
                                 whileTap={{ scale: 0.95 }}
                                 onClick={() => reviewWord(rating as ReviewRating)}
-                                className={`px-6 py-4 bg-${color}-100 text-${color}-700 rounded-xl font-semibold hover:bg-${color}-200 transition-all duration-300 border-2 border-transparent hover:border-${color}-300`}
+                                className={`px-3 sm:px-4 md:px-6 py-2 sm:py-3 md:py-4 bg-${color}-100 text-${color}-700 rounded-lg sm:rounded-xl font-semibold hover:bg-${color}-200 transition-all duration-300 border-2 border-transparent hover:border-${color}-300 text-sm sm:text-base`}
                               >
                                 {label}
                               </motion.button>
@@ -1477,7 +1458,7 @@ const VocabularyMaster = () => {
                           </motion.div>
                         ) : (
                           <div className="flex justify-center">
-                            <div className="animate-spin rounded-full h-16 w-16 border-4 border-blue-500 border-t-transparent"></div>
+                            <div className="animate-spin rounded-full h-12 w-12 sm:h-14 sm:w-14 md:h-16 md:w-16 border-4 border-blue-500 border-t-transparent"></div>
                           </div>
                         )}
                       </motion.div>
@@ -1487,33 +1468,33 @@ const VocabularyMaster = () => {
               </div>
 
               {/* Card Footer */}
-              <div className="flex items-center justify-between p-6 border-t border-gray-200 bg-gray-50/50">
+              <div className="flex flex-col sm:flex-row items-center justify-between p-3 sm:p-4 md:p-6 border-t border-gray-200 bg-gray-50/50 gap-3 sm:gap-0">
                 <button
                   onClick={prevCard}
                   disabled={isReviewing}
-                  className="px-6 py-3 bg-white text-gray-700 rounded-xl hover:bg-gray-100 disabled:opacity-50 transition-colors flex items-center gap-2 border-2 border-gray-200"
+                  className="w-full sm:w-auto px-4 sm:px-5 md:px-6 py-2 sm:py-2.5 bg-white text-gray-700 rounded-lg sm:rounded-xl hover:bg-gray-100 disabled:opacity-50 transition-colors flex items-center justify-center gap-2 border-2 border-gray-200 text-sm sm:text-base"
                 >
-                  <ChevronLeft className="w-5 h-5" />
+                  <ChevronLeft className="w-4 h-4" />
                   Previous
                 </button>
                 
-                <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2 sm:gap-3 md:gap-4">
                   <button
-                    onClick={() => toggleLearned(currentWord.word)}
-                    className={`px-5 py-2.5 rounded-xl flex items-center gap-2 transition-all duration-300 ${
-                      progress.learnedWords.includes(currentWord.word)
+                    onClick={() => currentWord && toggleLearned(currentWord.word)}
+                    className={`px-3 sm:px-4 md:px-5 py-1.5 sm:py-2 md:py-2.5 rounded-lg sm:rounded-xl flex items-center gap-2 transition-all duration-300 text-sm sm:text-base ${
+                      currentWord && progress.learnedWords.includes(currentWord.word)
                         ? 'bg-emerald-100 text-emerald-700 border-2 border-emerald-200'
                         : 'bg-gray-100 text-gray-700 hover:bg-gray-200 border-2 border-gray-200'
                     }`}
                   >
-                    <CheckCircle className="w-4 h-4" />
-                    {progress.learnedWords.includes(currentWord.word) ? 'Learned' : 'Mark as Learned'}
+                    <CheckCircle className="w-3 h-3 sm:w-4 sm:h-4" />
+                    {currentWord && progress.learnedWords.includes(currentWord.word) ? 'Learned' : 'Mark Learned'}
                   </button>
                   <button
                     onClick={shuffleCards}
-                    className="px-5 py-2.5 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 transition-colors flex items-center gap-2"
+                    className="px-3 sm:px-4 md:px-5 py-1.5 sm:py-2 md:py-2.5 bg-gray-100 text-gray-700 rounded-lg sm:rounded-xl hover:bg-gray-200 transition-colors flex items-center gap-2 text-sm sm:text-base"
                   >
-                    <Shuffle className="w-4 h-4" />
+                    <Shuffle className="w-3 h-3 sm:w-4 sm:h-4" />
                     Shuffle
                   </button>
                 </div>
@@ -1521,10 +1502,10 @@ const VocabularyMaster = () => {
                 <button
                   onClick={nextCard}
                   disabled={isReviewing}
-                  className="px-6 py-3 bg-white text-gray-700 rounded-xl hover:bg-gray-100 disabled:opacity-50 transition-colors flex items-center gap-2 border-2 border-gray-200"
+                  className="w-full sm:w-auto px-4 sm:px-5 md:px-6 py-2 sm:py-2.5 bg-white text-gray-700 rounded-lg sm:rounded-xl hover:bg-gray-100 disabled:opacity-50 transition-colors flex items-center justify-center gap-2 border-2 border-gray-200 text-sm sm:text-base"
                 >
                   Next
-                  <ChevronRight className="w-5 h-5" />
+                  <ChevronRight className="w-4 h-4" />
                 </button>
               </div>
             </motion.div>
@@ -1535,18 +1516,18 @@ const VocabularyMaster = () => {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20 }}
-              className="bg-white/80 backdrop-blur-sm rounded-2xl border border-gray-200 overflow-hidden"
+              className="bg-white/80 backdrop-blur-sm rounded-xl sm:rounded-2xl border border-gray-200 overflow-hidden"
             >
               <div className="overflow-x-auto">
-                <table className="w-full">
+                <table className="w-full min-w-[600px]">
                   <thead className="bg-gradient-to-r from-blue-500/10 to-purple-500/10">
                     <tr>
-                      <th className="py-5 px-6 text-left text-sm font-semibold text-gray-700 border-b border-gray-200">Japanese</th>
-                      <th className="py-5 px-6 text-left text-sm font-semibold text-gray-700 border-b border-gray-200">Reading</th>
-                      <th className="py-5 px-6 text-left text-sm font-semibold text-gray-700 border-b border-gray-200">English</th>
-                      <th className="py-5 px-6 text-left text-sm font-semibold text-gray-700 border-b border-gray-200">Level</th>
-                      <th className="py-5 px-6 text-left text-sm font-semibold text-gray-700 border-b border-gray-200">Status</th>
-                      <th className="py-5 px-6 text-left text-sm font-semibold text-gray-700 border-b border-gray-200">Actions</th>
+                      <th className="py-3 sm:py-4 md:py-5 px-3 sm:px-4 md:px-6 text-left text-xs sm:text-sm font-semibold text-gray-700 border-b border-gray-200">Japanese</th>
+                      <th className="py-3 sm:py-4 md:py-5 px-3 sm:px-4 md:px-6 text-left text-xs sm:text-sm font-semibold text-gray-700 border-b border-gray-200">Reading</th>
+                      <th className="py-3 sm:py-4 md:py-5 px-3 sm:px-4 md:px-6 text-left text-xs sm:text-sm font-semibold text-gray-700 border-b border-gray-200">English</th>
+                      <th className="py-3 sm:py-4 md:py-5 px-3 sm:px-4 md:px-6 text-left text-xs sm:text-sm font-semibold text-gray-700 border-b border-gray-200">Level</th>
+                      <th className="py-3 sm:py-4 md:py-5 px-3 sm:px-4 md:px-6 text-left text-xs sm:text-sm font-semibold text-gray-700 border-b border-gray-200">Status</th>
+                      <th className="py-3 sm:py-4 md:py-5 px-3 sm:px-4 md:px-6 text-left text-xs sm:text-sm font-semibold text-gray-700 border-b border-gray-200">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-200">
@@ -1559,17 +1540,17 @@ const VocabularyMaster = () => {
                           key={`${word.word}-${index}`}
                           initial={{ opacity: 0, x: -20 }}
                           animate={{ opacity: 1, x: 0 }}
-                          transition={{ delay: index * 0.05 }}
+                          transition={{ delay: index * 0.03 }}
                           className="hover:bg-gray-50/50 transition-colors duration-150"
                         >
-                          <td className="py-5 px-6">
-                            <div className="font-japanese text-xl font-bold text-gray-800">{word.word}</div>
-                            <div className="text-sm text-gray-500">{word.furigana}</div>
+                          <td className="py-3 sm:py-4 md:py-5 px-3 sm:px-4 md:px-6">
+                            <div className="font-japanese text-base sm:text-lg md:text-xl font-bold text-gray-800">{word.word}</div>
+                            <div className="text-xs sm:text-sm text-gray-500">{word.furigana}</div>
                           </td>
-                          <td className="py-5 px-6 font-mono text-gray-700">{word.romaji}</td>
-                          <td className="py-5 px-6 text-gray-700">{word.meaning}</td>
-                          <td className="py-5 px-6">
-                            <span className={`px-3 py-1.5 rounded-full text-xs font-semibold ${
+                          <td className="py-3 sm:py-4 md:py-5 px-3 sm:px-4 md:px-6 font-mono text-xs sm:text-sm text-gray-700">{word.romaji}</td>
+                          <td className="py-3 sm:py-4 md:py-5 px-3 sm:px-4 md:px-6 text-xs sm:text-sm md:text-base text-gray-700">{word.meaning}</td>
+                          <td className="py-3 sm:py-4 md:py-5 px-3 sm:px-4 md:px-6">
+                            <span className={`px-2 sm:px-3 py-1 sm:py-1.5 rounded-full text-xs font-semibold ${
                               word.level === 5 ? 'bg-green-100 text-green-700' :
                               word.level === 4 ? 'bg-blue-100 text-blue-700' :
                               word.level === 3 ? 'bg-yellow-100 text-yellow-700' :
@@ -1579,47 +1560,47 @@ const VocabularyMaster = () => {
                               N{word.level}
                             </span>
                           </td>
-                          <td className="py-5 px-6">
-                            <div className="flex items-center gap-2">
+                          <td className="py-3 sm:py-4 md:py-5 px-3 sm:px-4 md:px-6">
+                            <div className="flex flex-wrap gap-1">
                               {isLearned && (
-                                <span className="px-2.5 py-1 bg-emerald-100 text-emerald-700 rounded-full text-xs font-semibold">
+                                <span className="px-2 py-1 bg-emerald-100 text-emerald-700 rounded-full text-xs font-semibold">
                                   Learned
                                 </span>
                               )}
                               {isBookmarked && (
-                                <span className="px-2.5 py-1 bg-amber-100 text-amber-700 rounded-full text-xs font-semibold">
+                                <span className="px-2 py-1 bg-amber-100 text-amber-700 rounded-full text-xs font-semibold">
                                   Bookmarked
                                 </span>
                               )}
                             </div>
                           </td>
-                          <td className="py-5 px-6">
-                            <div className="flex gap-2">
+                          <td className="py-3 sm:py-4 md:py-5 px-3 sm:px-4 md:px-6">
+                            <div className="flex gap-1 sm:gap-2">
                               <button
                                 onClick={() => {
                                   const wordIndex = filteredWords.findIndex(w => w.word === word.word);
                                   setCurrentWordIndex(wordIndex);
                                   setViewMode('flashcard');
                                 }}
-                                className="p-2.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors duration-200"
+                                className="p-1.5 sm:p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors duration-200"
                               >
-                                <BookOpen className="w-4 h-4" />
+                                <BookOpen className="w-3 h-3 sm:w-4 sm:h-4" />
                               </button>
                               <button
                                 onClick={() => toggleBookmark(word.word)}
-                                className={`p-2.5 rounded-lg transition-colors duration-200 ${
+                                className={`p-1.5 sm:p-2 rounded-lg transition-colors duration-200 ${
                                   isBookmarked 
                                     ? 'text-amber-600 hover:bg-amber-50' 
                                     : 'text-gray-600 hover:bg-gray-100'
                                 }`}
                               >
-                                <Bookmark className={`w-4 h-4 ${isBookmarked ? 'fill-current' : ''}`} />
+                                <Bookmark className={`w-3 h-3 sm:w-4 sm:h-4 ${isBookmarked ? 'fill-current' : ''}`} />
                               </button>
                               <button
                                 onClick={() => playJapaneseAudio(word.word)}
-                                className="p-2.5 text-green-600 hover:bg-green-50 rounded-lg transition-colors duration-200"
+                                className="p-1.5 sm:p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors duration-200"
                               >
-                                <Volume2 className="w-4 h-4" />
+                                <Volume2 className="w-3 h-3 sm:w-4 sm:h-4" />
                               </button>
                             </div>
                           </td>
@@ -1637,7 +1618,7 @@ const VocabularyMaster = () => {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
+              className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 md:gap-6"
             >
               {filteredWords.map((word, index) => {
                 const isBookmarked = progress.bookmarkedWords.includes(word.word);
@@ -1648,12 +1629,12 @@ const VocabularyMaster = () => {
                     key={`${word.word}-${index}`}
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.3, delay: index * 0.05 }}
-                    whileHover={{ y: -8, transition: { duration: 0.2 } }}
-                    className="bg-white/80 backdrop-blur-sm rounded-2xl border border-gray-200 p-6 hover:shadow-xl transition-all duration-300 hover:border-blue-300 group"
+                    transition={{ duration: 0.2, delay: index * 0.03 }}
+                    whileHover={{ y: -4, transition: { duration: 0.2 } }}
+                    className="bg-white/80 backdrop-blur-sm rounded-xl border border-gray-200 p-3 sm:p-4 md:p-6 hover:shadow-lg transition-all duration-300 hover:border-blue-300 group"
                   >
-                    <div className="flex justify-between items-start mb-5">
-                      <div className={`px-3.5 py-1.5 rounded-full text-xs font-semibold ${
+                    <div className="flex justify-between items-start mb-3 sm:mb-4 md:mb-5">
+                      <div className={`px-2 sm:px-3 py-1 sm:py-1.5 rounded-full text-xs font-semibold ${
                         word.level === 5 ? 'bg-green-100 text-green-700' :
                         word.level === 4 ? 'bg-blue-100 text-blue-700' :
                         word.level === 3 ? 'bg-yellow-100 text-yellow-700' :
@@ -1664,52 +1645,52 @@ const VocabularyMaster = () => {
                       </div>
                       <button
                         onClick={() => toggleBookmark(word.word)}
-                        className="text-gray-400 hover:text-amber-500 group-hover:opacity-100 opacity-0 transition-all duration-300"
+                        className="text-gray-400 hover:text-amber-500 transition-all duration-300"
                       >
-                        <Bookmark className={`w-5 h-5 ${isBookmarked ? 'fill-current text-amber-500' : ''}`} />
+                        <Bookmark className={`w-4 h-4 sm:w-5 sm:h-5 ${isBookmarked ? 'fill-current text-amber-500' : ''}`} />
                       </button>
                     </div>
                     
-                    <div className="mb-6">
-                      <div className="font-japanese text-3xl font-bold text-gray-800 mb-3">
+                    <div className="mb-4 sm:mb-5 md:mb-6">
+                      <div className="font-japanese text-xl sm:text-2xl md:text-3xl font-bold text-gray-800 mb-2 sm:mb-3">
                         {word.word}
                       </div>
-                      <div className="text-sm text-gray-600 mb-1">{word.furigana}</div>
-                      <div className="text-sm text-gray-500">{word.romaji}</div>
+                      <div className="text-xs sm:text-sm text-gray-600 mb-1">{word.furigana}</div>
+                      <div className="text-xs sm:text-sm text-gray-500">{word.romaji}</div>
                     </div>
                     
-                    <div className="mb-8">
-                      <div className="text-xl font-semibold text-gray-800">{word.meaning}</div>
+                    <div className="mb-4 sm:mb-6 md:mb-8">
+                      <div className="text-base sm:text-lg md:text-xl font-semibold text-gray-800">{word.meaning}</div>
                       {word.example && (
-                        <div className="text-sm text-gray-600 italic mt-3">
+                        <div className="text-xs sm:text-sm text-gray-600 italic mt-2 sm:mt-3">
                           "{word.example}"
                         </div>
                       )}
                     </div>
                     
                     <div className="flex items-center justify-between">
-                      <div className="flex gap-2">
+                      <div className="flex gap-1 sm:gap-2">
                         <button
                           onClick={() => {
                             const wordIndex = filteredWords.findIndex(w => w.word === word.word);
                             setCurrentWordIndex(wordIndex);
                             setViewMode('flashcard');
                           }}
-                          className="px-4 py-2.5 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 transition-colors text-sm font-semibold flex items-center gap-2"
+                          className="px-2 sm:px-3 md:px-4 py-1.5 sm:py-2 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 transition-colors text-xs sm:text-sm font-semibold flex items-center gap-1 sm:gap-2"
                         >
-                          <BookOpen className="w-4 h-4" />
+                          <BookOpen className="w-3 h-3 sm:w-4 sm:h-4" />
                           Study
                         </button>
                         <button
                           onClick={() => playJapaneseAudio(word.word)}
-                          className="p-2.5 text-green-600 hover:bg-green-50 rounded-lg transition-colors"
+                          className="p-1.5 sm:p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors"
                         >
-                          <Volume2 className="w-4 h-4" />
+                          <Volume2 className="w-3 h-3 sm:w-4 sm:h-4" />
                         </button>
                       </div>
                       
                       {isLearned && (
-                        <div className="px-3 py-1 bg-emerald-100 text-emerald-700 rounded-full text-xs font-semibold">
+                        <div className="px-2 sm:px-3 py-1 bg-emerald-100 text-emerald-700 rounded-full text-xs font-semibold">
                           Learned
                         </div>
                       )}
@@ -1730,21 +1711,21 @@ const VocabularyMaster = () => {
               exit={{ opacity: 0, y: 20 }}
               className="fixed inset-x-4 bottom-4 md:inset-x-auto md:right-4 md:top-20 z-50"
             >
-              <div className="bg-white rounded-2xl border border-gray-200 shadow-2xl p-6 max-w-sm mx-auto md:mx-0">
-                <div className="flex justify-between items-center mb-6">
-                  <h3 className="text-lg font-bold text-gray-800">Settings</h3>
+              <div className="bg-white rounded-xl sm:rounded-2xl border border-gray-200 shadow-2xl p-4 sm:p-6 max-w-sm mx-auto md:mx-0">
+                <div className="flex justify-between items-center mb-4 sm:mb-6">
+                  <h3 className="text-base sm:text-lg font-bold text-gray-800">Settings</h3>
                   <button
                     onClick={() => setShowSettings(false)}
-                    className="p-2 hover:bg-gray-100 rounded-lg"
+                    className="p-1.5 sm:p-2 hover:bg-gray-100 rounded-lg"
                   >
-                    <X className="w-5 h-5" />
+                    <X className="w-4 h-4 sm:w-5 sm:h-5" />
                   </button>
                 </div>
                 
-                <div className="space-y-6">
+                <div className="space-y-4 sm:space-y-6">
                   <div>
-                    <h4 className="text-sm font-semibold text-gray-700 mb-3">Study Settings</h4>
-                    <div className="space-y-3">
+                    <h4 className="text-sm font-semibold text-gray-700 mb-2 sm:mb-3">Study Settings</h4>
+                    <div className="space-y-2 sm:space-y-3">
                       {[
                         { label: 'Auto-flip cards', state: autoFlip, setter: setAutoFlip, color: 'blue' },
                         { label: 'Auto-play audio', state: autoPlay, setter: setAutoPlay, color: 'green' },
@@ -1755,12 +1736,12 @@ const VocabularyMaster = () => {
                           <span className="text-sm text-gray-600">{label}</span>
                           <button
                             onClick={() => setter(!state)}
-                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                            className={`relative inline-flex h-5 w-9 sm:h-6 sm:w-11 items-center rounded-full transition-colors ${
                               state ? `bg-${color}-500` : 'bg-gray-300'
                             }`}
                           >
-                            <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                              state ? 'translate-x-6' : 'translate-x-1'
+                            <span className={`inline-block h-3 w-3 sm:h-4 sm:w-4 transform rounded-full bg-white transition-transform ${
+                              state ? 'translate-x-4 sm:translate-x-6' : 'translate-x-1'
                             }`} />
                           </button>
                         </div>
@@ -1769,8 +1750,8 @@ const VocabularyMaster = () => {
                   </div>
                   
                   <div>
-                    <h4 className="text-sm font-semibold text-gray-700 mb-3">Display Settings</h4>
-                    <div className="space-y-3">
+                    <h4 className="text-sm font-semibold text-gray-700 mb-2 sm:mb-3">Display Settings</h4>
+                    <div className="space-y-2 sm:space-y-3">
                       {[
                         { label: 'Show furigana', state: showFurigana, setter: setShowFurigana, color: 'emerald' },
                         { label: 'Show romaji', state: showRomaji, setter: setShowRomaji, color: 'purple' },
@@ -1779,12 +1760,12 @@ const VocabularyMaster = () => {
                           <span className="text-sm text-gray-600">{label}</span>
                           <button
                             onClick={() => setter(!state)}
-                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                            className={`relative inline-flex h-5 w-9 sm:h-6 sm:w-11 items-center rounded-full transition-colors ${
                               state ? `bg-${color}-500` : 'bg-gray-300'
                             }`}
                           >
-                            <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                              state ? 'translate-x-6' : 'translate-x-1'
+                            <span className={`inline-block h-3 w-3 sm:h-4 sm:w-4 transform rounded-full bg-white transition-transform ${
+                              state ? 'translate-x-4 sm:translate-x-6' : 'translate-x-1'
                             }`} />
                           </button>
                         </div>
@@ -1793,24 +1774,24 @@ const VocabularyMaster = () => {
                   </div>
                   
                   <div>
-                    <h4 className="text-sm font-semibold text-gray-700 mb-3">Data Management</h4>
+                    <h4 className="text-sm font-semibold text-gray-700 mb-2 sm:mb-3">Data Management</h4>
                     <div className="space-y-2">
                       <motion.button
                         whileHover={{ scale: 1.02 }}
                         whileTap={{ scale: 0.98 }}
                         onClick={exportProgress}
-                        className="w-full px-4 py-2.5 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 transition-colors flex items-center justify-center gap-2"
+                        className="w-full px-3 sm:px-4 py-2 sm:py-2.5 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 transition-colors flex items-center justify-center gap-2 text-sm"
                       >
-                        <Download className="w-4 h-4" />
+                        <Download className="w-3 h-3 sm:w-4 sm:h-4" />
                         Export Progress
                       </motion.button>
                       <motion.button
                         whileHover={{ scale: 1.02 }}
                         whileTap={{ scale: 0.98 }}
                         onClick={clearProgress}
-                        className="w-full px-4 py-2.5 bg-red-50 text-red-700 rounded-lg hover:bg-red-100 transition-colors flex items-center justify-center gap-2"
+                        className="w-full px-3 sm:px-4 py-2 sm:py-2.5 bg-red-50 text-red-700 rounded-lg hover:bg-red-100 transition-colors flex items-center justify-center gap-2 text-sm"
                       >
-                        <Trash2 className="w-4 h-4" />
+                        <Trash2 className="w-3 h-3 sm:w-4 sm:h-4" />
                         Clear All Progress
                       </motion.button>
                     </div>
@@ -1827,30 +1808,30 @@ const VocabularyMaster = () => {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.6 }}
-            className="mt-8 p-5 bg-gradient-to-r from-blue-50 to-purple-50 rounded-2xl border border-blue-200"
+            className="mt-4 sm:mt-6 md:mt-8 p-3 sm:p-4 md:p-5 bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl sm:rounded-2xl border border-blue-200"
           >
-            <div className="flex items-center gap-3 mb-4">
-              <div className="p-2 bg-blue-100 rounded-lg">
-                <HelpCircle className="w-5 h-5 text-blue-600" />
+            <div className="flex items-center gap-2 sm:gap-3 mb-3 sm:mb-4">
+              <div className="p-1.5 sm:p-2 bg-blue-100 rounded-lg">
+                <HelpCircle className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600" />
               </div>
-              <h4 className="font-semibold text-blue-700">Keyboard Shortcuts</h4>
+              <h4 className="font-semibold text-blue-700 text-sm sm:text-base">Keyboard Shortcuts</h4>
             </div>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 sm:gap-3 md:gap-4">
               {[
                 { key: 'Space', action: 'Flip card' },
-                { key: '← →', action: 'Navigate cards' },
+                { key: '← →', action: 'Navigate' },
                 { key: '1-4', action: 'Review ratings' },
                 { key: 'A', action: 'Play audio' },
-                { key: 'B', action: 'Toggle bookmark' },
-                { key: 'L', action: 'Toggle learned' },
-                { key: 'S', action: 'Shuffle cards' },
+                { key: 'B', action: 'Bookmark' },
+                { key: 'L', action: 'Learned' },
+                { key: 'S', action: 'Shuffle' },
                 { key: 'Q', action: 'Start quiz' },
               ].map(({ key, action }) => (
-                <div key={key} className="flex items-center gap-3">
-                  <kbd className="px-3 py-1.5 bg-white border border-gray-300 rounded-lg text-sm font-medium text-gray-700 min-w-16 text-center">
+                <div key={key} className="flex items-center gap-2">
+                  <kbd className="px-2 sm:px-3 py-1 sm:py-1.5 bg-white border border-gray-300 rounded text-xs font-medium text-gray-700 min-w-12 sm:min-w-16 text-center">
                     {key}
                   </kbd>
-                  <span className="text-sm text-gray-600">{action}</span>
+                  <span className="text-xs sm:text-sm text-gray-600">{action}</span>
                 </div>
               ))}
             </div>
@@ -1858,7 +1839,7 @@ const VocabularyMaster = () => {
         )}
       </div>
 
-      {/* Add the missing Upload icon import */}
+      {/* Japanese font */}
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap');
         .font-japanese {
@@ -1868,12 +1849,5 @@ const VocabularyMaster = () => {
     </div>
   );
 };
-
-// Add the missing Upload component
-const Upload = ({ className }: { className?: string }) => (
-  <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-  </svg>
-);
 
 export default VocabularyMaster;
