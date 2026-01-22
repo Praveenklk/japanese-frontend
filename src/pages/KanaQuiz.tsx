@@ -1,1382 +1,1007 @@
 // pages/KanaQuiz.tsx
-import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
-  Play,
-  Settings,
-  Volume2,
-  BookOpen,
-  Target,
-  Edit,
-  CheckCircle,
-  XCircle,
-  Clock,
-  BarChart,
   Home,
-  RotateCw,
-  ChevronRight,
-  ChevronLeft,
-  Zap,
-  Trophy,
-  AlertCircle,
-  Sparkles,
-  Headphones,
-  Type,
-  RefreshCw,
-  Award,
-  TrendingUp,
-  HelpCircle,
-  Star,
+  BookOpen,
+  Play,
   Check,
   X,
-  Loader2,
+  Settings,
   Grid3x3,
-  Filter,
-  Music,
-  VolumeX,
   Lock,
-  Eye,
-  Pen,
-  Ear
-} from 'lucide-react';
-import { kanaQuizService } from '../service/kana-quiz.service';
-import type { 
-  KanaType, 
-  QuizMode, 
-  QuizDifficulty, 
+  CheckCircle,
+  XCircle,
+  Moon,
+  Sun,
+  Star,
+  Award,
+  RotateCcw,
+} from "lucide-react";
+import { kanaQuizService } from "../service/kana-quiz.service";
+import type {
   KanaCharacter,
-  QuizQuestion,
   QuizSettings,
-  QuizResult 
-} from './types/kana-quiz.types';
+  QuizQuestion,
+  QuizResult,
+  KanaType,
+  QuizMode,
+  QuizDifficulty,
+} from "./types/kana-quiz.types";
+import QuizPage from "./QuizPage";
 
 const KanaQuiz: React.FC = () => {
   const navigate = useNavigate();
-  const [step, setStep] = useState<'setup' | 'quiz' | 'result'>('setup');
+  const [isMobile, setIsMobile] = useState(false);
+
+  // --- view state ---
+  const [darkMode, setDarkMode] = useState(false);
   const [settings, setSettings] = useState<QuizSettings>({
-    kanaType: 'hiragana',
-    rows: ['basic'],
+    kanaType: "hiragana",
+    rows: ["basic"],
     includeTenten: false,
     includeMaru: false,
     includeCombo: false,
-    difficulty: 'easy',
+    difficulty: "easy",
     questionCount: 10,
-    mode: 'reading'
+    mode: "reading",
   });
-  
-  const [questions, setQuestions] = useState<QuizQuestion[]>([]);
-  const [currentQuestion, setCurrentQuestion] = useState(0);
-  const [userAnswer, setUserAnswer] = useState('');
-  const [score, setScore] = useState(0);
-  const [timeSpent, setTimeSpent] = useState(0);
-  const [timer, setTimer] = useState<NodeJS.Timeout | null>(null);
-  const [showFeedback, setShowFeedback] = useState(false);
-  const [isCorrect, setIsCorrect] = useState(false);
-  const [allKana, setAllKana] = useState<KanaCharacter[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [quizResults, setQuizResults] = useState<QuizResult | null>(null);
-  const [selectedRows, setSelectedRows] = useState<string[]>(['basic']);
-  const [showHint, setShowHint] = useState(false);
-  const [streak, setStreak] = useState(0);
-  const [totalTime, setTotalTime] = useState(0);
-  const [isAudioPlaying, setIsAudioPlaying] = useState(false);
-  const [answerHistory, setAnswerHistory] = useState<{symbol: string, romaji: string, userAnswer: string, isCorrect: boolean}[]>([]);
-  
-  const inputRef = useRef<HTMLInputElement>(null);
-  const answerFeedbackRef = useRef<HTMLDivElement>(null);
-  const questionDisplayRef = useRef<HTMLDivElement>(null);
 
+  // store all kana + rows from service
+  const [allKana, setAllKana] = useState<KanaCharacter[]>([]);
+  const [rows, setRows] = useState<{ id: string; name: string; chars: string[] }[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // quiz (kept minimal; you can keep your old quiz flow)
+  const [step, setStep] = useState<"setup" | "quiz" | "result">("setup");
+  const [questions, setQuestions] = useState<QuizQuestion[]>([]);
+  const [quizResults, setQuizResults] = useState<QuizResult | null>(null);
+
+  // UI selection states
+  const [selectedRows, setSelectedRows] = useState<string[]>(["basic"]);
+  const [activeRowId, setActiveRowId] = useState<string | null>(null);
+
+  // per-card inline evaluation
+  const [cardAnswers, setCardAnswers] = useState<
+    Record<string, { answer: string; isCorrect: boolean | null; tried: boolean }>
+  >({});
+
+  // Track practice score for active row
+  const [practiceScore, setPracticeScore] = useState({ correct: 0, total: 0 });
+
+  const inputRefs = useRef<Record<string, HTMLInputElement | null>>({});
+
+  // Check if mobile on mount and resize
   useEffect(() => {
-    fetchKana();
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
+  // fetch kana & rows when kana type changes
+  useEffect(() => {
+    const load = async () => {
+      setIsLoading(true);
+      try {
+        const k = await kanaQuizService.getAllKana(settings.kanaType);
+        setAllKana(k);
+        const r = kanaQuizService.getRows(settings.kanaType);
+        setRows(r);
+        // Keep current selection if it still exists in new rows
+        const validSelectedRows = selectedRows.filter(rowId => 
+          r.some(row => row.id === rowId)
+        );
+        if (validSelectedRows.length === 0) {
+          setSelectedRows(["basic"]);
+        } else {
+          setSelectedRows(validSelectedRows);
+        }
+        setActiveRowId(null);
+        setCardAnswers({});
+        setPracticeScore({ correct: 0, total: 0 });
+      } catch (err) {
+        console.error("fetch kana error", err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    load();
   }, [settings.kanaType]);
 
+  // Update score when card answers change
   useEffect(() => {
-    if (step === 'quiz' && timer === null) {
-      const interval = setInterval(() => {
-        setTimeSpent(prev => prev + 1);
-        setTotalTime(prev => prev + 1);
-      }, 1000);
-      setTimer(interval);
+    if (activeRowId) {
+      const total = Object.keys(cardAnswers).length;
+      const correct = Object.values(cardAnswers).filter(a => a.isCorrect === true).length;
+      setPracticeScore({ correct, total });
     }
-    
-    return () => {
-      if (timer) clearInterval(timer);
-    };
-  }, [step, timer]);
+  }, [cardAnswers, activeRowId]);
 
-  useEffect(() => {
-    if (showFeedback && answerFeedbackRef.current) {
-      answerFeedbackRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }
-  }, [showFeedback]);
-
-  // Focus input automatically when question changes
-  useEffect(() => {
-    if (step === 'quiz' && questions.length > 0) {
-      // Small delay to ensure DOM is ready
-      const timer = setTimeout(() => {
-        if (inputRef.current) {
-          inputRef.current.focus();
-          inputRef.current.select();
-        }
-      }, 100);
-      
-      return () => clearTimeout(timer);
-    }
-  }, [currentQuestion, step, questions.length]);
-
-  const fetchKana = async () => {
-    setIsLoading(true);
-    try {
-      const kanaData = await kanaQuizService.getAllKana(settings.kanaType);
-      setAllKana(kanaData);
-      
-      // Reset selected rows when switching kana type
-      setSelectedRows(['basic']);
-    } catch (error) {
-      console.error('Error fetching kana:', error);
-    } finally {
-      setIsLoading(false);
-    }
+  // helper to find characters for a given row id
+  const charsForRow = (rowId: string) => {
+    const row = rows.find((r) => r.id === rowId);
+    if (!row) return [];
+    return row.chars
+      .map((sym) => allKana.find((k) => k.symbol === sym))
+      .filter(Boolean) as KanaCharacter[];
   };
 
-  const rows = kanaQuizService.getRows(settings.kanaType);
+  // Get all characters from selected rows
+  const getSelectedCharacters = () => {
+    return allKana.filter((k) =>
+      rows.some((r) => selectedRows.includes(r.id) && r.chars.includes(k.symbol))
+    );
+  };
 
+  // toggle row selection
   const handleRowToggle = (rowId: string) => {
-    setSelectedRows(prev => {
-      const newRows = prev.includes(rowId)
-        ? prev.filter(r => r !== rowId)
-        : [...prev, rowId];
-      
-      // Update settings with selected rows
-      if (newRows.length > 0) {
-        setSettings(prev => ({ ...prev, rows: newRows }));
+    setSelectedRows((prev) => {
+      const newRows = prev.includes(rowId) ? prev.filter((r) => r !== rowId) : [...prev, rowId];
+      if (newRows.length === 0) {
+        // If deselecting all, keep at least basic row
+        return ["basic"];
       }
-      
       return newRows;
     });
   };
 
-  const handleStartQuiz = () => {
-    if (selectedRows.length === 0) {
-      alert('Please select at least one row to start the quiz!');
-      return;
-    }
-
-    // Filter kana based on selected rows
-    const filteredKana = allKana.filter(kana => {
-      const rowMatch = rows.some(row => 
-        selectedRows.includes(row.id) && row.chars.includes(kana.symbol)
-      );
-      return rowMatch;
+  // when user clicks a small row button to inspect, open activeRow view (cards)
+  const handleOpenRow = (rowId: string) => {
+    const available = (() => {
+      const row = rows.find((r) => r.id === rowId);
+      if (!row) return false;
+      if (rowId.includes("tenten") && !settings.includeTenten) return false;
+      if (rowId.includes("maru") && !settings.includeMaru) return false;
+      if (rowId.includes("combo") && !settings.includeCombo) return false;
+      return true;
+    })();
+    if (!available) return;
+    setActiveRowId(rowId);
+    const chars = charsForRow(rowId);
+    const initial: Record<string, { answer: string; isCorrect: boolean | null; tried: boolean }> = {};
+    chars.forEach((c) => {
+      initial[c.symbol] = { answer: "", isCorrect: null, tried: false };
     });
+    setCardAnswers(initial);
+    setPracticeScore({ correct: 0, total: chars.length });
 
-    if (filteredKana.length === 0) {
-      alert('No characters available with current selection. Please adjust your settings.');
-      return;
-    }
-
-    // Update settings with current selected rows
-    setSettings(prev => ({ ...prev, rows: selectedRows }));
-    
-    const generatedQuestions = kanaQuizService.generateQuizQuestions(
-      {...settings, rows: selectedRows}, 
-      filteredKana
-    );
-    setQuestions(generatedQuestions);
-    setStep('quiz');
-    setCurrentQuestion(0);
-    setScore(0);
-    setTimeSpent(0);
-    setStreak(0);
-    setUserAnswer('');
-    setShowFeedback(false);
-    setShowHint(false);
-    setAnswerHistory([]);
-    
-    // Focus input after a short delay
     setTimeout(() => {
-      if (inputRef.current) {
-        inputRef.current.focus();
-        inputRef.current.select();
+      const first = chars[0];
+      if (first && inputRefs.current[first.symbol]) {
+        inputRefs.current[first.symbol]!.focus();
+        inputRefs.current[first.symbol]!.select();
       }
-    }, 300);
+    }, 50);
   };
 
-  const handleAnswerSubmit = () => {
-    if (!userAnswer.trim()) {
-      if (inputRef.current) {
-        inputRef.current.focus();
-      }
-      return;
-    }
-    
-    const currentQ = questions[currentQuestion];
-    const normalizedAnswer = kanaQuizService.normalizeKanaInput(userAnswer);
-    const correct = kanaQuizService.checkAnswer(currentQ, normalizedAnswer);
-    
-    setIsCorrect(correct);
-    setShowFeedback(true);
-    setShowHint(false);
-    
-    // Update streak
-    if (correct) {
-      setStreak(prev => prev + 1);
-    } else {
-      setStreak(0);
-    }
-    
-    // Update question with user answer
-    const updatedQuestions = [...questions];
-    updatedQuestions[currentQuestion] = {
-      ...currentQ,
-      userAnswer: userAnswer,
-      isCorrect: correct,
-      timeSpent: timeSpent
-    };
-    setQuestions(updatedQuestions);
-    
-    // Add to answer history
-    setAnswerHistory(prev => [...prev, {
-      symbol: currentQ.character.symbol,
-      romaji: currentQ.character.romaji,
-      userAnswer: userAnswer,
-      isCorrect: correct
-    }]);
-    
-    if (correct) {
-      setScore(prev => prev + 1);
-    }
-    
-    // Move to next question after delay - AUTOMATICALLY
+  const handleCloseRowView = () => {
+    setActiveRowId(null);
+    setCardAnswers({});
+    setPracticeScore({ correct: 0, total: 0 });
+  };
+
+  // Reset current row practice
+  const handleResetRow = () => {
+    if (!activeRowId) return;
+    const chars = charsForRow(activeRowId);
+    const initial: Record<string, { answer: string; isCorrect: boolean | null; tried: boolean }> = {};
+    chars.forEach((c) => {
+      initial[c.symbol] = { answer: "", isCorrect: null, tried: false };
+    });
+    setCardAnswers(initial);
+    setPracticeScore({ correct: 0, total: chars.length });
+
+    // Focus first input
     setTimeout(() => {
-      setShowFeedback(false);
-      setUserAnswer('');
+      const first = chars[0];
+      if (first && inputRefs.current[first.symbol]) {
+        inputRefs.current[first.symbol]!.focus();
+        inputRefs.current[first.symbol]!.select();
+      }
+    }, 50);
+  };
+
+  // check a single card answer inline
+  const checkCardAnswer = (symbol: string) => {
+    const char = allKana.find((c) => c.symbol === symbol);
+    if (!char) return;
+    const attempt = (cardAnswers[symbol]?.answer || "").trim();
+    if (!attempt) return;
+
+    const normalized = kanaQuizService.normalizeKanaInput(attempt);
+    const correct =
+      normalized === kanaQuizService.normalizeKanaInput(char.romaji) ||
+      normalized === kanaQuizService.normalizeKanaInput(char.symbol);
+
+    setCardAnswers((prev) => ({
+      ...prev,
+      [symbol]: { 
+        answer: attempt, 
+        isCorrect: correct, 
+        tried: true 
+      },
+    }));
+  };
+
+  // Auto-focus on next empty input
+  const focusNextInput = (currentSymbol: string) => {
+    const chars = charsForRow(activeRowId!);
+    const currentIndex = chars.findIndex(c => c.symbol === currentSymbol);
+    
+    if (currentIndex >= 0 && currentIndex < chars.length - 1) {
+      // Find next input that's not completed
+      for (let i = currentIndex + 1; i < chars.length; i++) {
+        const nextSymbol = chars[i].symbol;
+        const nextState = cardAnswers[nextSymbol];
+        
+        // Skip if already correct
+        if (nextState?.isCorrect === true) continue;
+        
+        const nextInput = inputRefs.current[nextSymbol];
+        if (nextInput) {
+          setTimeout(() => {
+            nextInput.focus();
+            nextInput.select();
+          }, 50);
+          break;
+        }
+      }
+    } else if (currentIndex === chars.length - 1) {
+      // If on last card and all are correct, show completion message
+      const allCorrect = chars.every(c => cardAnswers[c.symbol]?.isCorrect === true);
+      if (allCorrect) {
+        // You could add a completion toast or message here
+      }
+    }
+  };
+
+  const handleCardInputKey = (e: React.KeyboardEvent<HTMLInputElement>, symbol: string) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      const attempt = (cardAnswers[symbol]?.answer || "").trim();
+      if (!attempt) return;
       
-      if (currentQuestion < questions.length - 1) {
-        setCurrentQuestion(prev => prev + 1);
-        // Focus will be handled by useEffect
-      } else {
-        // Quiz complete
-        if (timer) clearInterval(timer);
-        setTimer(null);
+      checkCardAnswer(symbol);
+      
+      // Wait a moment for state update, then move to next input
+      setTimeout(() => {
+        focusNextInput(symbol);
+      }, 100);
+    }
+    
+    // Tab key navigation
+    if (e.key === "Tab") {
+      e.preventDefault();
+      if (!e.shiftKey) { // Move forward
+        focusNextInput(symbol);
+      } else { // Move backward (Shift+Tab)
+        const chars = charsForRow(activeRowId!);
+        const currentIndex = chars.findIndex(c => c.symbol === symbol);
         
-        const result: QuizResult = {
-          score: correct ? score + 1 : score,
-          total: questions.length,
-          accuracy: Math.round(((correct ? score + 1 : score) / questions.length) * 100),
-          timeSpent: totalTime + timeSpent,
-          questions: updatedQuestions,
-          date: new Date(),
-          streak: Math.max(streak, updatedQuestions.filter(q => q.isCorrect).length),
-          settings: settings
-        };
-        
-        setQuizResults(result);
-        setStep('result');
-        
-        // Save to localStorage
-        const savedResults = JSON.parse(localStorage.getItem('kanaQuizResults') || '[]');
-        savedResults.push(result);
-        localStorage.setItem('kanaQuizResults', JSON.stringify(savedResults.slice(-50)));
+        if (currentIndex > 0) {
+          // Find previous input that's not completed
+          for (let i = currentIndex - 1; i >= 0; i--) {
+            const prevSymbol = chars[i].symbol;
+            const prevState = cardAnswers[prevSymbol];
+            
+            // Skip if already correct
+            if (prevState?.isCorrect === true) continue;
+            
+            const prevInput = inputRefs.current[prevSymbol];
+            if (prevInput) {
+              setTimeout(() => {
+                prevInput.focus();
+                prevInput.select();
+              }, 50);
+              break;
+            }
+          }
+        }
       }
-    }, 1000); // Reduced delay for faster progression
-  };
-
-  const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      handleAnswerSubmit();
-    } else if (e.key === 'Tab' && !e.shiftKey && step === 'quiz') {
-      e.preventDefault();
-      setShowHint(!showHint);
-    } else if (e.key === ' ' && settings.mode === 'listening') {
-      e.preventDefault();
-      playAudio(questions[currentQuestion].character.romaji);
     }
   };
 
-  const handleNextQuestion = () => {
-    if (currentQuestion < questions.length - 1) {
-      setCurrentQuestion(prev => prev + 1);
-      setUserAnswer('');
-      setShowFeedback(false);
-      setShowHint(false);
-    }
-  };
+  // Start formal quiz flow
+const handleStartQuiz = () => {
+  if (selectedRows.length === 0) {
+    alert("Select at least one row to start the quiz");
+    return;
+  }
 
-  const handlePrevQuestion = () => {
-    if (currentQuestion > 0) {
-      setCurrentQuestion(prev => prev - 1);
-      setUserAnswer(questions[currentQuestion - 1].userAnswer || '');
-      setShowFeedback(false);
-      setShowHint(false);
-    }
-  };
+  const selectedChars = getSelectedCharacters();
 
-  const handleRestartQuiz = () => {
-    setStep('setup');
-    setQuestions([]);
-    setCurrentQuestion(0);
-    setScore(0);
-    setTimeSpent(0);
-    setStreak(0);
-    setTotalTime(0);
-    setUserAnswer('');
-    setShowFeedback(false);
-    setShowHint(false);
-    setAnswerHistory([]);
-    if (timer) clearInterval(timer);
-    setTimer(null);
-    setQuizResults(null);
-  };
+  if (selectedChars.length === 0) {
+    alert(
+      "No characters found.\n" +
+      "Enable Dakuten / Handakuten / Combinations if required."
+    );
+    return;
+  }
 
-  const handleRetrySameSettings = () => {
-    handleStartQuiz();
-  };
+  // Fix question count if not enough characters
+  let finalSettings = { ...settings };
 
-  const playAudio = (text: string) => {
-    // Stop any currently playing audio
-    speechSynthesis.cancel();
-    setIsAudioPlaying(true);
+  if (selectedChars.length < settings.questionCount) {
+    const proceed = window.confirm(
+      `Only ${selectedChars.length} characters available.\n` +
+      `Continue with ${selectedChars.length} questions?`
+    );
+
+    if (!proceed) return;
+
+    finalSettings.questionCount = selectedChars.length;
+    setSettings(finalSettings);
+  }
+
+  const generatedQuestions = kanaQuizService.generateQuizQuestions(
+    finalSettings,
+    selectedChars
+  );
+
+  if (!generatedQuestions || generatedQuestions.length === 0) {
+    alert("Failed to generate quiz questions. Check your row selections.");
+    return;
+  }
+
+  setQuestions(generatedQuestions);
+  setQuizResults(null);
+  setStep("quiz");
+
+  console.log("Quiz started:", generatedQuestions);
+};
+
+
+  // Select All Kana
+  const handleSelectAllKana = () => {
+    const allRowIds = rows
+      .filter((r) => {
+        // Filter based on include flags
+        if (r.id.includes("tenten") && !settings.includeTenten) return false;
+        if (r.id.includes("maru") && !settings.includeMaru) return false;
+        if (r.id.includes("combo") && !settings.includeCombo) return false;
+        return true;
+      })
+      .map((r) => r.id);
     
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = 'ja-JP';
-    utterance.rate = settings.difficulty === 'easy' ? 0.7 : settings.difficulty === 'medium' ? 0.85 : 1.0;
-    utterance.pitch = 1;
-    utterance.volume = 1;
-    
-    // Try to get Japanese voice
-    const voices = speechSynthesis.getVoices();
-    const japaneseVoice = voices.find(voice => voice.lang === 'ja-JP');
-    if (japaneseVoice) {
-      utterance.voice = japaneseVoice;
-    }
-    
-    utterance.onend = () => setIsAudioPlaying(false);
-    utterance.onerror = () => setIsAudioPlaying(false);
-    
-    speechSynthesis.speak(utterance);
-  };
-
-  const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
-  };
-
-  const getDifficultyColor = (difficulty: QuizDifficulty) => {
-    switch (difficulty) {
-      case 'easy': return 'bg-green-100 text-green-800';
-      case 'medium': return 'bg-yellow-100 text-yellow-800';
-      case 'hard': return 'bg-red-100 text-red-800';
-      default: return 'bg-gray-100 text-gray-800';
+    // If already all selected, deselect all except basic
+    const allCurrentlySelected = allRowIds.every(id => selectedRows.includes(id));
+    if (allCurrentlySelected) {
+      setSelectedRows(["basic"]);
+      setActiveRowId(null);
+    } else {
+      setSelectedRows(allRowIds);
+      setActiveRowId(null);
     }
   };
 
-  const getModeIcon = (mode: QuizMode) => {
-    switch (mode) {
-      case 'reading': return <Eye className="w-5 h-5" />;
-      case 'writing': return <Pen className="w-5 h-5" />;
-      case 'listening': return <Ear className="w-5 h-5" />;
-      default: return <Eye className="w-5 h-5" />;
+  // UI helpers to split rows into Main / Dakuten / Combination columns
+  const mainRows = rows.filter((r) => !/tenten|maru|combo/i.test(r.id));
+  const dakutenRows = rows.filter((r) => /tenten|maru/i.test(r.id));
+  const comboRows = rows.filter((r) => /combo/i.test(r.id));
+
+  // Toggle all rows for a specific category
+  const toggleAllMainRows = () => {
+    const allMainIds = mainRows.map((r) => r.id);
+    const areAllSelected = allMainIds.every(id => selectedRows.includes(id));
+    
+    if (areAllSelected) {
+      setSelectedRows(prev => prev.filter(id => !allMainIds.includes(id)));
+      if (selectedRows.length === allMainIds.length) {
+        // If only main rows were selected, keep basic
+        setSelectedRows(["basic"]);
+      }
+    } else {
+      setSelectedRows(prev => Array.from(new Set([...prev, ...allMainIds])));
+    }
+  };
+
+  const toggleAllDakutenRows = () => {
+    const allDakutenIds = dakutenRows
+      .filter(r => {
+        if (r.id.includes("tenten")) return settings.includeTenten;
+        if (r.id.includes("maru")) return settings.includeMaru;
+        return true;
+      })
+      .map(r => r.id);
+    
+    if (allDakutenIds.length === 0) {
+      alert("Please enable Dakuten or Handakuten options first");
+      return;
+    }
+    
+    const areAllSelected = allDakutenIds.every(id => selectedRows.includes(id));
+    
+    if (areAllSelected) {
+      setSelectedRows(prev => prev.filter(id => !allDakutenIds.includes(id)));
+    } else {
+      setSelectedRows(prev => Array.from(new Set([...prev, ...allDakutenIds])));
+    }
+  };
+
+  const toggleAllComboRows = () => {
+    if (!settings.includeCombo) {
+      alert("Please enable Combinations option first");
+      return;
+    }
+    
+    const allComboIds = comboRows.map(r => r.id);
+    
+    if (allComboIds.length === 0) {
+      alert("No combination rows available");
+      return;
+    }
+    
+    const areAllSelected = allComboIds.every(id => selectedRows.includes(id));
+    
+    if (areAllSelected) {
+      setSelectedRows(prev => prev.filter(id => !allComboIds.includes(id)));
+    } else {
+      setSelectedRows(prev => Array.from(new Set([...prev, ...allComboIds])));
     }
   };
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
-        <div className="text-center space-y-6 max-w-md mx-auto">
-          <div className="relative">
-            <div className="w-20 h-20 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
-            <Sparkles className="w-10 h-10 text-blue-600 absolute -top-3 -right-3 animate-pulse" />
-          </div>
-          <div>
-            <h2 className="text-2xl font-bold text-gray-800">Loading Kana Quiz</h2>
-            <p className="text-gray-600 mt-2">Preparing your learning experience...</p>
-          </div>
+      <div className={`min-h-screen flex items-center justify-center p-4 ${darkMode ? "bg-gray-900" : "bg-white"}`}>
+        <div className="text-center">
+          <div className="w-12 h-12 border-3 border-blue-300 border-t-blue-600 rounded-full animate-spin mx-auto" />
+          <p className={`mt-3 text-sm ${darkMode ? "text-gray-300" : "text-gray-600"}`}>Loading kana…</p>
         </div>
       </div>
     );
   }
 
+  const selectedCharacters = getSelectedCharacters();
+  const allAvailableRowIds = rows
+    .filter((r) => {
+      if (r.id.includes("tenten") && !settings.includeTenten) return false;
+      if (r.id.includes("maru") && !settings.includeMaru) return false;
+      if (r.id.includes("combo") && !settings.includeCombo) return false;
+      return true;
+    })
+    .map((r) => r.id);
+  
+  const isAllSelected = allAvailableRowIds.every(id => selectedRows.includes(id));
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
-      <div className="max-w-7xl mx-auto p-4 md:p-6">
-        {/* Header */}
-        <header className="mb-8">
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
-            <div className="flex items-center gap-3">
-              <div className="p-3 bg-gradient-to-r from-blue-500 to-purple-500 rounded-2xl shadow-lg">
-                <Sparkles className="w-8 h-8 text-white" />
+    <div className={`min-h-screen transition-colors duration-200 ${darkMode ? "bg-gray-900 text-gray-100" : "bg-gray-50 text-gray-900"}`}>
+      <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-6 py-4">
+        {/* top controls - Mobile first */}
+        <div className="flex flex-col gap-3 mb-6">
+          <div className="flex items-center justify-between">
+            <h1 className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+              Kana Selector
+            </h1>
+            <button
+              onClick={() => setDarkMode((d) => !d)}
+              className={`p-2 rounded-lg ${darkMode ? "bg-gray-800 text-gray-300" : "bg-white text-gray-700 border"}`}
+              title="Toggle dark mode"
+            >
+              {darkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+            </button>
+          </div>
+
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+            <select
+              value={settings.kanaType}
+              onChange={(e) => {
+                setSettings((s) => ({ ...s, kanaType: e.target.value as KanaType }));
+                setActiveRowId(null);
+              }}
+              className={`px-3 py-2 rounded-lg border text-sm ${darkMode ? "bg-gray-800 border-gray-700" : "bg-white border-gray-300"}`}
+            >
+              <option value="hiragana">Hiragana</option>
+              <option value="katakana">Katakana</option>
+            </select>
+
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={() => setSettings((s) => ({ ...s, kanaType: "hiragana" }))}
+                className={`flex-1 min-w-[120px] px-3 py-2 font-medium rounded-lg text-sm ${settings.kanaType === "hiragana" 
+                  ? "bg-blue-600 text-white" 
+                  : darkMode 
+                    ? "bg-gray-800 border border-gray-700" 
+                    : "bg-white border border-gray-300"}`}
+              >
+                Hiragana
+              </button>
+              <button
+                onClick={() => setSettings((s) => ({ ...s, kanaType: "katakana" }))}
+                className={`flex-1 min-w-[120px] px-3 py-2 font-medium rounded-lg text-sm ${settings.kanaType === "katakana" 
+                  ? "bg-blue-600 text-white" 
+                  : darkMode 
+                    ? "bg-gray-800 border border-gray-700" 
+                    : "bg-white border border-gray-300"}`}
+              >
+                Katakana
+              </button>
+              <button
+                onClick={handleSelectAllKana}
+                className={`flex-1 min-w-[100px] px-3 py-2 font-medium rounded-lg text-sm ${isAllSelected 
+                  ? "bg-green-100 text-green-800 border border-green-300" 
+                  : darkMode 
+                    ? "bg-gray-800 border border-gray-700" 
+                    : "bg-white border border-gray-300"}`}
+              >
+                {isAllSelected ? 'All Selected' : 'All Kana'}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* three-column rows table - Mobile first */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
+          {/* Main Kana Column */}
+          <div className={`rounded-lg p-3 sm:p-4 ${darkMode ? "bg-gray-800" : "bg-white shadow-sm"}`}>
+            <h3 className="text-lg sm:text-xl font-bold text-center mb-3">Main Kana</h3>
+            <div className="mb-3">
+              <button
+                onClick={toggleAllMainRows}
+                className={`w-full py-2 rounded-lg text-center font-medium text-sm ${mainRows.every(r => selectedRows.includes(r.id)) 
+                  ? "bg-green-100 text-green-800 border border-green-300" 
+                  : darkMode 
+                    ? "bg-gray-700 hover:bg-gray-600" 
+                    : "bg-blue-50 hover:bg-blue-100 border border-blue-200"}`}
+              >
+                {/* {mainRows.every(r => selectedRows.includes(r.id)) ? '✓ All Main Selected' : 'Select All Main'} */}
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              {mainRows.map((r) => {
+                const char = allKana.find((c) => c.symbol === r.chars[0]);
+                const romaji = char ? `/${char.romaji}` : "";
+                const isSelected = selectedRows.includes(r.id);
+                return (
+                  <button
+                    key={r.id}
+                    onClick={() => {
+                      handleRowToggle(r.id);
+                      handleOpenRow(r.id);
+                    }}
+                    className={`flex items-center justify-between p-2 sm:p-3 rounded-lg text-left ${isSelected 
+                      ? darkMode 
+                        ? "bg-blue-900 border-2 border-blue-500" 
+                        : "bg-blue-50 border-2 border-blue-500"
+                      : darkMode 
+                        ? "bg-gray-700 hover:bg-gray-600 border border-gray-600" 
+                        : "bg-white hover:bg-gray-50 border border-gray-300"}`}
+                  >
+                    <div className="text-xl sm:text-2xl font-bold">{r.chars[0]}</div>
+                    <div className="text-right">
+                      <div className="text-xs sm:text-sm font-medium">{r.name}</div>
+                      <div className={`text-xs ${darkMode ? "text-gray-400" : "text-gray-500"}`}>{romaji}</div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Dakuten Column */}
+          <div className={`rounded-lg p-3 sm:p-4 ${darkMode ? "bg-gray-800" : "bg-white shadow-sm"}`}>
+            <h3 className="text-lg sm:text-xl font-bold text-center mb-3">Dakuten Kana</h3>
+            <div className="mb-3">
+              <button
+                onClick={toggleAllDakutenRows}
+                className={`w-full py-2 rounded-lg text-center font-medium text-sm ${dakutenRows.filter(r => {
+                  if (r.id.includes("tenten")) return settings.includeTenten;
+                  if (r.id.includes("maru")) return settings.includeMaru;
+                  return true;
+                }).every(r => selectedRows.includes(r.id)) 
+                  ? "bg-green-100 text-green-800 border border-green-300" 
+                  : darkMode 
+                    ? "bg-gray-700 hover:bg-gray-600" 
+                    : "bg-blue-50 hover:bg-blue-100 border border-blue-200"}`}
+              >
+                {dakutenRows.filter(r => {
+                  if (r.id.includes("tenten")) return settings.includeTenten;
+                  if (r.id.includes("maru")) return settings.includeMaru;
+                  return true;
+                }).every(r => selectedRows.includes(r.id)) ? '✓ All Dakuten Selected' : 'Select All Dakuten'}
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 gap-2">
+              {dakutenRows.map((r) => {
+                const char = allKana.find((c) => c.symbol === r.chars[0]);
+                const romaji = char ? `/${char.romaji}` : "";
+                const isAvailable = !r.id.includes("tenten") ? true : settings.includeTenten || settings.includeMaru;
+                const isSelected = selectedRows.includes(r.id);
+                
+                return (
+                  <button
+                    key={r.id}
+                    onClick={() => {
+                      if (!isAvailable) {
+                        alert(`Please enable ${r.id.includes("tenten") ? "Dakuten" : "Handakuten"} option first`);
+                        return;
+                      }
+                      handleRowToggle(r.id);
+                      handleOpenRow(r.id);
+                    }}
+                    disabled={!isAvailable}
+                    className={`flex items-center justify-between p-2 sm:p-3 rounded-lg text-left ${isSelected 
+                      ? darkMode 
+                        ? "bg-blue-900 border-2 border-blue-500" 
+                        : "bg-blue-50 border-2 border-blue-500"
+                      : darkMode 
+                        ? "bg-gray-700 hover:bg-gray-600 border border-gray-600" 
+                        : "bg-white hover:bg-gray-50 border border-gray-300"} ${!isAvailable ? "opacity-50 cursor-not-allowed" : ""}`}
+                  >
+                    <div className="text-xl sm:text-2xl font-bold">{r.chars[0]}</div>
+                    <div className="text-right">
+                      <div className="text-xs sm:text-sm font-medium">{r.name}</div>
+                      <div className={`text-xs ${darkMode ? "text-gray-400" : "text-gray-500"}`}>{romaji}</div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Combination Column */}
+          <div className={`rounded-lg p-3 sm:p-4 ${darkMode ? "bg-gray-800" : "bg-white shadow-sm"}`}>
+            <h3 className="text-lg sm:text-xl font-bold text-center mb-3">Combination Kana</h3>
+            <div className="mb-3">
+              <button
+                onClick={toggleAllComboRows}
+                className={`w-full py-2 rounded-lg text-center font-medium text-sm ${comboRows.filter(() => settings.includeCombo).every(r => selectedRows.includes(r.id)) 
+                  ? "bg-green-100 text-green-800 border border-green-300" 
+                  : darkMode 
+                    ? "bg-gray-700 hover:bg-gray-600" 
+                    : "bg-blue-50 hover:bg-blue-100 border border-blue-200"}`}
+              >
+                {comboRows.filter(() => settings.includeCombo).every(r => selectedRows.includes(r.id)) 
+                  ? '✓ All Combo Selected' 
+                  : 'Select All Combo'}
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              {comboRows.map((r) => {
+                const char = allKana.find((c) => c.symbol === r.chars[0]);
+                const romaji = char ? `/${char.romaji}` : "";
+                const isAvailable = settings.includeCombo;
+                const isSelected = selectedRows.includes(r.id);
+                
+                return (
+                  <button
+                    key={r.id}
+                    onClick={() => {
+                      if (!isAvailable) {
+                        alert("Please enable Combinations option first");
+                        return;
+                      }
+                      handleRowToggle(r.id);
+                      handleOpenRow(r.id);
+                    }}
+                    disabled={!isAvailable}
+                    className={`flex items-center justify-between p-2 sm:p-3 rounded-lg text-left ${isSelected 
+                      ? darkMode 
+                        ? "bg-blue-900 border-2 border-blue-500" 
+                        : "bg-blue-50 border-2 border-blue-500"
+                      : darkMode 
+                        ? "bg-gray-700 hover:bg-gray-600 border border-gray-600" 
+                        : "bg-white hover:bg-gray-50 border border-gray-300"} ${!isAvailable ? "opacity-50 cursor-not-allowed" : ""}`}
+                  >
+                    <div className="text-xl sm:text-2xl font-bold">{r.chars[0]}</div>
+                    <div className="text-right">
+                      <div className="text-xs sm:text-sm font-medium">{r.name}</div>
+                      <div className={`text-xs ${darkMode ? "text-gray-400" : "text-gray-500"}`}>{romaji}</div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+
+        {/* Settings and Start Quiz Section */}
+        <div className={`rounded-lg p-3 sm:p-4 mb-6 ${darkMode ? "bg-gray-800" : "bg-white shadow-sm"}`}>
+          <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+            <div className="flex-1">
+              <div className="flex flex-wrap items-center gap-2 mb-3 sm:mb-0">
+                <span className="font-medium text-sm mr-2">Include:</span>
+                <button
+                  onClick={() => setSettings((s) => ({ ...s, includeTenten: !s.includeTenten }))}
+                  className={`px-3 py-1.5 rounded-lg flex items-center gap-1.5 text-xs ${settings.includeTenten 
+                    ? "bg-green-100 text-green-800 border border-green-300" 
+                    : darkMode 
+                      ? "bg-gray-700 text-gray-300 border border-gray-600" 
+                      : "bg-gray-100 text-gray-700 border border-gray-300"}`}
+                >
+                  <span>Dakuten</span>
+                  {settings.includeTenten && <Check className="w-3 h-3" />}
+                </button>
+                <button
+                  onClick={() => setSettings((s) => ({ ...s, includeMaru: !s.includeMaru }))}
+                  className={`px-3 py-1.5 rounded-lg flex items-center gap-1.5 text-xs ${settings.includeMaru 
+                    ? "bg-green-100 text-green-800 border border-green-300" 
+                    : darkMode 
+                      ? "bg-gray-700 text-gray-300 border border-gray-600" 
+                      : "bg-gray-100 text-gray-700 border border-gray-300"}`}
+                >
+                  <span>Handakuten</span>
+                  {settings.includeMaru && <Check className="w-3 h-3" />}
+                </button>
+                <button
+                  onClick={() => setSettings((s) => ({ ...s, includeCombo: !s.includeCombo }))}
+                  className={`px-3 py-1.5 rounded-lg flex items-center gap-1.5 text-xs ${settings.includeCombo 
+                    ? "bg-green-100 text-green-800 border border-green-300" 
+                    : darkMode 
+                      ? "bg-gray-700 text-gray-300 border border-gray-600" 
+                      : "bg-gray-100 text-gray-700 border border-gray-300"}`}
+                >
+                  <span>Combinations</span>
+                  {settings.includeCombo && <Check className="w-3 h-3" />}
+                </button>
               </div>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <div className={`px-3 py-1.5 rounded-lg text-sm ${darkMode ? "bg-gray-700" : "bg-gray-100"}`}>
+                <span className="font-medium">{selectedCharacters.length}</span> chars selected
+              </div>
+              <button
+                onClick={handleStartQuiz}
+                className="px-4 py-2.5 rounded-lg bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold flex items-center justify-center gap-1.5 hover:from-blue-700 hover:to-purple-700 transition-all text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={selectedCharacters.length === 0}
+              >
+                <Play className="w-4 h-4" />
+                Start Quiz ({selectedCharacters.length})
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* --- Active Row Card Grid --- */}
+        {activeRowId && (
+          <div className={`rounded-lg p-3 sm:p-4 mb-6 ${darkMode ? "bg-gray-800" : "bg-white shadow-sm"}`}>
+            {/* Header with score */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
               <div>
-                <h1 className="text-2xl md:text-4xl font-bold text-gray-900">
-                  Kana Quiz Master
-                </h1>
-                <p className="text-gray-600 mt-1 text-sm md:text-base">
-                  Master Japanese hiragana and katakana like a pro
+                <h3 className="text-xl sm:text-2xl font-bold">
+                  {rows.find((r) => r.id === activeRowId)?.name || "Row"}
+                </h3>
+                <p className={`text-xs sm:text-sm mt-1 ${darkMode ? "text-gray-400" : "text-gray-600"}`}>
+                  Practice these characters
                 </p>
               </div>
-            </div>
-            
-            <div className="flex items-center gap-2 w-full md:w-auto">
-              <button
-                onClick={() => navigate('/')}
-                className="flex-1 md:flex-none px-4 py-3 bg-white text-gray-700 rounded-xl hover:bg-gray-50 border shadow-sm transition-all flex items-center justify-center gap-2 group text-sm md:text-base"
-              >
-                <Home className="w-4 h-4 group-hover:scale-110 transition-transform" />
-                <span>Home</span>
-              </button>
               
-              <button
-                onClick={() => navigate('/flashcards')}
-                className="flex-1 md:flex-none px-4 py-3 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-xl hover:shadow-lg transition-all flex items-center justify-center gap-2 group text-sm md:text-base hover:scale-105"
-              >
-                <BookOpen className="w-4 h-4 group-hover:scale-110 transition-transform" />
-                <span>Flashcards</span>
-              </button>
-            </div>
-          </div>
-        </header>
-
-        <main className="bg-white rounded-3xl shadow-2xl overflow-hidden">
-          {/* Progress Steps */}
-          <div className="flex items-center justify-center py-4 border-b bg-gray-50 px-4">
-            <div className="flex items-center space-x-2 md:space-x-4">
-              {['setup', 'quiz', 'result'].map((s, index) => (
-                <React.Fragment key={s}>
-                  <div className={`flex items-center gap-2 ${step === s ? 'text-blue-600' : 'text-gray-400'}`}>
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm md:text-base ${step === s ? 'bg-blue-100 border-2 border-blue-500' : 'bg-gray-100'}`}>
-                      {index + 1}
-                    </div>
-                    <span className="hidden sm:inline text-sm font-medium capitalize">{s}</span>
+              {/* Score display */}
+              <div className="flex items-center gap-3">
+                <div className={`px-4 py-2 rounded-lg flex flex-col items-center ${practiceScore.correct === practiceScore.total && practiceScore.total > 0 
+                  ? "bg-gradient-to-r from-emerald-500 to-emerald-600 text-white" 
+                  : darkMode 
+                    ? "bg-gray-700 text-gray-300" 
+                    : "bg-blue-50 text-blue-700"}`}
+                >
+                  <div className="flex items-center gap-2">
+                    <Award className="w-5 h-5" />
+                    <span className="font-bold text-xl">
+                      {practiceScore.correct}/{practiceScore.total}
+                    </span>
                   </div>
-                  {index < 2 && (
-                    <div className={`w-8 md:w-12 h-0.5 ${step === 'quiz' && index === 0 || step === 'result' ? 'bg-blue-500' : 'bg-gray-300'}`} />
+                  {practiceScore.total > 0 && (
+                    <div className="text-xs mt-1 font-medium">
+                      {Math.round((practiceScore.correct / practiceScore.total) * 100)}% Complete
+                    </div>
                   )}
-                </React.Fragment>
-              ))}
-            </div>
-          </div>
-
-          {step === 'setup' && (
-            <div className="p-4 md:p-8">
-              <div className="flex items-center gap-3 mb-6 md:mb-8">
-                <div className="p-2 bg-blue-100 rounded-lg">
-                  <Settings className="w-5 h-5 md:w-6 md:h-6 text-blue-600" />
                 </div>
-                <div>
-                  <h2 className="text-xl md:text-2xl font-bold text-gray-900">Quiz Setup</h2>
-                  <p className="text-gray-600 text-sm md:text-base">Customize your quiz experience</p>
+                
+                <div className="flex gap-2">
+                  <button 
+                    onClick={handleResetRow}
+                    className={`px-3 py-1.5 rounded-lg font-medium text-sm flex items-center gap-1.5 ${darkMode 
+                      ? "bg-gray-700 hover:bg-gray-600" 
+                      : "bg-gray-100 hover:bg-gray-200 border border-gray-300"}`}
+                  >
+                    <RotateCcw className="w-3 h-3" />
+                    Reset
+                  </button>
+                  <button 
+                    onClick={handleCloseRowView}
+                    className={`px-3 py-1.5 rounded-lg font-medium text-sm ${darkMode 
+                      ? "bg-gray-700 hover:bg-gray-600" 
+                      : "bg-gray-100 hover:bg-gray-200 border border-gray-300"}`}
+                  >
+                    Close
+                  </button>
                 </div>
               </div>
-              
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8">
-                {/* Left Column - Kana Type & Rows */}
-                <div className="lg:col-span-2 space-y-6 md:space-y-8">
-                  {/* Kana Type Selection */}
-                  <div className="bg-gradient-to-br from-blue-50 to-white p-4 md:p-6 rounded-2xl shadow-sm border border-blue-100">
-                    <h3 className="text-base md:text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                      <div className="p-2 bg-blue-100 rounded-lg">
-                        <Type className="w-4 h-4 md:w-5 md:h-5 text-blue-600" />
+            </div>
+
+            {/* Cards grid */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
+              {charsForRow(activeRowId).map((ch) => {
+                const state = cardAnswers[ch.symbol] || { answer: "", isCorrect: null, tried: false };
+                const isCorrect = state.isCorrect === true;
+                const isIncorrect = state.isCorrect === false;
+                const isCompleted = state.tried && state.isCorrect;
+
+                return (
+                  <div
+                    key={ch.symbol}
+                    className={`relative rounded-xl p-3 flex flex-col items-center justify-between transition-all duration-200 min-h-[140px] sm:min-h-[160px] ${
+                      isCorrect 
+                        ? "bg-gradient-to-br from-emerald-500 to-emerald-600 shadow-lg transform scale-[1.02]" 
+                        : isIncorrect
+                          ? "bg-gradient-to-br from-red-500 to-red-600"
+                          : "bg-gradient-to-br from-blue-500 to-blue-600"
+                    }`}
+                  >
+                    {/* Kana symbol */}
+                    <div className="flex-1 w-full flex items-center justify-center">
+                      <div className="text-4xl sm:text-5xl font-bold text-white select-none">
+                        {ch.symbol}
                       </div>
-                      <span>Select Kana Type</span>
-                    </h3>
-                    <div className="grid grid-cols-2 gap-3 md:gap-4">
-                      {(['hiragana', 'katakana'] as KanaType[]).map(type => (
-                        <button
-                          key={type}
-                          onClick={() => {
-                            setSettings(prev => ({ ...prev, kanaType: type }));
-                            setSelectedRows(['basic']);
-                          }}
-                          className={`p-4 md:p-6 rounded-xl border-2 transition-all duration-300 transform hover:scale-[1.02] ${
-                            settings.kanaType === type
-                              ? 'border-blue-500 bg-gradient-to-br from-blue-50 to-white shadow-md'
-                              : 'border-gray-200 hover:border-blue-300'
-                          }`}
-                        >
+                    </div>
+
+                    {/* Answer section */}
+                    <div className="w-full mt-3">
+                      {isCompleted ? (
+                        // Completed state - show correct answer
+                        <div className="bg-white/20 backdrop-blur-sm rounded-lg p-2">
                           <div className="text-center">
-                            <div className="text-2xl md:text-4xl font-bold mb-2 md:mb-3">
-                              {type === 'hiragana' ? 'あいうえお' : 'アイウエオ'}
+                            <div className="flex items-center justify-center gap-1 text-white mb-1">
+                              <CheckCircle className="w-4 h-4" />
+                              <span className="text-sm font-medium">Correct!</span>
                             </div>
-                            <div className="text-sm font-medium capitalize bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                              {type}
-                            </div>
-                            <div className="text-xs text-gray-500 mt-1 md:mt-2">
-                              {type === 'hiragana' ? '46 basic characters + variants' : '46 basic characters + variants'}
+                            <div className="text-white text-xs">
+                              Romaji: <span className="font-bold">{ch.romaji}</span>
                             </div>
                           </div>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Row Selection - Card Grid Layout */}
-                  <div className="bg-gradient-to-br from-blue-50 to-white p-4 md:p-6 rounded-2xl shadow-sm border border-blue-100">
-                    <div className="flex items-center justify-between mb-4 md:mb-6">
-                      <h3 className="text-base md:text-lg font-semibold text-gray-900 flex items-center gap-2">
-                        <div className="p-2 bg-blue-100 rounded-lg">
-                          <Grid3x3 className="w-4 h-4 md:w-5 md:h-5 text-blue-600" />
                         </div>
-                        <span>Select Kana Rows</span>
-                      </h3>
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => {
-                            const allRowIds = rows
-                              .filter(r => {
-                                if (r.id.includes('tenten')) return settings.includeTenten;
-                                if (r.id.includes('maru')) return settings.includeMaru;
-                                if (r.id.includes('combo')) return settings.includeCombo;
-                                return true;
-                              })
-                              .map(r => r.id);
-                            setSelectedRows(allRowIds);
-                          }}
-                          className="text-xs md:text-sm text-blue-600 hover:text-blue-700 font-medium px-2 md:px-3 py-1 rounded-lg hover:bg-blue-50"
-                        >
-                          Select All
-                        </button>
-                        <button
-                          onClick={() => setSelectedRows(['basic'])}
-                          className="text-xs md:text-sm text-gray-600 hover:text-gray-700 font-medium px-2 md:px-3 py-1 rounded-lg hover:bg-gray-100"
-                        >
-                          Reset
-                        </button>
-                      </div>
-                    </div>
-                    
-                    {/* Character Type Toggles */}
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-                      <label className={`flex items-center justify-between p-3 rounded-xl border-2 cursor-pointer transition-all ${
-                        settings.includeTenten ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
-                      }`}>
-                        <div className="flex items-center gap-2">
-                          <span className="text-xl">゛</span>
-                          <span className="text-sm font-medium">Dakuten</span>
-                        </div>
-                        <input
-                          type="checkbox"
-                          checked={settings.includeTenten}
-                          onChange={(e) => setSettings(prev => ({ ...prev, includeTenten: e.target.checked }))}
-                          className="rounded w-4 h-4 text-blue-600"
-                        />
-                      </label>
-                      
-                      <label className={`flex items-center justify-between p-3 rounded-xl border-2 cursor-pointer transition-all ${
-                        settings.includeMaru ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
-                      }`}>
-                        <div className="flex items-center gap-2">
-                          <span className="text-xl">゜</span>
-                          <span className="text-sm font-medium">Handakuten</span>
-                        </div>
-                        <input
-                          type="checkbox"
-                          checked={settings.includeMaru}
-                          onChange={(e) => setSettings(prev => ({ ...prev, includeMaru: e.target.checked }))}
-                          className="rounded w-4 h-4 text-blue-600"
-                        />
-                      </label>
-                      
-                      <label className={`flex items-center justify-between p-3 rounded-xl border-2 cursor-pointer transition-all ${
-                        settings.includeCombo ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
-                      }`}>
-                        <div className="flex items-center gap-2">
-                          <span className="text-xl">ゃゅょ</span>
-                          <span className="text-sm font-medium">Combinations</span>
-                        </div>
-                        <input
-                          type="checkbox"
-                          checked={settings.includeCombo}
-                          onChange={(e) => setSettings(prev => ({ ...prev, includeCombo: e.target.checked }))}
-                          className="rounded w-4 h-4 text-blue-600"
-                        />
-                      </label>
-                      
-                      <div className="p-3 bg-gray-50 rounded-xl border-2 border-gray-200">
-                        <div className="flex items-center justify-between">
-                          <div className="text-sm font-medium text-gray-900">Selected</div>
-                          <div className="text-lg font-bold text-blue-600">{selectedRows.length}</div>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    {/* Row Grid */}
-                    <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 max-h-96 overflow-y-auto p-2">
-                      {rows.map(row => {
-                        const isAvailable = 
-                          (row.id.includes('tenten') && settings.includeTenten) ||
-                          (row.id.includes('maru') && settings.includeMaru) ||
-                          (row.id.includes('combo') && settings.includeCombo) ||
-                          (!row.id.includes('tenten') && !row.id.includes('maru') && !row.id.includes('combo'));
-                        
-                        return (
-                          <button
-                            key={row.id}
-                            onClick={() => isAvailable && handleRowToggle(row.id)}
-                            disabled={!isAvailable}
-                            className={`p-4 rounded-xl border-2 transition-all duration-200 flex flex-col items-center justify-center relative ${
-                              selectedRows.includes(row.id) && isAvailable
-                                ? 'border-blue-500 bg-gradient-to-br from-blue-50 to-white shadow-sm'
-                                : !isAvailable
-                                ? 'border-gray-100 bg-gray-50 opacity-40 cursor-not-allowed'
-                                : 'border-gray-200 hover:border-blue-300 hover:bg-blue-50'
-                            }`}
-                          >
-                            <div className="text-2xl md:text-3xl font-bold mb-2">{row.chars[0]}</div>
-                            <div className="text-xs text-gray-600 text-center">{row.name}</div>
-                            {selectedRows.includes(row.id) && isAvailable && (
-                              <div className="absolute top-2 right-2">
-                                <Check className="w-4 h-4 text-blue-500" />
-                              </div>
-                            )}
-                            {!isAvailable && (
-                              <div className="absolute top-2 right-2">
-                                <Lock className="w-4 h-4 text-gray-400" />
-                              </div>
-                            )}
-                          </button>
-                        );
-                      })}
-                    </div>
-                    
-                    <div className="mt-4 text-sm text-gray-500 text-center">
-                      {selectedRows.length} rows selected • {
-                        rows.filter(r => selectedRows.includes(r.id)).reduce((acc, row) => acc + row.chars.length, 0)
-                      } characters
-                    </div>
-                  </div>
-                </div>
-
-                {/* Right Column - Options & Start */}
-                <div className="space-y-6 md:space-y-8">
-                  {/* Quiz Options */}
-                  <div className="bg-gradient-to-br from-blue-50 to-white p-4 md:p-6 rounded-2xl shadow-sm border border-blue-100">
-                    <h3 className="text-base md:text-lg font-semibold text-gray-900 mb-4 md:mb-6 flex items-center gap-2">
-                      <div className="p-2 bg-blue-100 rounded-lg">
-                        <Settings className="w-4 h-4 md:w-5 md:h-5 text-blue-600" />
-                      </div>
-                      <span>Quiz Settings</span>
-                    </h3>
-                    
-                    <div className="space-y-6">
-                      {/* Mode Selection */}
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-3">
-                          Quiz Mode
-                        </label>
-                        <div className="grid grid-cols-3 gap-2">
-                          {(['reading', 'writing', 'listening'] as QuizMode[]).map(mode => (
+                      ) : (
+                        // Input state
+                        <>
+                          <div className="bg-white rounded-lg p-1.5 flex items-center gap-1.5">
+                            <input
+                              ref={(el) => (inputRefs.current[ch.symbol] = el)}
+                              value={state.answer}
+                              onChange={(e) => {
+                                setCardAnswers((prev) => ({
+                                  ...prev,
+                                  [ch.symbol]: { 
+                                    ...(prev[ch.symbol] || { answer: "", isCorrect: null, tried: false }), 
+                                    answer: e.target.value 
+                                  },
+                                }));
+                              }}
+                              onKeyDown={(e) => handleCardInputKey(e as React.KeyboardEvent<HTMLInputElement>, ch.symbol)}
+                              className="flex-1 outline-none text-sm sm:text-base text-gray-900 bg-transparent min-w-0"
+                              placeholder="Type romaji"
+                              aria-label={`Enter romaji for ${ch.symbol}`}
+                              disabled={isCorrect}
+                              readOnly={isCorrect}
+                              autoComplete="off"
+                            />
+                            {/* Mobile only Check button - hidden on sm screens and above */}
                             <button
-                              key={mode}
-                              onClick={() => setSettings(prev => ({ ...prev, mode }))}
-                              className={`p-3 rounded-xl border-2 transition-all flex flex-col items-center justify-center gap-2 ${
-                                settings.mode === mode
-                                  ? 'border-blue-500 bg-gradient-to-br from-blue-50 to-white shadow-sm'
-                                  : 'border-gray-200 hover:border-blue-300'
-                              }`}
+                              onClick={() => {
+                                checkCardAnswer(ch.symbol);
+                                focusNextInput(ch.symbol);
+                              }}
+                              className="sm:hidden px-2 py-1 rounded bg-blue-600 text-white text-xs font-medium hover:bg-blue-700 transition-colors min-w-[60px]"
                             >
-                              {getModeIcon(mode)}
-                              <span className="text-xs font-medium capitalize">{mode}</span>
+                              Check
                             </button>
-                          ))}
-                        </div>
-                      </div>
+                          </div>
 
-                      {/* Difficulty */}
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-3">
-                          Difficulty Level
-                        </label>
-                        <div className="grid grid-cols-3 gap-2">
-                          {(['easy', 'medium', 'hard'] as QuizDifficulty[]).map(difficulty => (
-                            <button
-                              key={difficulty}
-                              onClick={() => setSettings(prev => ({ ...prev, difficulty }))}
-                              className={`p-3 rounded-xl border-2 transition-all duration-200 capitalize font-medium ${
-                                settings.difficulty === difficulty
-                                  ? difficulty === 'easy'
-                                    ? 'border-green-500 bg-gradient-to-br from-green-50 to-white text-green-700'
-                                    : difficulty === 'medium'
-                                    ? 'border-yellow-500 bg-gradient-to-br from-yellow-50 to-white text-yellow-700'
-                                    : 'border-red-500 bg-gradient-to-br from-red-50 to-white text-red-700'
-                                  : 'border-gray-200 hover:border-gray-300'
-                              }`}
-                            >
-                              {difficulty}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-
-                      {/* Question Count */}
-                      <div className="pt-4 border-t">
-                        <div className="flex items-center justify-between mb-4">
-                          <label className="text-sm font-medium text-gray-700">
-                            Number of Questions
-                          </label>
-                          <span className="text-lg font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                            {settings.questionCount}
-                          </span>
-                        </div>
-                        <input
-                          type="range"
-                          min="5"
-                          max="50"
-                          step="5"
-                          value={settings.questionCount}
-                          onChange={(e) => setSettings(prev => ({ ...prev, questionCount: parseInt(e.target.value) }))}
-                          className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider"
-                        />
-                        <div className="flex justify-between text-xs text-gray-500 mt-2">
-                          <span>5</span>
-                          <span>15</span>
-                          <span>25</span>
-                          <span>35</span>
-                          <span>50</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Start Button Card */}
-                  <div className="bg-gradient-to-br from-blue-50 to-white p-6 rounded-2xl shadow-lg border border-blue-100">
-                    <div className="text-center space-y-4">
-                      <div className="inline-block p-4 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full">
-                        <Play className="w-8 h-8 text-white" />
-                      </div>
-                      
-                      <div>
-                        <h4 className="text-xl font-bold text-gray-900 mb-2">Ready to Start?</h4>
-                        <p className="text-gray-600 text-sm">Test your kana knowledge with this quiz</p>
-                      </div>
-                      
-                      <div className="space-y-2">
-                        <div className="flex justify-between items-center p-2 bg-white rounded-lg">
-                          <span className="text-gray-600">Mode:</span>
-                          <span className="font-semibold capitalize flex items-center gap-2">
-                            {getModeIcon(settings.mode)}
-                            {settings.mode}
-                          </span>
-                        </div>
-                        <div className="flex justify-between items-center p-2 bg-white rounded-lg">
-                          <span className="text-gray-600">Kana:</span>
-                          <span className="font-semibold capitalize">
-                            {settings.kanaType}
-                          </span>
-                        </div>
-                        <div className="flex justify-between items-center p-2 bg-white rounded-lg">
-                          <span className="text-gray-600">Questions:</span>
-                          <span className="font-bold text-blue-600">{settings.questionCount}</span>
-                        </div>
-                        <div className="flex justify-between items-center p-2 bg-white rounded-lg">
-                          <span className="text-gray-600">Difficulty:</span>
-                          <span className={`font-semibold px-2 py-1 rounded text-xs ${getDifficultyColor(settings.difficulty)}`}>
-                            {settings.difficulty}
-                          </span>
-                        </div>
-                      </div>
-                      
-                      <button
-                        onClick={handleStartQuiz}
-                        disabled={selectedRows.length === 0}
-                        className={`w-full py-4 px-6 rounded-xl font-bold text-lg transition-all duration-300 transform hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed ${
-                          selectedRows.length === 0
-                            ? 'bg-gray-300'
-                            : 'bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 hover:shadow-xl text-white'
-                        }`}
-                      >
-                        <div className="flex items-center justify-center gap-3">
-                          Start Quiz
-                          <ChevronRight className="w-5 h-5" />
-                        </div>
-                      </button>
-                      
-                      {selectedRows.length === 0 && (
-                        <div className="p-3 bg-red-50 rounded-lg border border-red-200">
-                          <p className="text-red-600 text-sm flex items-center gap-2">
-                            <AlertCircle className="w-4 h-4" />
-                            Select at least one kana row
-                          </p>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {step === 'quiz' && questions.length > 0 && (
-            <div className="p-4 md:p-8">
-              {/* Quiz Header Stats */}
-              <div className="grid grid-cols-4 gap-3 mb-8">
-                <div className="bg-gradient-to-br from-blue-50 to-white p-4 rounded-2xl border border-blue-100 shadow-sm">
-                  <div className="text-center">
-                    <div className="text-xs text-gray-600 mb-1">Question</div>
-                    <div className="text-2xl font-bold text-blue-600">
-                      {currentQuestion + 1}<span className="text-gray-400">/{questions.length}</span>
-                    </div>
-                  </div>
-                </div>
-                
-                <div className="bg-gradient-to-br from-green-50 to-white p-4 rounded-2xl border border-green-100 shadow-sm">
-                  <div className="text-center">
-                    <div className="text-xs text-gray-600 mb-1">Score</div>
-                    <div className="text-2xl font-bold text-green-600">{score}</div>
-                  </div>
-                </div>
-                
-                <div className="bg-gradient-to-br from-orange-50 to-white p-4 rounded-2xl border border-orange-100 shadow-sm">
-                  <div className="text-center">
-                    <div className="text-xs text-gray-600 mb-1">Streak</div>
-                    <div className="text-2xl font-bold text-orange-600">{streak}</div>
-                  </div>
-                </div>
-                
-                <div className="bg-gradient-to-br from-purple-50 to-white p-4 rounded-2xl border border-purple-100 shadow-sm">
-                  <div className="text-center">
-                    <div className="text-xs text-gray-600 mb-1">Time</div>
-                    <div className="text-2xl font-bold text-purple-600">{formatTime(timeSpent)}</div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Progress Bar */}
-              <div className="mb-8">
-                <div className="flex items-center justify-between text-sm text-gray-600 mb-2">
-                  <span>Progress</span>
-                  <span>{Math.round(((currentQuestion + 1) / questions.length) * 100)}%</span>
-                </div>
-                <div className="h-3 bg-gray-200 rounded-full overflow-hidden">
-                  <div 
-                    className="h-full bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 transition-all duration-500"
-                    style={{ width: `${((currentQuestion + 1) / questions.length) * 100}%` }}
-                  />
-                </div>
-              </div>
-
-              {/* Answer History Grid - SHOW ALL ANSWERED CHARACTERS */}
-              {answerHistory.length > 0 && (
-                <div className="mb-8">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Your Answers</h3>
-                  <div className="grid grid-cols-5 md:grid-cols-8 lg:grid-cols-10 gap-3">
-                    {answerHistory.map((answer, index) => (
-                      <div 
-                        key={index}
-                        className={`p-3 rounded-xl border-2 text-center transition-all ${
-                          answer.isCorrect
-                            ? 'border-green-200 bg-gradient-to-br from-green-50 to-white'
-                            : 'border-red-200 bg-gradient-to-br from-red-50 to-white'
-                        }`}
-                      >
-                        <div className="text-2xl font-bold mb-1">{answer.symbol}</div>
-                        <div className={`text-xs font-mono ${answer.isCorrect ? 'text-green-600' : 'text-red-600'}`}>
-                          {answer.userAnswer}
-                        </div>
-                        <div className="text-xs text-gray-500 mt-1">
-                          {answer.romaji}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Current Question Card */}
-              <div className="mb-10" ref={questionDisplayRef}>
-                <div className="bg-gradient-to-br from-blue-50 to-white rounded-3xl border-2 border-blue-100 shadow-xl p-8 md:p-12">
-                  <div className="text-center">
-                    {/* Question Type Badge */}
-                    <div className="inline-flex items-center gap-2 px-4 py-2 bg-white rounded-full border border-blue-200 mb-6">
-                      {getModeIcon(settings.mode)}
-                      <span className="text-sm font-medium capitalize text-blue-700">
-                        {settings.mode} mode • {settings.difficulty}
-                      </span>
-                    </div>
-                    
-                    {/* Kana Character Display */}
-                    <div className="mb-8">
-                      <div className="inline-block p-12 bg-white rounded-2xl shadow-lg border border-blue-100">
-                        <div className="text-8xl md:text-9xl font-bold text-gray-900 animate-pulse-slow">
-                          {settings.mode === 'reading' 
-                            ? questions[currentQuestion].character.symbol 
-                            : settings.mode === 'writing'
-                            ? questions[currentQuestion].character.romaji
-                            : '🔊'}
-                        </div>
-                      </div>
-                    </div>
-                    
-                    {/* Question Text */}
-                    <div className="text-xl md:text-2xl text-gray-700 font-medium mb-8">
-                      {questions[currentQuestion].question}
-                    </div>
-                    
-                    {/* Listening Mode Controls */}
-                    {settings.mode === 'listening' && (
-                      <div className="flex flex-col sm:flex-row justify-center gap-4 mb-6">
-                        <button
-                          onClick={() => playAudio(questions[currentQuestion].character.romaji)}
-                          disabled={isAudioPlaying}
-                          className="px-6 py-3 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-xl hover:shadow-lg transition-all flex items-center justify-center gap-3 group disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          {isAudioPlaying ? (
-                            <Loader2 className="w-5 h-5 animate-spin" />
-                          ) : (
-                            <Volume2 className="w-5 h-5 group-hover:scale-110 transition-transform" />
-                          )}
-                          {isAudioPlaying ? 'Playing...' : 'Play Sound'}
-                        </button>
-                        <button
-                          onClick={() => setShowHint(!showHint)}
-                          className="px-6 py-3 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 transition-all flex items-center justify-center gap-3"
-                        >
-                          <HelpCircle className="w-5 h-5" />
-                          {showHint ? 'Hide Hint' : 'Show Hint'}
-                        </button>
-                      </div>
-                    )}
-                    
-                    {/* Hint Display */}
-                    {showHint && settings.mode === 'listening' && (
-                      <div className="inline-block p-4 bg-yellow-50 rounded-xl border border-yellow-200 animate-fade-in mb-6">
-                        <p className="text-yellow-800 font-medium">
-                          Hint: Sounds like "<span className="font-bold">{questions[currentQuestion].character.romaji}</span>"
-                        </p>
-                      </div>
-                    )}
-                    
-                    {/* Answer Input - Card Style */}
-                    <div className="max-w-2xl mx-auto mt-8">
-                      <div className="relative" ref={answerFeedbackRef}>
-                        <div className={`p-1 rounded-2xl border-4 transition-all duration-300 ${
-                          showFeedback
-                            ? isCorrect
-                              ? 'border-green-500 bg-gradient-to-r from-green-50 to-white'
-                              : 'border-red-500 bg-gradient-to-r from-red-50 to-white'
-                            : 'border-blue-300'
-                        }`}>
-                          <input
-                            ref={inputRef}
-                            type="text"
-                            value={userAnswer}
-                            onChange={(e) => setUserAnswer(e.target.value)}
-                            onKeyDown={handleKeyPress}
-                            disabled={showFeedback}
-                            className="w-full p-6 text-center text-3xl md:text-4xl bg-transparent focus:outline-none placeholder:text-gray-400"
-                            placeholder={
-                              settings.mode === 'reading' 
-                                ? "Type romaji here..." 
-                                : settings.mode === 'writing'
-                                ? "Type kana here..."
-                                : "Type what you hear..."
-                            }
-                            autoFocus
-                          />
-                        </div>
-                        
-                        {showFeedback && (
-                          <div className="absolute -top-16 left-1/2 transform -translate-x-1/2 animate-bounce">
-                            <div className={`px-6 py-4 rounded-xl shadow-2xl flex items-center gap-4 ${
-                              isCorrect 
-                                ? 'bg-gradient-to-r from-green-500 to-emerald-500 text-white' 
-                                : 'bg-gradient-to-r from-red-500 to-pink-500 text-white'
-                            }`}>
-                              {isCorrect ? (
-                                <>
-                                  <CheckCircle className="w-8 h-8" />
-                                  <div>
-                                    <div className="font-bold text-xl">Correct! 🎉</div>
-                                    <div className="text-sm opacity-90">Streak: {streak}</div>
-                                  </div>
-                                </>
-                              ) : (
-                                <>
-                                  <XCircle className="w-8 h-8" />
-                                  <div>
-                                    <div className="font-bold text-xl">Incorrect</div>
-                                    <div className="text-sm opacity-90">Keep trying!</div>
-                                  </div>
-                                </>
+                          {/* Feedback */}
+                          {state.tried && (
+                            <div className="mt-1.5 text-xs min-h-[20px]">
+                              {isCorrect && (
+                                <div className="flex items-center gap-1 text-emerald-100">
+                                  <CheckCircle className="w-3 h-3" />
+                                  <span>Perfect!</span>
+                                </div>
+                              )}
+                              {isIncorrect && (
+                                <div className="flex items-center gap-1 text-red-100">
+                                  <XCircle className="w-3 h-3" />
+                                  <span>Answer: <span className="font-bold ml-1">{ch.romaji}</span></span>
+                                </div>
                               )}
                             </div>
-                          </div>
-                        )}
-                      </div>
-                      
-                      {/* Submit Button */}
-                      <button
-                        onClick={handleAnswerSubmit}
-                        disabled={!userAnswer.trim() || showFeedback}
-                        className={`w-full mt-8 py-4 rounded-xl font-bold text-xl transition-all duration-300 ${
-                          !userAnswer.trim() || showFeedback
-                            ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                            : 'bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white hover:shadow-xl hover:scale-105'
-                        }`}
-                      >
-                        {showFeedback 
-                          ? 'Checking...' 
-                          : 'Submit Answer →'
-                        }
-                      </button>
-                      
-                      {/* Keyboard Shortcuts */}
-                      <div className="mt-6 text-center">
-                        <div className="inline-flex items-center gap-4 text-sm text-gray-500 bg-gray-50 px-4 py-2 rounded-xl">
-                          <kbd className="px-3 py-1 bg-white rounded-lg border shadow-sm">Enter</kbd>
-                          <span>to submit answer</span>
-                          {settings.mode === 'listening' && (
-                            <>
-                              <kbd className="px-3 py-1 bg-white rounded-lg border shadow-sm">Space</kbd>
-                              <span>to replay audio</span>
-                            </>
                           )}
-                          <kbd className="px-3 py-1 bg-white rounded-lg border shadow-sm">Tab</kbd>
-                          <span>for hint</span>
-                        </div>
-                      </div>
-                      
-                      {/* Incorrect Answer Feedback */}
-                      {showFeedback && !isCorrect && (
-                        <div className="mt-8 p-6 bg-gradient-to-br from-yellow-50 to-white rounded-2xl border-2 border-yellow-200 animate-fade-in">
-                          <div className="text-center">
-                            <div className="text-xl font-bold text-yellow-800 mb-4">
-                              Correct Answer:
-                            </div>
-                            <div className="flex items-center justify-center gap-6 mb-4">
-                              <div className="text-5xl font-bold">{questions[currentQuestion].character.symbol}</div>
-                              <ChevronRight className="w-6 h-6 text-gray-400" />
-                              <div className="text-4xl font-mono font-bold text-blue-600">
-                                {questions[currentQuestion].character.romaji}
-                              </div>
-                            </div>
-                            {userAnswer && (
-                              <div className="text-lg text-gray-600">
-                                Your answer: <span className="font-bold text-red-600">{userAnswer}</span>
-                              </div>
-                            )}
-                            {questions[currentQuestion].character.explanation && (
-                              <div className="mt-4 p-4 bg-blue-50 rounded-lg">
-                                <p className="text-blue-800">
-                                  {questions[currentQuestion].character.explanation}
-                                </p>
-                              </div>
-                            )}
-                          </div>
-                        </div>
+                        </>
                       )}
                     </div>
-                  </div>
-                </div>
-              </div>
 
-              {/* Restart Button */}
-              <div className="text-center">
-                <button
-                  onClick={handleRestartQuiz}
-                  className="inline-flex items-center gap-2 px-6 py-3 text-gray-600 hover:text-gray-800 transition-colors"
-                >
-                  <RotateCw className="w-5 h-5" />
-                  Restart Quiz
-                </button>
-              </div>
+                    {/* Correct badge */}
+                    {isCorrect && (
+                      <div className="absolute top-2 right-2">
+                        <div className="bg-emerald-500 text-white p-1 rounded-full">
+                          <Check className="w-3 h-3" />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
-          )}
-
-          {step === 'result' && quizResults && (
-            <div className="p-4 md:p-8">
-              <div className="text-center mb-12">
-                <div className="inline-block p-8 bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 rounded-full shadow-2xl mb-6">
-                  <Trophy className="w-16 h-16 text-white" />
-                </div>
-                <h2 className="text-4xl font-bold text-gray-900 mb-3">Quiz Complete!</h2>
-                <p className="text-gray-600 text-lg">Excellent work! Here's your performance breakdown</p>
-              </div>
-              
-              {/* Results Overview Cards */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
-                <div className="bg-gradient-to-br from-blue-50 to-white p-8 rounded-3xl border-2 border-blue-100 shadow-lg">
-                  <div className="text-center">
-                    <div className="text-5xl font-bold text-blue-600 mb-3">
-                      {quizResults.score}/{quizResults.total}
-                    </div>
-                    <div className="text-sm text-gray-600 mb-4">Final Score</div>
-                    <div className="h-3 bg-gray-200 rounded-full overflow-hidden">
-                      <div 
-                        className="h-full bg-gradient-to-r from-blue-500 to-purple-500"
-                        style={{ width: `${(quizResults.score / quizResults.total) * 100}%` }}
-                      />
-                    </div>
-                  </div>
-                </div>
-                
-                <div className="bg-gradient-to-br from-green-50 to-white p-8 rounded-3xl border-2 border-green-100 shadow-lg">
-                  <div className="text-center">
-                    <div className="text-5xl font-bold text-green-600 mb-3">
-                      {quizResults.accuracy}%
-                    </div>
-                    <div className="text-sm text-gray-600 mb-4">Accuracy</div>
-                    <div className="flex justify-between text-sm">
-                      <span>✓ {quizResults.score}</span>
-                      <span>✗ {quizResults.total - quizResults.score}</span>
-                    </div>
-                  </div>
-                </div>
-                
-                <div className="bg-gradient-to-br from-purple-50 to-white p-8 rounded-3xl border-2 border-purple-100 shadow-lg">
-                  <div className="text-center">
-                    <div className="text-5xl font-bold text-purple-600 mb-3">
-                      {formatTime(quizResults.timeSpent)}
-                    </div>
-                    <div className="text-sm text-gray-600 mb-4">Total Time</div>
-                    <div className="text-sm text-gray-600">
-                      Avg: {Math.round(quizResults.timeSpent / quizResults.total)}s per question
-                    </div>
-                  </div>
-                </div>
-                
-                <div className="bg-gradient-to-br from-amber-50 to-white p-8 rounded-3xl border-2 border-amber-100 shadow-lg">
-                  <div className="text-center">
-                    <div className="text-5xl font-bold text-amber-600 mb-3">
-                      {quizResults.streak || 0}
-                    </div>
-                    <div className="text-sm text-gray-600 mb-4">Best Streak</div>
-                    <div className="flex items-center justify-center gap-1">
-                      {[...Array(5)].map((_, i) => (
-                        <Star 
-                          key={i} 
-                          className={`w-5 h-5 ${i < Math.min(5, Math.floor((quizResults.streak || 0) / 2)) ? 'text-yellow-500 fill-yellow-500' : 'text-gray-300'}`} 
-                        />
-                      ))}
-                    </div>
-                  </div>
+            
+            {/* Completion Message */}
+            {practiceScore.correct === practiceScore.total && practiceScore.total > 0 && (
+              <div className={`mt-4 p-4 rounded-lg text-center animate-pulse ${darkMode ? "bg-gradient-to-r from-emerald-700 to-emerald-800" : "bg-gradient-to-r from-emerald-400 to-emerald-500"}`}>
+                <div className="flex flex-col items-center">
+                  <Award className="w-10 h-10 text-white mb-2" />
+                  <h4 className="text-xl font-bold text-white mb-1">🎉 Perfect Score!</h4>
+                  <p className="text-white text-sm">
+                    You've correctly answered all {practiceScore.total} characters!
+                  </p>
+                  <p className="text-white/90 text-xs mt-1">
+                    Click Reset to practice again or Close to return
+                  </p>
                 </div>
               </div>
-              
-              {/* Question Review */}
-              <div className="mb-12">
-                <h3 className="text-2xl font-bold text-gray-900 mb-8 text-center">Detailed Review</h3>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-96 overflow-y-auto p-2">
-                  {quizResults.questions.map((q, index) => (
-                    <div 
-                      key={q.id}
-                      className={`p-6 rounded-2xl border-2 transition-all duration-300 hover:scale-[1.02] ${
-                        q.isCorrect
-                          ? 'border-green-200 bg-gradient-to-br from-green-50 to-white'
-                          : 'border-red-200 bg-gradient-to-br from-red-50 to-white'
-                      }`}
-                    >
-                      <div className="flex items-start justify-between mb-4">
-                        <div className="flex items-center gap-3">
-                          <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                            q.isCorrect
-                              ? 'bg-green-100 text-green-600'
-                              : 'bg-red-100 text-red-600'
-                          }`}>
-                            {q.isCorrect ? <Check className="w-6 h-6" /> : <X className="w-6 h-6" />}
-                          </div>
-                          <div className="font-bold text-gray-900">Question {index + 1}</div>
-                        </div>
-                        <div className={`px-3 py-1 rounded-full text-sm font-bold ${
-                          q.isCorrect
-                            ? 'bg-green-100 text-green-700'
-                            : 'bg-red-100 text-red-700'
-                        }`}>
-                          {q.isCorrect ? '✓ Correct' : '✗ Incorrect'}
-                        </div>
-                      </div>
-                      
-                      <div className="space-y-3">
-                        <div className="flex items-center justify-center gap-4">
-                          <div className="text-4xl font-bold">{q.character.symbol}</div>
-                          <ChevronRight className="w-6 h-6 text-gray-400" />
-                          <div className="text-3xl font-mono font-bold text-blue-600">
-                            {q.character.romaji}
-                          </div>
-                        </div>
-                        
-                        {!q.isCorrect && q.userAnswer && (
-                          <div className="pt-3 border-t">
-                            <div className="text-sm text-gray-600">
-                              Your answer: <span className="font-bold text-red-600">{q.userAnswer}</span>
-                            </div>
-                          </div>
-                        )}
-                        
-                        {q.character.explanation && (
-                          <div className="pt-3 border-t">
-                            <div className="text-sm text-gray-600 italic">
-                              {q.character.explanation}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-              
-              {/* Action Buttons */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
-                <button
-                  onClick={handleRestartQuiz}
-                  className="p-6 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-2xl hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-1 flex flex-col items-center justify-center gap-3 group"
-                >
-                  <RotateCw className="w-8 h-8 group-hover:rotate-180 transition-transform duration-500" />
-                  <div>
-                    <div className="text-xl font-bold">New Quiz</div>
-                    <div className="text-sm opacity-90">Start fresh with new settings</div>
-                  </div>
-                </button>
-                
-                <button
-                  onClick={handleRetrySameSettings}
-                  className="p-6 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-2xl hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-1 flex flex-col items-center justify-center gap-3 group"
-                >
-                  <RefreshCw className="w-8 h-8 group-hover:rotate-180 transition-transform duration-500" />
-                  <div>
-                    <div className="text-xl font-bold">Retry Same Quiz</div>
-                    <div className="text-sm opacity-90">Improve your score</div>
-                  </div>
-                </button>
-                
-                <button
-                  onClick={() => navigate('/flashcards')}
-                  className="p-6 bg-gradient-to-r from-gray-700 to-gray-900 text-white rounded-2xl hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-1 flex flex-col items-center justify-center gap-3 group"
-                >
-                  <BookOpen className="w-8 h-8 group-hover:scale-110 transition-transform" />
-                  <div>
-                    <div className="text-xl font-bold">Flashcards</div>
-                    <div className="text-sm opacity-90">Practice mode</div>
-                  </div>
-                </button>
-              </div>
-              
-              {/* Quiz Summary Card */}
-              <div className="p-6 bg-gradient-to-r from-blue-50 to-purple-50 rounded-3xl border-2 border-blue-100">
-                <h4 className="text-xl font-bold text-gray-900 mb-6 text-center">
-                  Quiz Summary
-                </h4>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-                  <div className="text-center p-4 bg-white rounded-xl shadow-sm">
-                    <div className="text-2xl font-bold text-gray-900 mb-2">
-                      {settings.kanaType === 'hiragana' ? 'ひ' : 'カ'}
-                    </div>
-                    <div className="text-sm text-gray-600">Kana Type</div>
-                  </div>
-                  
-                  <div className="text-center p-4 bg-white rounded-xl shadow-sm">
-                    <div className="text-2xl font-bold text-gray-900 mb-2 capitalize">
-                      {settings.mode}
-                    </div>
-                    <div className="text-sm text-gray-600">Quiz Mode</div>
-                  </div>
-                  
-                  <div className="text-center p-4 bg-white rounded-xl shadow-sm">
-                    <div className="text-2xl font-bold text-gray-900 mb-2 capitalize">
-                      {settings.difficulty}
-                    </div>
-                    <div className="text-sm text-gray-600">Difficulty</div>
-                  </div>
-                  
-                  <div className="text-center p-4 bg-white rounded-xl shadow-sm">
-                    <div className="text-2xl font-bold text-gray-900 mb-2">
-                      {selectedRows.length}
-                    </div>
-                    <div className="text-sm text-gray-600">Rows Practiced</div>
-                  </div>
+            )}
+            
+            {/* Instructions */}
+            <div className={`mt-4 p-3 rounded-lg ${darkMode ? "bg-gray-700" : "bg-blue-50"}`}>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <p className={`text-xs ${darkMode ? "text-gray-300" : "text-blue-700"}`}>
+                  <span className="font-medium">💡 Keyboard shortcuts:</span>
+                  <span className="ml-1">Enter to check and move to next</span>
+                  <span className="mx-2">•</span>
+                  <span>Tab/Shift+Tab to navigate</span>
+                </p>
+                <div className="sm:hidden text-xs text-gray-500">
+                  Tap Check button on mobile
                 </div>
               </div>
             </div>
-          )}
-        </main>
-        
-        {/* Footer */}
-        <footer className="mt-8 text-center">
-          <div className="text-gray-500 text-sm">
-            <p>Keep practicing to master all {settings.kanaType === 'hiragana' ? 'ひらがな' : 'カタカナ'} characters! 🎯</p>
           </div>
-        </footer>
+        )}
+
+        {step === "quiz" && (
+  <QuizPage
+    questions={questions}
+    onFinish={(result) => {
+      setQuizResults(result);
+      setStep("result");
+    }}
+  />
+)}
+
+
+        {/* Instruction helper when no active row */}
+        {!activeRowId && (
+          <div className={`rounded-lg p-4 text-center ${darkMode ? "bg-gray-800 border border-gray-700" : "bg-white border border-gray-200 shadow-sm"}`}>
+            <Grid3x3 className="w-10 h-10 mx-auto mb-2 text-gray-400" />
+            <h3 className="text-base font-medium mb-1">Ready to Practice?</h3>
+            <p className={`text-xs ${darkMode ? "text-gray-400" : "text-gray-600"} mb-3`}>
+              {selectedCharacters.length > 0 ? (
+                <>You have selected <span className="font-bold">{selectedCharacters.length}</span> characters from <span className="font-bold">{selectedRows.length}</span> rows.</>
+              ) : (
+                <>Click any row above to practice its characters.</>
+              )}
+            </p>
+            <div className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg ${darkMode ? "bg-gray-700" : "bg-gray-100"}`}>
+              <BookOpen className="w-3 h-3" />
+              <span className="text-xs">{selectedRows.length} rows selected</span>
+            </div>
+            {selectedCharacters.length > 0 && (
+              <div className="mt-3">
+                <button
+                  onClick={handleStartQuiz}
+                  className="px-4 py-2 rounded-lg bg-gradient-to-r from-blue-600 to-purple-600 text-white font-medium flex items-center justify-center gap-1.5 mx-auto hover:from-blue-700 hover:to-purple-700 transition-all text-sm"
+                >
+                  <Play className="w-3 h-3" />
+                  Start Quiz with {selectedCharacters.length} characters
+                </button>
+              </div>
+            )}
+          </div>
+        )}
       </div>
-      
-      {/* Global Styles */}
-      <style jsx global>{`
-        @keyframes fadeIn {
-          from { 
-            opacity: 0; 
-            transform: translateY(10px); 
-          }
-          to { 
-            opacity: 1; 
-            transform: translateY(0); 
-          }
-        }
-        
-        @keyframes pulseSlow {
-          0%, 100% { 
-            opacity: 1; 
-            transform: scale(1);
-          }
-          50% { 
-            opacity: 0.9; 
-            transform: scale(1.02);
-          }
-        }
-        
-        @keyframes bounce {
-          0%, 100% { 
-            transform: translate(-50%, 0); 
-          }
-          50% { 
-            transform: translate(-50%, -5px); 
-          }
-        }
-        
-        .animate-fade-in {
-          animation: fadeIn 0.3s ease-out;
-        }
-        
-        .animate-pulse-slow {
-          animation: pulseSlow 2s infinite ease-in-out;
-        }
-        
-        .animate-bounce {
-          animation: bounce 0.5s ease-in-out;
-        }
-        
-        /* Range input styling */
-        .slider::-webkit-slider-thumb {
-          -webkit-appearance: none;
-          appearance: none;
-          height: 24px;
-          width: 24px;
-          border-radius: 50%;
-          background: linear-gradient(135deg, #3b82f6, #8b5cf6);
-          border: 3px solid white;
-          box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);
-          cursor: pointer;
-          transition: all 0.2s;
-        }
-        
-        .slider::-webkit-slider-thumb:hover {
-          transform: scale(1.1);
-          box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
-        }
-        
-        .slider::-moz-range-thumb {
-          height: 24px;
-          width: 24px;
-          border-radius: 50%;
-          background: linear-gradient(135deg, #3b82f6, #8b5cf6);
-          border: 3px solid white;
-          box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);
-          cursor: pointer;
-          transition: all 0.2s;
-        }
-      `}</style>
     </div>
   );
 };
