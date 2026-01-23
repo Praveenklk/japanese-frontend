@@ -552,35 +552,57 @@ const handleStartQuiz = () => {
               </button>
             </div>
 
-            <div className="grid grid-cols-2 gap-2">
-              {mainRows.map((r) => {
-                const char = allKana.find((c) => c.symbol === r.chars[0]);
-                const romaji = char ? `/${char.romaji}` : "";
-                const isSelected = selectedRows.includes(r.id);
-                return (
-                  <button
-                    key={r.id}
-                    onClick={() => {
-                      handleRowToggle(r.id);
-                      handleOpenRow(r.id);
-                    }}
-                    className={`flex items-center justify-between p-2 sm:p-3 rounded-lg text-left ${isSelected 
-                      ? darkMode 
-                        ? "bg-blue-900 border-2 border-blue-500" 
-                        : "bg-blue-50 border-2 border-blue-500"
-                      : darkMode 
-                        ? "bg-gray-700 hover:bg-gray-600 border border-gray-600" 
-                        : "bg-white hover:bg-gray-50 border border-gray-300"}`}
-                  >
-                    <div className="text-xl sm:text-2xl font-bold">{r.chars[0]}</div>
-                    <div className="text-right">
-                      <div className="text-xs sm:text-sm font-medium">{r.name}</div>
-                      <div className={`text-xs ${darkMode ? "text-gray-400" : "text-gray-500"}`}>{romaji}</div>
-                    </div>
-                  </button>
-                );
-              })}
+          <div className="grid grid-cols-2 gap-2">
+  {mainRows.map((r) => {
+    const char = allKana.find((c) => c.symbol === r.chars[0]);
+    const romaji = char ? `/${char.romaji}` : "";
+    const isSelected = selectedRows.includes(r.id);
+
+    return (
+      <div
+        key={r.id}
+        onClick={() => handleRowToggle(r.id)}
+        className={`flex items-center justify-between p-2 sm:p-3 rounded-lg cursor-pointer transition-all
+          ${isSelected
+            ? darkMode
+              ? "bg-blue-900 border-2 border-blue-500"
+              : "bg-blue-50 border-2 border-blue-500"
+            : darkMode
+              ? "bg-gray-700 hover:bg-gray-600 border border-gray-600"
+              : "bg-white hover:bg-gray-50 border border-gray-300"
+          }`}
+      >
+        {/* Kana symbol */}
+        <div className="text-xl sm:text-2xl font-bold">
+          {r.chars[0]}
+        </div>
+
+        {/* Right side */}
+        <div className="flex items-center gap-2">
+          <div className="text-right">
+            <div className="text-xs sm:text-sm font-medium">{r.name}</div>
+            <div className={`text-xs ${darkMode ? "text-gray-400" : "text-gray-500"}`}>
+              {romaji}
             </div>
+          </div>
+
+          {/* PRACTICE BUTTON */}
+          <button
+            onClick={(e) => {
+              e.stopPropagation(); // 🚨 prevents row toggle bug
+              handleOpenRow(r.id);
+            }}
+            className="px-2 py-1 text-xs font-medium rounded-md
+              bg-blue-600 text-white hover:bg-blue-700 transition"
+          >
+            Practice
+          </button>
+        </div>
+      </div>
+    );
+  })}
+</div>
+
           </div>
 
           {/* Dakuten Column */}
