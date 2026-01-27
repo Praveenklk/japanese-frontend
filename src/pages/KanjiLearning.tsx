@@ -60,6 +60,7 @@ import {
 
 // Import your JSON data
 import kanjiData from './N5/N5kanji.json';
+import KanjiWritingPad from './writing/KanjiWritingPad';
 
 type JLPTLevel = 'N5' | 'N4' | 'N3' | 'N2' | 'N1';
 type KanjiStatus = 'new' | 'learning' | 'review' | 'mastered';
@@ -95,13 +96,12 @@ interface KanjiCharacter {
 
 interface QuizQuestion {
   id: string;
+  type: 'kanji-to-meaning' | 'meaning-to-kanji';
   question: string;
-  type: 'meaning' | 'reading' | 'character';
   options: string[];
   correctAnswer: string;
-  kanjiId: string;
-  explanation: string;
 }
+
 
 const KanjiLearning = () => {
   // Transform JSON data to match our interface
@@ -233,89 +233,51 @@ const KanjiLearning = () => {
     }
   };
 
-  const generateQuizQuestions = (count: number = 10): QuizQuestion[] => {
-    const selectedKanji = [...filteredKanji]
-      .sort(() => Math.random() - 0.5)
-      .slice(0, Math.min(count, filteredKanji.length));
-    
-    const questions: QuizQuestion[] = [];
-    
-    selectedKanji.forEach((kanji) => {
-      // Meaning question
-      if (kanji.meaning) {
-        const otherMeanings = kanjiList
-          .filter(k => k.id !== kanji.id && k.meaning)
-          .sort(() => Math.random() - 0.5)
-          .slice(0, 3)
-          .map(k => k.meaning);
-        
-        const meaningOptions = [
-          kanji.meaning,
-          ...otherMeanings
-        ].sort(() => Math.random() - 0.5);
-        
-        questions.push({
-          id: `meaning-${kanji.id}-${Date.now()}`,
-          question: `What does "${kanji.character}" mean?`,
-          type: 'meaning',
-          options: meaningOptions,
-          correctAnswer: kanji.meaning,
-          kanjiId: kanji.id,
-          explanation: `"${kanji.character}" means "${kanji.meaning}"`
-        });
-      }
-      
-      // Reading question
-      const primaryReading = kanji.onyomi[0] || kanji.kunyomi[0];
-      if (primaryReading) {
-        const otherReadings = kanjiList
-          .filter(k => k.id !== kanji.id)
-          .flatMap(k => [...(k.onyomi || []), ...(k.kunyomi || [])])
-          .filter(Boolean)
-          .sort(() => Math.random() - 0.5)
-          .slice(0, 3);
-        
-        const readingOptions = [
-          primaryReading,
-          ...otherReadings
-        ].sort(() => Math.random() - 0.5);
-        
-        questions.push({
-          id: `reading-${kanji.id}-${Date.now()}`,
-          question: `What is a reading for "${kanji.character}"?`,
-          type: 'reading',
-          options: readingOptions,
-          correctAnswer: primaryReading,
-          kanjiId: kanji.id,
-          explanation: `"${kanji.character}" can be read as "${kanji.onyomi?.join(', ') || 'N/A'}" (on'yomi) or "${kanji.kunyomi?.join(', ') || 'N/A'}" (kun'yomi)`
-        });
-      }
-      
-      // Character question
-      const otherCharacters = kanjiList
+const generateQuizQuestions = (count: number = 10): QuizQuestion[] => {
+  const shuffled = [...filteredKanji].sort(() => Math.random() - 0.5);
+  const selected = shuffled.slice(0, Math.min(count, shuffled.length));
+
+  return selected.map((kanji) => {
+    const isKanjiQuestion = Math.random() > 0.5;
+
+    if (isKanjiQuestion) {
+      // KANJI ➜ MEANING
+      const wrongMeanings = kanjiList
+        .filter(k => k.id !== kanji.id)
+        .sort(() => Math.random() - 0.5)
+        .slice(0, 3)
+        .map(k => k.meaning);
+
+      return {
+        id: crypto.randomUUID(),
+        type: 'kanji-to-meaning',
+        question: `What is the meaning of this kanji?`,
+        options: shuffleArray([kanji.meaning, ...wrongMeanings]),
+        correctAnswer: kanji.meaning
+      };
+    } else {
+      // MEANING ➜ KANJI
+      const wrongKanji = kanjiList
         .filter(k => k.id !== kanji.id)
         .sort(() => Math.random() - 0.5)
         .slice(0, 3)
         .map(k => k.character);
-      
-      const characterOptions = [
-        kanji.character,
-        ...otherCharacters
-      ].sort(() => Math.random() - 0.5);
-      
-      questions.push({
-        id: `character-${kanji.id}-${Date.now()}`,
+
+      return {
+        id: crypto.randomUUID(),
+        type: 'meaning-to-kanji',
         question: `Which kanji means "${kanji.meaning}"?`,
-        type: 'character',
-        options: characterOptions,
-        correctAnswer: kanji.character,
-        kanjiId: kanji.id,
-        explanation: `The kanji for "${kanji.meaning}" is "${kanji.character}"`
-      });
-    });
-    
-    return questions.sort(() => Math.random() - 0.5).slice(0, count);
-  };
+        options: shuffleArray([kanji.character, ...wrongKanji]),
+        correctAnswer: kanji.character
+      };
+    }
+  });
+};
+
+// helper
+const shuffleArray = <T,>(arr: T[]) =>
+  [...arr].sort(() => Math.random() - 0.5);
+
 
   const startQuiz = () => {
     const questions = generateQuizQuestions(10);
@@ -568,39 +530,61 @@ const KanjiLearning = () => {
     setTimeout(() => setIsFlipping(false), 600);
   };
 
-  const renderWritingGuide = () => {
-    if (!currentKanji) return null;
+const renderWritingGuide = () => {
+  if (!currentKanji) return null;
 
-    const strokeOrder = Array.from({ length: currentKanji.strokes || 1 }, (_, i) => i + 1);
-    
-    return (
-      <div className="mt-8">
+  const strokeOrder = Array.from(
+    { length: currentKanji.strokes || 1 },
+    (_, i) => i + 1
+  );
+
+  return (
+    <div className="mt-8 space-y-8">
+      {/* Stroke Order */}
+      <div>
         <h4 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
           <PenTool className="w-5 h-5 text-amber-600" />
-          Stroke Order Practice
+          Stroke Order
         </h4>
-        <div className="grid grid-cols-4 sm:grid-cols-6 gap-3">
+
+        <div className="grid grid-cols-4 sm:grid-cols-6 gap-3 justify-center">
           {strokeOrder.map((stroke) => (
-            <div key={stroke} className="relative group">
-              <div className="absolute top-1 left-1 text-xs font-bold text-amber-600 z-10">
+            <div key={stroke} className="relative">
+              <div className="absolute top-1 left-1 text-xs font-bold text-amber-600">
                 {stroke}
               </div>
-              <div className="w-16 h-16 border-2 border-amber-300 rounded-xl flex items-center justify-center bg-amber-50 group-hover:scale-105 transition-transform duration-200">
-                <div className="text-2xl font-bold text-gray-900">{currentKanji.character}</div>
+              <div className="w-16 h-16 border-2 border-amber-300 rounded-xl flex items-center justify-center bg-amber-50">
+                <div className="text-2xl font-bold">
+                  {currentKanji.character}
+                </div>
               </div>
-              <div className="absolute inset-0 bg-gradient-to-br from-amber-200/20 to-transparent rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
             </div>
           ))}
         </div>
-        <div className="mt-4 p-4 bg-blue-50 rounded-xl border border-blue-200">
-          <p className="text-sm text-blue-700">
-            <span className="font-bold">Tip:</span> Practice writing each stroke in order. 
-            Start from the top left and move to bottom right. Traditional writing follows specific stroke order rules.
-          </p>
-        </div>
       </div>
-    );
-  };
+
+      {/* ACTUAL WRITING PRACTICE */}
+      <div>
+        <h4 className="text-lg font-semibold text-gray-800 mb-3">
+          Write the kanji ✍️
+        </h4>
+
+        <KanjiWritingPad
+          onCheck={(ok) => {
+            if (ok) {
+              setShowConfetti(true);
+              setTimeout(() => setShowConfetti(false), 1500);
+              alert("Looks good! ✅");
+            } else {
+              alert("Try again ❌");
+            }
+          }}
+        />
+      </div>
+    </div>
+  );
+};
+
 
   const renderMemoryMode = () => {
     if (!currentKanji) return null;
@@ -812,366 +796,214 @@ const KanjiLearning = () => {
     );
   };
 
-  const renderQuiz = () => {
-    if (!isQuizActive) return null;
+const renderQuiz = () => {
+  if (!isQuizActive) return null;
 
-    if (quizCompleted) {
-      return (
-        <div className="max-w-2xl mx-auto">
-          <div className="bg-gradient-to-br from-emerald-50 to-teal-50 rounded-2xl p-8 border border-emerald-200">
-            <div className="text-center mb-8">
-              <Trophy className="w-20 h-20 text-amber-500 mx-auto mb-4" />
-              <h3 className="text-3xl font-bold text-gray-900 mb-2">Quiz Complete!</h3>
-              <p className="text-gray-600 mb-6">Great job completing the kanji quiz!</p>
-              
-              <div className="bg-white rounded-xl p-6 shadow-lg mb-8">
-                <div className="text-5xl font-bold text-emerald-600 mb-2">
-                  {quizScore}/{quizQuestions.length}
-                </div>
-                <div className="text-gray-700 font-medium mb-4">
-                  {quizQuestions.length > 0 ? Math.round((quizScore / quizQuestions.length) * 100) : 0}% Correct
-                </div>
-                <div className="w-full bg-gray-200 rounded-full h-2">
-                  <div 
-                    className="bg-gradient-to-r from-emerald-500 to-teal-500 h-2 rounded-full transition-all duration-1000"
-                    style={{ width: `${quizQuestions.length > 0 ? (quizScore / quizQuestions.length) * 100 : 0}%` }}
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4 mb-8">
-                <div className="bg-white p-4 rounded-xl shadow-sm">
-                  <div className="text-2xl font-bold text-blue-600">{quizScore}</div>
-                  <div className="text-sm text-gray-600">Correct Answers</div>
-                </div>
-                <div className="bg-white p-4 rounded-xl shadow-sm">
-                  <div className="text-2xl font-bold text-rose-600">{quizQuestions.length - quizScore}</div>
-                  <div className="text-sm text-gray-600">Incorrect Answers</div>
-                </div>
-              </div>
-
-              <div className="flex gap-4">
-                <button
-                  onClick={resetQuiz}
-                  className="flex-1 px-6 py-3 bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-xl hover:shadow-lg transition-all hover:scale-[1.02] active:scale-[0.98]"
-                >
-                  New Quiz
-                </button>
-                <button
-                  onClick={() => {
-                    setStudyMode('learn');
-                    setIsQuizActive(false);
-                  }}
-                  className="flex-1 px-6 py-3 bg-gradient-to-r from-emerald-500 to-teal-500 text-white rounded-xl hover:shadow-lg transition-all hover:scale-[1.02] active:scale-[0.98]"
-                >
-                  Back to Learning
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      );
-    }
-
-    const currentQuestion = quizQuestions[currentQuizIndex];
-    if (!currentQuestion) {
-      return (
-        <div className="max-w-2xl mx-auto text-center py-12">
-          <div className="text-gray-600">No quiz questions available. Please try again.</div>
-          <button
-            onClick={resetQuiz}
-            className="mt-4 px-6 py-3 bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-xl hover:shadow-lg transition-all"
-          >
-            Back to Learning
-          </button>
-        </div>
-      );
-    }
-
+  if (quizCompleted) {
     return (
-      <div className="max-w-2xl mx-auto">
-        <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-2xl p-6 border border-blue-200">
-          {/* Quiz Progress */}
-          <div className="mb-8">
-            <div className="flex justify-between items-center mb-2">
-              <span className="text-sm font-medium text-blue-700">
-                Question {currentQuizIndex + 1} of {quizQuestions.length}
-              </span>
-              <span className="text-sm font-bold text-emerald-700">
-                Score: {quizScore}/{quizQuestions.length}
-              </span>
-            </div>
-            <div className="w-full bg-blue-100 rounded-full h-2">
-              <div 
-                className="bg-gradient-to-r from-blue-500 to-cyan-500 h-2 rounded-full transition-all duration-300"
-                style={{ width: `${quizQuestions.length > 0 ? ((currentQuizIndex + 1) / quizQuestions.length) * 100 : 0}%` }}
-              />
-            </div>
-          </div>
+      <div className="max-w-md mx-auto text-center bg-white p-6 rounded-xl shadow">
+        <h2 className="text-2xl font-bold mb-4">Quiz Finished 🎉</h2>
+        <p className="text-lg mb-4">
+          Score: <span className="font-bold">{quizScore}</span> / {quizQuestions.length}
+        </p>
 
-          {/* Question */}
-          <div className="bg-white rounded-xl p-6 shadow-lg mb-6">
-            <div className="flex items-center gap-3 mb-4">
-              <div className={`p-2 rounded-lg ${
-                currentQuestion.type === 'meaning' ? 'bg-blue-100 text-blue-700' :
-                currentQuestion.type === 'reading' ? 'bg-emerald-100 text-emerald-700' :
-                'bg-purple-100 text-purple-700'
-              }`}>
-                {currentQuestion.type === 'meaning' ? 'Meaning' : 
-                 currentQuestion.type === 'reading' ? 'Reading' : 'Character'}
-              </div>
-              <h3 className="text-xl font-bold text-gray-900">{currentQuestion.question}</h3>
-            </div>
-
-            {/* Kanji Display for Character Quiz */}
-            {currentQuestion.type === 'character' && (
-              <div className="text-6xl font-bold text-center my-6">
-                {currentQuestion.correctAnswer}
-              </div>
-            )}
-          </div>
-
-          {/* Options */}
-          <div className="space-y-3 mb-8">
-            {currentQuestion.options.map((option, index) => {
-              const isSelected = selectedQuizOption === option;
-              const isCorrect = option === currentQuestion.correctAnswer;
-              const showResult = selectedQuizOption !== null;
-
-              let buttonClass = "w-full p-4 text-left rounded-xl transition-all ";
-              
-              if (showResult) {
-                if (isCorrect) {
-                  buttonClass += "bg-emerald-50 text-emerald-700 border-2 border-emerald-300 ";
-                } else if (isSelected && !isCorrect) {
-                  buttonClass += "bg-rose-50 text-rose-700 border-2 border-rose-300 ";
-                } else {
-                  buttonClass += "bg-white text-gray-700 border border-gray-200 ";
-                }
-              } else {
-                buttonClass += "bg-white text-gray-700 border border-gray-200 hover:border-blue-300 hover:shadow-md ";
-              }
-
-              return (
-                <button
-                  key={index}
-                  onClick={() => handleQuizAnswer(option)}
-                  disabled={showResult}
-                  className={buttonClass}
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className={`w-6 h-6 flex items-center justify-center rounded-full ${
-                        showResult
-                          ? isCorrect
-                            ? 'bg-emerald-500 text-white'
-                            : isSelected
-                            ? 'bg-rose-500 text-white'
-                            : 'bg-gray-200 text-gray-500'
-                          : 'bg-gray-100 text-gray-500'
-                      }`}>
-                        {String.fromCharCode(65 + index)}
-                      </div>
-                      <span className="font-medium">{option}</span>
-                    </div>
-                    {showResult && isCorrect && (
-                      <CheckCircle className="w-5 h-5 text-emerald-600" />
-                    )}
-                    {showResult && isSelected && !isCorrect && (
-                      <XCircle className="w-5 h-5 text-rose-600" />
-                    )}
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Explanation */}
-          {selectedQuizOption && (
-            <div className="bg-white rounded-xl p-4 border border-blue-200">
-              <div className="flex items-center gap-2 mb-2">
-                <Info className="w-5 h-5 text-blue-600" />
-                <h4 className="font-bold text-blue-700">Explanation</h4>
-              </div>
-              <p className="text-gray-700">{currentQuestion.explanation}</p>
-            </div>
-          )}
-        </div>
+        <button
+          onClick={resetQuiz}
+          className="w-full py-3 bg-emerald-500 text-white rounded-lg"
+        >
+          Try Again
+        </button>
       </div>
     );
-  };
+  }
 
-  const renderFlashcards = () => {
-    if (filteredKanji.length === 0) {
-      return (
-        <div className="max-w-2xl mx-auto text-center py-12">
-          <div className="text-gray-600">No kanji available for flashcards. Try changing your filters.</div>
-          <button
-            onClick={() => setStudyMode('learn')}
-            className="mt-4 px-6 py-3 bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-xl hover:shadow-lg transition-all"
-          >
-            Back to Learning
-          </button>
-        </div>
-      );
-    }
+  const q = quizQuestions[currentQuizIndex];
 
-    const currentFlashcard = filteredKanji[flashcardIndex];
-    if (!currentFlashcard) {
-      return (
-        <div className="max-w-2xl mx-auto text-center py-12">
-          <div className="text-gray-600">No flashcard available.</div>
-          <button
-            onClick={() => setStudyMode('learn')}
-            className="mt-4 px-6 py-3 bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-xl hover:shadow-lg transition-all"
-          >
-            Back to Learning
-          </button>
-        </div>
-      );
-    }
+  return (
+    <div className="max-w-md mx-auto bg-white p-6 rounded-xl shadow">
+      {/* Progress */}
+      <div className="text-sm text-gray-500 mb-2">
+        Question {currentQuizIndex + 1} / {quizQuestions.length}
+      </div>
 
-    return (
-      <div className="max-w-2xl mx-auto">
-        <div className="relative">
-          {/* Flashcard Counter */}
-          <div className="text-center mb-6">
-            <div className="inline-flex items-center gap-2 px-4 py-2 bg-purple-50 rounded-full">
-              <CardSim className="w-4 h-4 text-purple-600" />
-              <span className="text-sm font-medium text-purple-700">
-                Flashcard {flashcardIndex + 1} of {filteredKanji.length}
-              </span>
-            </div>
+      {/* Question */}
+      <div className="text-center mb-6">
+        {q.type === 'kanji-to-meaning' && (
+          <div className="text-6xl font-bold mb-4">
+            {q.correctAnswer === q.correctAnswer && 
+              quizQuestions[currentQuizIndex] &&
+              filteredKanji.find(k => k.meaning === q.correctAnswer)?.character}
           </div>
+        )}
 
-          {/* Flashcard */}
-          <div
-            className={`relative w-full h-96 cursor-pointer transform transition-transform duration-500 ${
-              isFlashcardFlipped ? 'rotate-y-180' : ''
+        <h3 className="text-lg font-semibold">
+          {q.question}
+        </h3>
+      </div>
+
+      {/* Options */}
+      <div className="space-y-3">
+        {q.options.map(option => (
+          <button
+            key={option}
+            onClick={() => handleQuizAnswer(option)}
+            disabled={selectedQuizOption !== null}
+            className={`w-full p-4 rounded-lg border text-lg transition ${
+              selectedQuizOption
+                ? option === q.correctAnswer
+                  ? "bg-emerald-100 border-emerald-400"
+                  : option === selectedQuizOption
+                  ? "bg-rose-100 border-rose-400"
+                  : "bg-gray-50"
+                : "bg-gray-50 hover:bg-blue-50"
             }`}
-            onClick={toggleFlashcard}
-            style={{
-              transformStyle: 'preserve-3d',
-              perspective: '1000px'
-            }}
           >
-            {/* Front of Card */}
-            <div className={`absolute inset-0 bg-gradient-to-br from-blue-50 to-cyan-50 rounded-2xl border-2 border-blue-200 shadow-xl p-8 flex flex-col items-center justify-center ${
-              isFlashcardFlipped ? 'opacity-0' : 'opacity-100'
-            }`} style={{
-              backfaceVisibility: 'hidden',
-              transform: 'rotateY(0deg)'
-            }}>
-              <div className="text-7xl font-bold text-gray-900 mb-6">
-                {currentFlashcard.character}
-              </div>
-              <div className="text-lg text-gray-600 text-center">
-                Click to reveal meaning and readings
-              </div>
-              {!flashcardRevealed && (
-                <div className="mt-4 px-4 py-2 bg-blue-100 text-blue-700 rounded-full text-sm font-medium">
-                  Tap to flip
+            {option}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+
+const renderFlashcards = () => {
+  if (filteredKanji.length === 0) {
+    return (
+      <div className="text-center py-10">
+        <p className="text-gray-500">No kanji available.</p>
+        <button
+          onClick={() => setStudyMode('learn')}
+          className="mt-4 px-5 py-2 bg-amber-500 text-white rounded-lg"
+        >
+          Back to Learning
+        </button>
+      </div>
+    );
+  }
+
+  const card = filteredKanji[flashcardIndex];
+
+  return (
+    <div className="max-w-md mx-auto px-4">
+      {/* Counter */}
+      <div className="text-center mb-4 text-sm text-gray-500">
+        {flashcardIndex + 1} / {filteredKanji.length}
+      </div>
+
+      {/* Flashcard */}
+      <div
+        onClick={toggleFlashcard}
+        className="bg-white rounded-2xl shadow-md border border-gray-200 p-6 text-center cursor-pointer active:scale-95 transition"
+      >
+        {!isFlashcardFlipped ? (
+          <>
+            {/* FRONT */}
+            <div className="text-6xl font-bold text-gray-900 mb-4">
+              {card.character}
+            </div>
+            <p className="text-gray-500 text-sm">
+              Tap to reveal meaning
+            </p>
+          </>
+        ) : (
+          <>
+            {/* BACK */}
+            <div className="text-5xl font-bold text-gray-900 mb-2">
+              {card.character}
+            </div>
+
+            <div className="text-xl font-semibold text-emerald-600 mb-4">
+              {card.meaning}
+            </div>
+
+            {/* Readings */}
+            <div className="space-y-2 text-sm">
+              {card.onyomi?.length > 0 && (
+                <div>
+                  <span className="font-semibold text-blue-600">
+                    On:
+                  </span>{" "}
+                  {card.onyomi.join(", ")}
+                </div>
+              )}
+              {card.kunyomi?.length > 0 && (
+                <div>
+                  <span className="font-semibold text-green-600">
+                    Kun:
+                  </span>{" "}
+                  {card.kunyomi.join(", ")}
                 </div>
               )}
             </div>
 
-            {/* Back of Card */}
-            <div className={`absolute inset-0 bg-gradient-to-br from-emerald-50 to-teal-50 rounded-2xl border-2 border-emerald-200 shadow-xl p-8 flex flex-col justify-center ${
-              isFlashcardFlipped ? 'opacity-100' : 'opacity-0'
-            }`} style={{
-              backfaceVisibility: 'hidden',
-              transform: 'rotateY(180deg)'
-            }}>
-              <div className="text-center mb-6">
-                <div className="text-5xl font-bold text-gray-900 mb-4">
-                  {currentFlashcard.character}
+            {/* Example */}
+            {card.examples?.[0] && (
+              <div className="mt-4 text-sm text-gray-600 border-t pt-3">
+                <div className="font-medium">
+                  {card.examples[0].word}
                 </div>
-                <div className="text-2xl font-bold text-emerald-700 mb-2">
-                  {currentFlashcard.meaning}
+                <div>{card.examples[0].reading}</div>
+                <div className="italic">
+                  {card.examples[0].meaning}
                 </div>
               </div>
+            )}
 
-              <div className="space-y-4">
-                <div className="bg-white/80 rounded-xl p-4">
-                  <div className="text-sm font-medium text-gray-600 mb-1">Readings</div>
-                  <div className="flex flex-wrap gap-3">
-                    {currentFlashcard.onyomi && currentFlashcard.onyomi.length > 0 && (
-                      <div>
-                        <span className="text-xs text-blue-600 font-medium">On'yomi:</span>
-                        <span className="ml-2 font-mono font-bold text-gray-800">
-                          {currentFlashcard.onyomi.join(', ')}
-                        </span>
-                      </div>
-                    )}
-                    {currentFlashcard.kunyomi && currentFlashcard.kunyomi.length > 0 && (
-                      <div>
-                        <span className="text-xs text-emerald-600 font-medium">Kun'yomi:</span>
-                        <span className="ml-2 font-mono font-bold text-gray-800">
-                          {currentFlashcard.kunyomi.join(', ')}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {currentFlashcard.examples && currentFlashcard.examples[0] && (
-                  <div className="bg-white/80 rounded-xl p-4">
-                    <div className="text-sm font-medium text-gray-600 mb-1">Example</div>
-                    <div className="font-medium text-gray-800">{currentFlashcard.examples[0].word}</div>
-                    <div className="text-sm text-gray-600">{currentFlashcard.examples[0].reading}</div>
-                    <div className="text-sm text-gray-700 italic">"{currentFlashcard.examples[0].meaning}"</div>
-                  </div>
-                )}
-
-                <div className="flex items-center justify-center gap-2 text-sm text-gray-500">
-                  <span>Click to flip back</span>
-                  <RefreshCw className="w-4 h-4" />
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Flashcard Controls */}
-          <div className="flex items-center justify-center gap-4 mt-8">
-            <button
-              onClick={prevFlashcard}
-              disabled={flashcardIndex === 0}
-              className="p-3 bg-gray-100 rounded-xl hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all hover:scale-105 active:scale-95"
-            >
-              <ChevronLeft className="w-5 h-5 text-gray-700" />
-            </button>
-            
-            <button
-              onClick={() => setFlashcardIndex(Math.floor(Math.random() * filteredKanji.length))}
-              className="px-6 py-3 bg-purple-100 text-purple-700 rounded-xl hover:shadow-lg transition-all hover:scale-[1.02] active:scale-[0.98] flex items-center gap-2"
-            >
-              <Shuffle className="w-4 h-4" />
-              Shuffle
-            </button>
-
-            <button
-              onClick={() => toggleBookmark(currentFlashcard.id)}
-              className={`p-3 rounded-xl transition-all hover:scale-110 active:scale-95 ${
-                currentFlashcard.isBookmarked
-                  ? 'bg-amber-100 text-amber-600'
-                  : 'bg-gray-100 text-gray-600'
-              }`}
-            >
-              <Bookmark className={`w-5 h-5 ${currentFlashcard.isBookmarked ? 'fill-amber-600' : ''}`} />
-            </button>
-
-            <button
-              onClick={nextFlashcard}
-              disabled={flashcardIndex === filteredKanji.length - 1}
-              className="p-3 bg-gray-100 rounded-xl hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all hover:scale-105 active:scale-95"
-            >
-              <ChevronRight className="w-5 h-5 text-gray-700" />
-            </button>
-          </div>
-        </div>
+            <p className="mt-4 text-xs text-gray-400">
+              Tap to hide
+            </p>
+          </>
+        )}
       </div>
-    );
-  };
+
+      {/* Controls */}
+      <div className="flex justify-between items-center mt-6">
+        <button
+          onClick={prevFlashcard}
+          disabled={flashcardIndex === 0}
+          className="px-4 py-2 bg-gray-100 rounded-lg disabled:opacity-40"
+        >
+          ◀
+        </button>
+
+        <button
+          onClick={() =>
+            setFlashcardIndex(
+              Math.floor(Math.random() * filteredKanji.length)
+            )
+          }
+          className="px-4 py-2 bg-purple-100 text-purple-700 rounded-lg"
+        >
+          Shuffle
+        </button>
+
+        <button
+          onClick={nextFlashcard}
+          disabled={flashcardIndex === filteredKanji.length - 1}
+          className="px-4 py-2 bg-gray-100 rounded-lg disabled:opacity-40"
+        >
+          ▶
+        </button>
+      </div>
+
+      {/* Bookmark */}
+      <div className="flex justify-center mt-4">
+        <button
+          onClick={() => toggleBookmark(card.id)}
+          className={`px-4 py-2 rounded-full text-sm ${
+            card.isBookmarked
+              ? "bg-amber-100 text-amber-700"
+              : "bg-gray-100 text-gray-600"
+          }`}
+        >
+          {card.isBookmarked ? "★ Bookmarked" : "☆ Bookmark"}
+        </button>
+      </div>
+    </div>
+  );
+};
+
 
   // Update stats whenever kanjiList changes
   useEffect(() => {

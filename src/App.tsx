@@ -40,6 +40,8 @@ import KanjiView from "./kanji/KanjiView";
 import KanjiListPage from "./kanji/KanjiListPage";
 import KanjiDetailPage from "./kanji/KanjiDetailPage";
 import VocabularyMaster from "./pages/Vocabulary/VocabularyMaster";
+import AnkiPage from "./pages/anki/AnkiPage";
+import AnkiUpload from "./pages/anki/AnkiUpload";
 
 function App() {
   return (
@@ -60,6 +62,10 @@ function App() {
           {/* ---------------- LEARNING HUB ---------------- */}
           <Route path="/learn" element={<LearningHub />} />
              <Route path="/master/vocab" element={<VocabularyMaster />} />
+             <Route path="/anki/learn" element={<AnkiPage />} />
+
+<Route path="/anki/master" element={<AnkiUpload />} />
+
 
           {/* ---------------- COMPREHENSIVE LEARNING ---------------- */}
           <Route path="/kanji" element={<KanjiLearning />} />

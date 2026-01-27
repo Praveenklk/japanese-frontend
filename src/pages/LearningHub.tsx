@@ -12,7 +12,9 @@ import {
   ArrowRight,
   Star,
   Target,
-  WholeWord
+  WholeWord,
+  Layers,
+  Upload
 } from "lucide-react";
 
 const LearningHub = () => {
@@ -63,17 +65,45 @@ const LearningHub = () => {
       status: "available",
       stats: "5,000+ Words"
     },
-        {
-      title: "JLPT Vocabulary",
-      description: "Monitor your learning journey with detailed analytics",
-      icon: <WholeWord className="w-10 h-10 text-amber-600" />,
-      path: "/master/vocab",
-      color: "bg-amber-50 hover:bg-amber-100",
-      stats: "Real-time Stats",
-      status: "available",
-      buttonText: "2,000+ Words"
-    },
-    
+{
+  title: "JLPT Vocabulary Trainer",
+  japanese: "日本語能力試験 語彙",
+  description: "Practice JLPT N5–N1 vocabulary with level-wise words and smart revision",
+  icon: <WholeWord className="w-10 h-10 text-amber-600" />,
+  path: "/master/vocab",
+  color: "bg-amber-50 hover:bg-amber-100 border-amber-200",
+  level: "N5 → N1",
+  status: "available",
+  stats: "8,000+ JLPT Words",
+  buttonText: "Start JLPT Prep"
+},
+{
+  title: "Anki Flashcards",
+  japanese: "暗記フラッシュカード",
+  description: "Learn Japanese using spaced repetition with Anki-style flashcards",
+  icon: <Layers className="w-10 h-10 text-blue-600" />,
+  path: "/anki/learn",
+  color: "bg-blue-50 hover:bg-blue-100 border-blue-200",
+  level: "All Levels",
+  status: "available",
+  stats: "Smart Review System",
+  buttonText: "Start Learning"
+},
+{
+  title: "Anki Deck Manager",
+  japanese: "暗記デッキ管理",
+  description: "Upload, manage, and customize your Anki decks for personalized study",
+  icon: <Upload className="w-10 h-10 text-indigo-600" />,
+  path: "/anki/master",
+  color: "bg-indigo-50 hover:bg-indigo-100 border-indigo-200",
+  level: "Advanced",
+  status: "available",
+  stats: "Import .apkg / CSV",
+  buttonText: "Manage Decks"
+},
+
+
+
     {
       title: "Short Stories",
       japanese: "ショートストーリー",
