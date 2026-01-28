@@ -5,18 +5,22 @@ import type { QuizQuestion, QuizResult } from "./types/kana-quiz.types";
 interface QuizPageProps {
   questions: QuizQuestion[];
   onFinish: (result: QuizResult) => void;
+  timePerQuestion?: number; // ✅ NEW
 }
 
 const AUTO_NEXT_DELAY = 1400;
-const QUESTION_TIME_LIMIT = 10;
 
-const QuizPage: React.FC<QuizPageProps> = ({ questions, onFinish }) => {
+const QuizPage: React.FC<QuizPageProps> = ({
+  questions,
+  onFinish,
+  timePerQuestion = 10, // ✅ default = 10s
+}) => {
   const [index, setIndex] = useState(0);
   const [answer, setAnswer] = useState("");
   const [correctCount, setCorrectCount] = useState(0);
   const [showResult, setShowResult] = useState<boolean | null>(null);
   const [userAnswer, setUserAnswer] = useState("");
-  const [timeLeft, setTimeLeft] = useState(QUESTION_TIME_LIMIT);
+  const [timeLeft, setTimeLeft] = useState(timePerQuestion);
   const [totalTime, setTotalTime] = useState(0);
   const [finished, setFinished] = useState(false);
 
@@ -54,11 +58,16 @@ const QuizPage: React.FC<QuizPageProps> = ({ questions, onFinish }) => {
     return () => clearInterval(timerRef.current!);
   }, [index, showResult, finished]);
 
+  /* reset timer per question */
+  useEffect(() => {
+    setTimeLeft(timePerQuestion);
+  }, [index, timePerQuestion]);
+
   useEffect(() => {
     if (showResult === null) inputRef.current?.focus();
   }, [index, showResult]);
 
-  /* -------------------- AUDIO (JP PLUGIN STYLE) -------------------- */
+  /* -------------------- AUDIO -------------------- */
   const playAudio = () => {
     const utter = new SpeechSynthesisUtterance(current.character.romaji);
     const jpVoice =
@@ -100,7 +109,6 @@ const QuizPage: React.FC<QuizPageProps> = ({ questions, onFinish }) => {
   const goNext = () => {
     setShowResult(null);
     setAnswer("");
-    setTimeLeft(QUESTION_TIME_LIMIT);
 
     if (index + 1 >= questions.length) {
       const totalSeconds = Math.floor(
@@ -124,7 +132,7 @@ const QuizPage: React.FC<QuizPageProps> = ({ questions, onFinish }) => {
 
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
-        <div className="bg-white rounded-xl shadow-lg p-6 w-full max-w-md text-center animate-fade-in">
+        <div className="bg-white rounded-xl shadow-lg p-6 w-full max-w-md text-center">
           <h2 className="text-2xl font-bold mb-3">Quiz Completed 🎉</h2>
 
           <div className="space-y-2 text-sm">
@@ -150,7 +158,7 @@ const QuizPage: React.FC<QuizPageProps> = ({ questions, onFinish }) => {
   /* -------------------- QUIZ UI -------------------- */
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
-      <div className="w-full max-w-md bg-white rounded-xl shadow-lg p-6 transition-all animate-fade-in">
+      <div className="w-full max-w-md bg-white rounded-xl shadow-lg p-6">
 
         {/* Progress */}
         <div className="flex justify-between text-xs text-gray-500 mb-2">
@@ -162,7 +170,7 @@ const QuizPage: React.FC<QuizPageProps> = ({ questions, onFinish }) => {
 
         {/* Kana */}
         <div className="text-center my-5">
-          <div className="text-6xl font-bold animate-pop">
+          <div className="text-6xl font-bold">
             {current.character.symbol}
           </div>
           <p className="text-sm text-gray-500 mt-1">
@@ -195,13 +203,13 @@ const QuizPage: React.FC<QuizPageProps> = ({ questions, onFinish }) => {
         {/* Feedback */}
         {showResult !== null && (
           <div
-            className={`mt-4 p-3 rounded-lg text-center animate-fade-in ${
-              showResult ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700 animate-shake"
+            className={`mt-4 p-3 rounded-lg text-center ${
+              showResult ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"
             }`}
           >
             {showResult ? (
               <>
-                <CheckCircle className="w-8 h-8 mx-auto mb-1 animate-bounce-in" />
+                <CheckCircle className="w-8 h-8 mx-auto mb-1" />
                 <p className="font-semibold">Correct!</p>
               </>
             ) : (
@@ -224,34 +232,6 @@ const QuizPage: React.FC<QuizPageProps> = ({ questions, onFinish }) => {
           </button>
         )}
       </div>
-
-      {/* Animations */}
-      <style>{`
-        @keyframes fade-in {
-          from { opacity: 0; transform: translateY(8px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-        @keyframes pop {
-          from { transform: scale(0.8); opacity: 0; }
-          to { transform: scale(1); opacity: 1; }
-        }
-        @keyframes bounce-in {
-          0% { transform: scale(0.7); }
-          60% { transform: scale(1.1); }
-          100% { transform: scale(1); }
-        }
-        @keyframes shake {
-          0% { transform: translateX(0); }
-          25% { transform: translateX(-4px); }
-          50% { transform: translateX(4px); }
-          75% { transform: translateX(-2px); }
-          100% { transform: translateX(0); }
-        }
-        .animate-fade-in { animation: fade-in 0.3s ease-out; }
-        .animate-pop { animation: pop 0.3s ease-out; }
-        .animate-bounce-in { animation: bounce-in 0.4s ease-out; }
-        .animate-shake { animation: shake 0.35s ease-in-out; }
-      `}</style>
     </div>
   );
 };

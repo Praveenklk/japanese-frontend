@@ -27,6 +27,54 @@ import {
   Clock
 } from "lucide-react";
 
+/* ===========================
+   Helper: Render Anki HTML
+   - converts [sound:filename] -> <audio>
+   - rewrites <img src="filename"> -> <img src="/media/filename">
+   - uses media[] array from backend to resolve URLs
+   =========================== */
+function escapeRegExp(str: string) {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function renderAnkiHtml(
+  html: string,
+  media: { filename: string; url: string; type?: string }[] = []
+) {
+  if (!html) return "";
+
+  let output = html;
+
+  // Replace [sound:filename] occurrences with audio tags
+  const audioMedia = media.filter(m => (m.type ?? "").toUpperCase() === "AUDIO");
+  for (const m of audioMedia) {
+    const pattern = new RegExp(escapeRegExp(`[sound:${m.filename}]`), "g");
+    output = output.replace(
+      pattern,
+      `<audio controls class="w-full mt-3" preload="none"><source src="${m.url}" type="audio/mpeg" /></audio>`
+    );
+  }
+
+  // Fix image srcs that reference bare filenames
+  const imageMedia = media.filter(m => (m.type ?? "").toUpperCase() === "IMAGE");
+  for (const m of imageMedia) {
+    // replace occurrences like src="1665016....jpg" with src="/media/1665016....jpg"
+    const pattern = new RegExp(`src=["']${escapeRegExp(m.filename)}["']`, "g");
+    output = output.replace(pattern, `src="${m.url}"`);
+  }
+
+  // As an extra: also replace plain filename occurrences in src without quotes (rare)
+  for (const m of [...audioMedia, ...imageMedia]) {
+    const pattern2 = new RegExp(escapeRegExp(m.filename), "g");
+    output = output.replace(pattern2, m.url);
+  }
+
+  return output;
+}
+
+/* ===========================
+   Component: AnkiPage
+   =========================== */
 export default function AnkiPage() {
   const [decks, setDecks] = useState<AnkiDeck[]>([]);
   const [selectedDeck, setSelectedDeck] = useState<AnkiDeck | null>(null);
@@ -155,6 +203,9 @@ export default function AnkiPage() {
     const essential = parseNoteFields(fields);
     
     if (essential.type === "vocabulary") {
+      // use note.back (full HTML) for the example area so audio/images are included
+      const backHtml = note.back ?? fields[1] ?? essential.example ?? "";
+
       return (
         <div className="space-y-6">
           {/* Main word header */}
@@ -190,8 +241,8 @@ export default function AnkiPage() {
             </div>
           </div>
 
-          {/* Example */}
-          {essential.example && (
+          {/* Example (render Anki HTML so images & audio show) */}
+          {backHtml && (
             <div className="space-y-4">
               <div className="p-5 rounded-2xl bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/10 dark:to-indigo-900/10 border border-blue-100 dark:border-blue-900/20">
                 <div className="flex items-center justify-between mb-3">
@@ -205,9 +256,13 @@ export default function AnkiPage() {
                 </div>
                 
                 <div className="space-y-3">
-                  <div className="text-lg text-gray-900 dark:text-white leading-relaxed">
-                    {essential.example}
-                  </div>
+                  <div
+                    className="text-lg text-gray-900 dark:text-white leading-relaxed anki-html"
+                    // renderAnkiHtml will replace [sound:] and img srcs using note.media
+                    dangerouslySetInnerHTML={{
+                      __html: renderAnkiHtml(backHtml, note.media || []),
+                    }}
+                  />
                   
                   {essential.exampleReading && (
                     <div className="text-sm text-gray-600 dark:text-gray-400 font-mono">
@@ -256,21 +311,24 @@ export default function AnkiPage() {
     }
     
     if (essential.type === "sentence") {
+      // For sentences use the front (which may contain audio/image tags) and render using media
+      const frontHtml = note.front ?? fields[0] ?? essential.sentence ?? "";
       return (
         <div className="space-y-8">
           {/* Sentence */}
-          <div className="text-center">
-            <div className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white leading-relaxed mb-6">
-              {essential.sentence}
-            </div>
-            
-            <div className="inline-flex items-center gap-3">
-              <button className="p-3 rounded-full bg-gradient-to-r from-blue-500 to-purple-500 text-white">
-                <Volume2 className="w-6 h-6" />
-              </button>
-              <div className="text-sm text-gray-600 dark:text-gray-400">
-                Click to listen
-              </div>
+          <div
+            className="text-center"
+            dangerouslySetInnerHTML={{
+              __html: renderAnkiHtml(frontHtml, note.media || []),
+            }}
+          />
+
+          <div className="inline-flex items-center gap-3">
+            <button className="p-3 rounded-full bg-gradient-to-r from-blue-500 to-purple-500 text-white">
+              <Volume2 className="w-6 h-6" />
+            </button>
+            <div className="text-sm text-gray-600 dark:text-gray-400">
+              Click to listen
             </div>
           </div>
 
@@ -414,7 +472,7 @@ export default function AnkiPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-950 text-gray-900 dark:text-white transition-colors duration-200">
-      {/* Mobile Header */}
+      {/* Mobile Header */} 
       <header className="sticky top-0 z-40 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm border-b border-gray-200 dark:border-gray-800 lg:hidden">
         <div className="px-4 py-3">
           <div className="flex items-center justify-between">

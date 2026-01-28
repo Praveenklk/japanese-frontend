@@ -61,12 +61,16 @@ const KanaQuiz: React.FC = () => {
   const [selectedRows, setSelectedRows] = useState<string[]>(["basic"]);
   const [activeRowId, setActiveRowId] = useState<string | null>(null);
 
+  // Multi-row practice state
+  const [isPracticing, setIsPracticing] = useState(false);
+  const [practiceChars, setPracticeChars] = useState<KanaCharacter[]>([]);
+
   // per-card inline evaluation
   const [cardAnswers, setCardAnswers] = useState<
     Record<string, { answer: string; isCorrect: boolean | null; tried: boolean }>
   >({});
 
-  // Track practice score for active row
+  // Track practice score for current practice set
   const [practiceScore, setPracticeScore] = useState({ correct: 0, total: 0 });
 
   const inputRefs = useRef<Record<string, HTMLInputElement | null>>({});
@@ -76,11 +80,11 @@ const KanaQuiz: React.FC = () => {
     const checkMobile = () => {
       setIsMobile(window.innerWidth < 768);
     };
-    
+
     checkMobile();
-    window.addEventListener('resize', checkMobile);
-    
-    return () => window.removeEventListener('resize', checkMobile);
+    window.addEventListener("resize", checkMobile);
+
+    return () => window.removeEventListener("resize", checkMobile);
   }, []);
 
   // fetch kana & rows when kana type changes
@@ -93,15 +97,19 @@ const KanaQuiz: React.FC = () => {
         const r = kanaQuizService.getRows(settings.kanaType);
         setRows(r);
         // Keep current selection if it still exists in new rows
-        const validSelectedRows = selectedRows.filter(rowId => 
-          r.some(row => row.id === rowId)
+        const validSelectedRows = selectedRows.filter((rowId) =>
+          r.some((row) => row.id === rowId)
         );
         if (validSelectedRows.length === 0) {
           setSelectedRows(["basic"]);
         } else {
           setSelectedRows(validSelectedRows);
         }
+
+        // reset practice state when kana type changes
         setActiveRowId(null);
+        setIsPracticing(false);
+        setPracticeChars([]);
         setCardAnswers({});
         setPracticeScore({ correct: 0, total: 0 });
       } catch (err) {
@@ -111,16 +119,17 @@ const KanaQuiz: React.FC = () => {
       }
     };
     load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [settings.kanaType]);
 
-  // Update score when card answers change
+  // Update score when card answers or practice set changes
   useEffect(() => {
-    if (activeRowId) {
-      const total = Object.keys(cardAnswers).length;
-      const correct = Object.values(cardAnswers).filter(a => a.isCorrect === true).length;
-      setPracticeScore({ correct, total });
-    }
-  }, [cardAnswers, activeRowId]);
+    const chars = getCurrentPracticeChars();
+    const total = chars.length;
+    const correct = Object.values(cardAnswers).filter((a) => a.isCorrect === true).length;
+    setPracticeScore({ correct, total });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cardAnswers, activeRowId, isPracticing, practiceChars]);
 
   // helper to find characters for a given row id
   const charsForRow = (rowId: string) => {
@@ -138,6 +147,13 @@ const KanaQuiz: React.FC = () => {
     );
   };
 
+  // Return the current practice character list (single row or multi-row)
+  const getCurrentPracticeChars = (): KanaCharacter[] => {
+    if (isPracticing) return practiceChars;
+    if (activeRowId) return charsForRow(activeRowId);
+    return [];
+  };
+
   // toggle row selection
   const handleRowToggle = (rowId: string) => {
     setSelectedRows((prev) => {
@@ -150,7 +166,7 @@ const KanaQuiz: React.FC = () => {
     });
   };
 
-  // when user clicks a small row button to inspect, open activeRow view (cards)
+  // when user clicks a small row button to inspect, open single-row activeRow view (cards)
   const handleOpenRow = (rowId: string) => {
     const available = (() => {
       const row = rows.find((r) => r.id === rowId);
@@ -161,6 +177,11 @@ const KanaQuiz: React.FC = () => {
       return true;
     })();
     if (!available) return;
+
+    // Close multi-row practice if open
+    setIsPracticing(false);
+    setPracticeChars([]);
+
     setActiveRowId(rowId);
     const chars = charsForRow(rowId);
     const initial: Record<string, { answer: string; isCorrect: boolean | null; tried: boolean }> = {};
@@ -185,10 +206,21 @@ const KanaQuiz: React.FC = () => {
     setPracticeScore({ correct: 0, total: 0 });
   };
 
-  // Reset current row practice
-  const handleResetRow = () => {
-    if (!activeRowId) return;
-    const chars = charsForRow(activeRowId);
+  // Start practicing all selected rows together
+  const handlePracticeSelected = () => {
+    const chars = getSelectedCharacters();
+
+    if (chars.length === 0) {
+      alert("Select at least one row to practice");
+      return;
+    }
+
+    // Close single-row view if open
+    setActiveRowId(null);
+
+    setIsPracticing(true);
+    setPracticeChars(chars);
+
     const initial: Record<string, { answer: string; isCorrect: boolean | null; tried: boolean }> = {};
     chars.forEach((c) => {
       initial[c.symbol] = { answer: "", isCorrect: null, tried: false };
@@ -196,7 +228,34 @@ const KanaQuiz: React.FC = () => {
     setCardAnswers(initial);
     setPracticeScore({ correct: 0, total: chars.length });
 
-    // Focus first input
+    setTimeout(() => {
+      const first = chars[0];
+      if (first && inputRefs.current[first.symbol]) {
+        inputRefs.current[first.symbol]!.focus();
+        inputRefs.current[first.symbol]!.select();
+      }
+    }, 50);
+  };
+
+  const handleClosePractice = () => {
+    setIsPracticing(false);
+    setPracticeChars([]);
+    setCardAnswers({});
+    setPracticeScore({ correct: 0, total: 0 });
+  };
+
+  // Reset current practice (single row or multi-row)
+  const handleResetPractice = () => {
+    const chars = getCurrentPracticeChars();
+    if (!chars || chars.length === 0) return;
+
+    const initial: Record<string, { answer: string; isCorrect: boolean | null; tried: boolean }> = {};
+    chars.forEach((c) => {
+      initial[c.symbol] = { answer: "", isCorrect: null, tried: false };
+    });
+    setCardAnswers(initial);
+    setPracticeScore({ correct: 0, total: chars.length });
+
     setTimeout(() => {
       const first = chars[0];
       if (first && inputRefs.current[first.symbol]) {
@@ -220,28 +279,28 @@ const KanaQuiz: React.FC = () => {
 
     setCardAnswers((prev) => ({
       ...prev,
-      [symbol]: { 
-        answer: attempt, 
-        isCorrect: correct, 
-        tried: true 
+      [symbol]: {
+        answer: attempt,
+        isCorrect: correct,
+        tried: true,
       },
     }));
   };
 
   // Auto-focus on next empty input
   const focusNextInput = (currentSymbol: string) => {
-    const chars = charsForRow(activeRowId!);
-    const currentIndex = chars.findIndex(c => c.symbol === currentSymbol);
-    
+    const chars = getCurrentPracticeChars();
+    const currentIndex = chars.findIndex((c) => c.symbol === currentSymbol);
+
     if (currentIndex >= 0 && currentIndex < chars.length - 1) {
       // Find next input that's not completed
       for (let i = currentIndex + 1; i < chars.length; i++) {
         const nextSymbol = chars[i].symbol;
         const nextState = cardAnswers[nextSymbol];
-        
+
         // Skip if already correct
         if (nextState?.isCorrect === true) continue;
-        
+
         const nextInput = inputRefs.current[nextSymbol];
         if (nextInput) {
           setTimeout(() => {
@@ -252,10 +311,9 @@ const KanaQuiz: React.FC = () => {
         }
       }
     } else if (currentIndex === chars.length - 1) {
-      // If on last card and all are correct, show completion message
-      const allCorrect = chars.every(c => cardAnswers[c.symbol]?.isCorrect === true);
+      const allCorrect = chars.every((c) => cardAnswers[c.symbol]?.isCorrect === true);
       if (allCorrect) {
-        // You could add a completion toast or message here
+        // completion - could show toast here
       }
     }
   };
@@ -265,33 +323,30 @@ const KanaQuiz: React.FC = () => {
       e.preventDefault();
       const attempt = (cardAnswers[symbol]?.answer || "").trim();
       if (!attempt) return;
-      
+
       checkCardAnswer(symbol);
-      
-      // Wait a moment for state update, then move to next input
+
       setTimeout(() => {
         focusNextInput(symbol);
       }, 100);
     }
-    
+
     // Tab key navigation
     if (e.key === "Tab") {
       e.preventDefault();
-      if (!e.shiftKey) { // Move forward
+      if (!e.shiftKey) {
         focusNextInput(symbol);
-      } else { // Move backward (Shift+Tab)
-        const chars = charsForRow(activeRowId!);
-        const currentIndex = chars.findIndex(c => c.symbol === symbol);
-        
+      } else {
+        const chars = getCurrentPracticeChars();
+        const currentIndex = chars.findIndex((c) => c.symbol === symbol);
+
         if (currentIndex > 0) {
-          // Find previous input that's not completed
           for (let i = currentIndex - 1; i >= 0; i--) {
             const prevSymbol = chars[i].symbol;
             const prevState = cardAnswers[prevSymbol];
-            
-            // Skip if already correct
+
             if (prevState?.isCorrect === true) continue;
-            
+
             const prevInput = inputRefs.current[prevSymbol];
             if (prevInput) {
               setTimeout(() => {
@@ -307,54 +362,49 @@ const KanaQuiz: React.FC = () => {
   };
 
   // Start formal quiz flow
-const handleStartQuiz = () => {
-  if (selectedRows.length === 0) {
-    alert("Select at least one row to start the quiz");
-    return;
-  }
+  const handleStartQuiz = () => {
+    if (selectedRows.length === 0) {
+      alert("Select at least one row to start the quiz");
+      return;
+    }
 
-  const selectedChars = getSelectedCharacters();
+    const selectedChars = getSelectedCharacters();
 
-  if (selectedChars.length === 0) {
-    alert(
-      "No characters found.\n" +
-      "Enable Dakuten / Handakuten / Combinations if required."
-    );
-    return;
-  }
+    if (selectedChars.length === 0) {
+      alert(
+        "No characters found.\n" + "Enable Dakuten / Handakuten / Combinations if required."
+      );
+      return;
+    }
 
-  // Fix question count if not enough characters
-  let finalSettings = { ...settings };
+    // Fix question count if not enough characters
+    let finalSettings = { ...settings };
 
-  if (selectedChars.length < settings.questionCount) {
-    const proceed = window.confirm(
-      `Only ${selectedChars.length} characters available.\n` +
-      `Continue with ${selectedChars.length} questions?`
-    );
+    if (selectedChars.length < settings.questionCount) {
+      const proceed = window.confirm(
+        `Only ${selectedChars.length} characters available.\n` +
+          `Continue with ${selectedChars.length} questions?`
+      );
 
-    if (!proceed) return;
+      if (!proceed) return;
 
-    finalSettings.questionCount = selectedChars.length;
-    setSettings(finalSettings);
-  }
+      finalSettings.questionCount = selectedChars.length;
+      setSettings(finalSettings);
+    }
 
-  const generatedQuestions = kanaQuizService.generateQuizQuestions(
-    finalSettings,
-    selectedChars
-  );
+    const generatedQuestions = kanaQuizService.generateQuizQuestions(finalSettings, selectedChars);
 
-  if (!generatedQuestions || generatedQuestions.length === 0) {
-    alert("Failed to generate quiz questions. Check your row selections.");
-    return;
-  }
+    if (!generatedQuestions || generatedQuestions.length === 0) {
+      alert("Failed to generate quiz questions. Check your row selections.");
+      return;
+    }
 
-  setQuestions(generatedQuestions);
-  setQuizResults(null);
-  setStep("quiz");
+    setQuestions(generatedQuestions);
+    setQuizResults(null);
+    setStep("quiz");
 
-  console.log("Quiz started:", generatedQuestions);
-};
-
+    console.log("Quiz started:", generatedQuestions);
+  };
 
   // Select All Kana
   const handleSelectAllKana = () => {
@@ -367,15 +417,17 @@ const handleStartQuiz = () => {
         return true;
       })
       .map((r) => r.id);
-    
+
     // If already all selected, deselect all except basic
-    const allCurrentlySelected = allRowIds.every(id => selectedRows.includes(id));
+    const allCurrentlySelected = allRowIds.every((id) => selectedRows.includes(id));
     if (allCurrentlySelected) {
       setSelectedRows(["basic"]);
       setActiveRowId(null);
+      setIsPracticing(false);
     } else {
       setSelectedRows(allRowIds);
       setActiveRowId(null);
+      setIsPracticing(false);
     }
   };
 
@@ -387,39 +439,38 @@ const handleStartQuiz = () => {
   // Toggle all rows for a specific category
   const toggleAllMainRows = () => {
     const allMainIds = mainRows.map((r) => r.id);
-    const areAllSelected = allMainIds.every(id => selectedRows.includes(id));
-    
+    const areAllSelected = allMainIds.every((id) => selectedRows.includes(id));
+
     if (areAllSelected) {
-      setSelectedRows(prev => prev.filter(id => !allMainIds.includes(id)));
+      setSelectedRows((prev) => prev.filter((id) => !allMainIds.includes(id)));
       if (selectedRows.length === allMainIds.length) {
-        // If only main rows were selected, keep basic
         setSelectedRows(["basic"]);
       }
     } else {
-      setSelectedRows(prev => Array.from(new Set([...prev, ...allMainIds])));
+      setSelectedRows((prev) => Array.from(new Set([...prev, ...allMainIds])));
     }
   };
 
   const toggleAllDakutenRows = () => {
     const allDakutenIds = dakutenRows
-      .filter(r => {
+      .filter((r) => {
         if (r.id.includes("tenten")) return settings.includeTenten;
         if (r.id.includes("maru")) return settings.includeMaru;
         return true;
       })
-      .map(r => r.id);
-    
+      .map((r) => r.id);
+
     if (allDakutenIds.length === 0) {
       alert("Please enable Dakuten or Handakuten options first");
       return;
     }
-    
-    const areAllSelected = allDakutenIds.every(id => selectedRows.includes(id));
-    
+
+    const areAllSelected = allDakutenIds.every((id) => selectedRows.includes(id));
+
     if (areAllSelected) {
-      setSelectedRows(prev => prev.filter(id => !allDakutenIds.includes(id)));
+      setSelectedRows((prev) => prev.filter((id) => !allDakutenIds.includes(id)));
     } else {
-      setSelectedRows(prev => Array.from(new Set([...prev, ...allDakutenIds])));
+      setSelectedRows((prev) => Array.from(new Set([...prev, ...allDakutenIds])));
     }
   };
 
@@ -428,20 +479,20 @@ const handleStartQuiz = () => {
       alert("Please enable Combinations option first");
       return;
     }
-    
-    const allComboIds = comboRows.map(r => r.id);
-    
+
+    const allComboIds = comboRows.map((r) => r.id);
+
     if (allComboIds.length === 0) {
       alert("No combination rows available");
       return;
     }
-    
-    const areAllSelected = allComboIds.every(id => selectedRows.includes(id));
-    
+
+    const areAllSelected = allComboIds.every((id) => selectedRows.includes(id));
+
     if (areAllSelected) {
-      setSelectedRows(prev => prev.filter(id => !allComboIds.includes(id)));
+      setSelectedRows((prev) => prev.filter((id) => !allComboIds.includes(id)));
     } else {
-      setSelectedRows(prev => Array.from(new Set([...prev, ...allComboIds])));
+      setSelectedRows((prev) => Array.from(new Set([...prev, ...allComboIds])));
     }
   };
 
@@ -465,8 +516,8 @@ const handleStartQuiz = () => {
       return true;
     })
     .map((r) => r.id);
-  
-  const isAllSelected = allAvailableRowIds.every(id => selectedRows.includes(id));
+
+  const isAllSelected = allAvailableRowIds.every((id) => selectedRows.includes(id));
 
   return (
     <div className={`min-h-screen transition-colors duration-200 ${darkMode ? "bg-gray-900 text-gray-100" : "bg-gray-50 text-gray-900"}`}>
@@ -492,6 +543,8 @@ const handleStartQuiz = () => {
               onChange={(e) => {
                 setSettings((s) => ({ ...s, kanaType: e.target.value as KanaType }));
                 setActiveRowId(null);
+                setIsPracticing(false);
+                setPracticeChars([]);
               }}
               className={`px-3 py-2 rounded-lg border text-sm ${darkMode ? "bg-gray-800 border-gray-700" : "bg-white border-gray-300"}`}
             >
@@ -502,33 +555,33 @@ const handleStartQuiz = () => {
             <div className="flex flex-wrap gap-2">
               <button
                 onClick={() => setSettings((s) => ({ ...s, kanaType: "hiragana" }))}
-                className={`flex-1 min-w-[120px] px-3 py-2 font-medium rounded-lg text-sm ${settings.kanaType === "hiragana" 
-                  ? "bg-blue-600 text-white" 
-                  : darkMode 
-                    ? "bg-gray-800 border border-gray-700" 
+                className={`flex-1 min-w-[120px] px-3 py-2 font-medium rounded-lg text-sm ${settings.kanaType === "hiragana"
+                  ? "bg-blue-600 text-white"
+                  : darkMode
+                    ? "bg-gray-800 border border-gray-700"
                     : "bg-white border border-gray-300"}`}
               >
                 Hiragana
               </button>
               <button
                 onClick={() => setSettings((s) => ({ ...s, kanaType: "katakana" }))}
-                className={`flex-1 min-w-[120px] px-3 py-2 font-medium rounded-lg text-sm ${settings.kanaType === "katakana" 
-                  ? "bg-blue-600 text-white" 
-                  : darkMode 
-                    ? "bg-gray-800 border border-gray-700" 
+                className={`flex-1 min-w-[120px] px-3 py-2 font-medium rounded-lg text-sm ${settings.kanaType === "katakana"
+                  ? "bg-blue-600 text-white"
+                  : darkMode
+                    ? "bg-gray-800 border border-gray-700"
                     : "bg-white border border-gray-300"}`}
               >
                 Katakana
               </button>
               <button
                 onClick={handleSelectAllKana}
-                className={`flex-1 min-w-[100px] px-3 py-2 font-medium rounded-lg text-sm ${isAllSelected 
-                  ? "bg-green-100 text-green-800 border border-green-300" 
-                  : darkMode 
-                    ? "bg-gray-800 border border-gray-700" 
+                className={`flex-1 min-w-[100px] px-3 py-2 font-medium rounded-lg text-sm ${isAllSelected
+                  ? "bg-green-100 text-green-800 border border-green-300"
+                  : darkMode
+                    ? "bg-gray-800 border border-gray-700"
                     : "bg-white border border-gray-300"}`}
               >
-                {isAllSelected ? 'All Selected' : 'All Kana'}
+                {isAllSelected ? "All Selected" : "All Kana"}
               </button>
             </div>
           </div>
@@ -542,67 +595,66 @@ const handleStartQuiz = () => {
             <div className="mb-3">
               <button
                 onClick={toggleAllMainRows}
-                className={`w-full py-2 rounded-lg text-center font-medium text-sm ${mainRows.every(r => selectedRows.includes(r.id)) 
-                  ? "bg-green-100 text-green-800 border border-green-300" 
-                  : darkMode 
-                    ? "bg-gray-700 hover:bg-gray-600" 
+                className={`w-full py-2 rounded-lg text-center font-medium text-sm ${mainRows.every(r => selectedRows.includes(r.id))
+                  ? "bg-green-100 text-green-800 border border-green-300"
+                  : darkMode
+                    ? "bg-gray-700 hover:bg-gray-600"
                     : "bg-blue-50 hover:bg-blue-100 border border-blue-200"}`}
               >
-                {/* {mainRows.every(r => selectedRows.includes(r.id)) ? '✓ All Main Selected' : 'Select All Main'} */}
+                {/* Select / Deselect main rows */}
+                All Letters
               </button>
             </div>
 
-          <div className="grid grid-cols-2 gap-2">
-  {mainRows.map((r) => {
-    const char = allKana.find((c) => c.symbol === r.chars[0]);
-    const romaji = char ? `/${char.romaji}` : "";
-    const isSelected = selectedRows.includes(r.id);
+            <div className="grid grid-cols-2 gap-2">
+              {mainRows.map((r) => {
+                const char = allKana.find((c) => c.symbol === r.chars[0]);
+                const romaji = char ? `/${char.romaji}` : "";
+                const isSelected = selectedRows.includes(r.id);
 
-    return (
-      <div
-        key={r.id}
-        onClick={() => handleRowToggle(r.id)}
-        className={`flex items-center justify-between p-2 sm:p-3 rounded-lg cursor-pointer transition-all
-          ${isSelected
-            ? darkMode
-              ? "bg-blue-900 border-2 border-blue-500"
-              : "bg-blue-50 border-2 border-blue-500"
-            : darkMode
-              ? "bg-gray-700 hover:bg-gray-600 border border-gray-600"
-              : "bg-white hover:bg-gray-50 border border-gray-300"
-          }`}
-      >
-        {/* Kana symbol */}
-        <div className="text-xl sm:text-2xl font-bold">
-          {r.chars[0]}
-        </div>
+                return (
+                  <div
+                    key={r.id}
+                    onClick={() => handleRowToggle(r.id)}
+                    className={`flex items-center justify-between p-2 sm:p-3 rounded-lg cursor-pointer transition-all
+                      ${isSelected
+                        ? darkMode
+                          ? "bg-blue-900 border-2 border-blue-500"
+                          : "bg-blue-50 border-2 border-blue-500"
+                        : darkMode
+                          ? "bg-gray-700 hover:bg-gray-600 border border-gray-600"
+                          : "bg-white hover:bg-gray-50 border border-gray-300"
+                      }`}
+                  >
+                    {/* Kana symbol */}
+                    <div className="text-xl sm:text-2xl font-bold">
+                      {r.chars[0]}
+                    </div>
 
-        {/* Right side */}
-        <div className="flex items-center gap-2">
-          <div className="text-right">
-            <div className="text-xs sm:text-sm font-medium">{r.name}</div>
-            <div className={`text-xs ${darkMode ? "text-gray-400" : "text-gray-500"}`}>
-              {romaji}
+                    {/* Right side */}
+                    <div className="flex items-center gap-2">
+                      <div className="text-right">
+                        <div className="text-xs sm:text-sm font-medium">{r.name}</div>
+                        <div className={`text-xs ${darkMode ? "text-gray-400" : "text-gray-500"}`}>
+                          {romaji}
+                        </div>
+                      </div>
+
+                      {/* PRACTICE BUTTON */}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation(); // prevents row toggle bug
+                          handleOpenRow(r.id);
+                        }}
+                        className="px-2 py-1 text-xs font-medium rounded-md bg-blue-600 text-white hover:bg-blue-700 transition"
+                      >
+                        Practice
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
-          </div>
-
-          {/* PRACTICE BUTTON */}
-          <button
-            onClick={(e) => {
-              e.stopPropagation(); // 🚨 prevents row toggle bug
-              handleOpenRow(r.id);
-            }}
-            className="px-2 py-1 text-xs font-medium rounded-md
-              bg-blue-600 text-white hover:bg-blue-700 transition"
-          >
-            Practice
-          </button>
-        </div>
-      </div>
-    );
-  })}
-</div>
-
           </div>
 
           {/* Dakuten Column */}
@@ -615,10 +667,10 @@ const handleStartQuiz = () => {
                   if (r.id.includes("tenten")) return settings.includeTenten;
                   if (r.id.includes("maru")) return settings.includeMaru;
                   return true;
-                }).every(r => selectedRows.includes(r.id)) 
-                  ? "bg-green-100 text-green-800 border border-green-300" 
-                  : darkMode 
-                    ? "bg-gray-700 hover:bg-gray-600" 
+                }).every(r => selectedRows.includes(r.id))
+                  ? "bg-green-100 text-green-800 border border-green-300"
+                  : darkMode
+                    ? "bg-gray-700 hover:bg-gray-600"
                     : "bg-blue-50 hover:bg-blue-100 border border-blue-200"}`}
               >
                 {dakutenRows.filter(r => {
@@ -635,7 +687,7 @@ const handleStartQuiz = () => {
                 const romaji = char ? `/${char.romaji}` : "";
                 const isAvailable = !r.id.includes("tenten") ? true : settings.includeTenten || settings.includeMaru;
                 const isSelected = selectedRows.includes(r.id);
-                
+
                 return (
                   <button
                     key={r.id}
@@ -648,12 +700,12 @@ const handleStartQuiz = () => {
                       handleOpenRow(r.id);
                     }}
                     disabled={!isAvailable}
-                    className={`flex items-center justify-between p-2 sm:p-3 rounded-lg text-left ${isSelected 
-                      ? darkMode 
-                        ? "bg-blue-900 border-2 border-blue-500" 
+                    className={`flex items-center justify-between p-2 sm:p-3 rounded-lg text-left ${isSelected
+                      ? darkMode
+                        ? "bg-blue-900 border-2 border-blue-500"
                         : "bg-blue-50 border-2 border-blue-500"
-                      : darkMode 
-                        ? "bg-gray-700 hover:bg-gray-600 border border-gray-600" 
+                      : darkMode
+                        ? "bg-gray-700 hover:bg-gray-600 border border-gray-600"
                         : "bg-white hover:bg-gray-50 border border-gray-300"} ${!isAvailable ? "opacity-50 cursor-not-allowed" : ""}`}
                   >
                     <div className="text-xl sm:text-2xl font-bold">{r.chars[0]}</div>
@@ -673,14 +725,14 @@ const handleStartQuiz = () => {
             <div className="mb-3">
               <button
                 onClick={toggleAllComboRows}
-                className={`w-full py-2 rounded-lg text-center font-medium text-sm ${comboRows.filter(() => settings.includeCombo).every(r => selectedRows.includes(r.id)) 
-                  ? "bg-green-100 text-green-800 border border-green-300" 
-                  : darkMode 
-                    ? "bg-gray-700 hover:bg-gray-600" 
+                className={`w-full py-2 rounded-lg text-center font-medium text-sm ${comboRows.filter(() => settings.includeCombo).every(r => selectedRows.includes(r.id))
+                  ? "bg-green-100 text-green-800 border border-green-300"
+                  : darkMode
+                    ? "bg-gray-700 hover:bg-gray-600"
                     : "bg-blue-50 hover:bg-blue-100 border border-blue-200"}`}
               >
-                {comboRows.filter(() => settings.includeCombo).every(r => selectedRows.includes(r.id)) 
-                  ? '✓ All Combo Selected' 
+                {comboRows.filter(() => settings.includeCombo).every(r => selectedRows.includes(r.id))
+                  ? '✓ All Combo Selected'
                   : 'Select All Combo'}
               </button>
             </div>
@@ -691,7 +743,7 @@ const handleStartQuiz = () => {
                 const romaji = char ? `/${char.romaji}` : "";
                 const isAvailable = settings.includeCombo;
                 const isSelected = selectedRows.includes(r.id);
-                
+
                 return (
                   <button
                     key={r.id}
@@ -704,12 +756,12 @@ const handleStartQuiz = () => {
                       handleOpenRow(r.id);
                     }}
                     disabled={!isAvailable}
-                    className={`flex items-center justify-between p-2 sm:p-3 rounded-lg text-left ${isSelected 
-                      ? darkMode 
-                        ? "bg-blue-900 border-2 border-blue-500" 
+                    className={`flex items-center justify-between p-2 sm:p-3 rounded-lg text-left ${isSelected
+                      ? darkMode
+                        ? "bg-blue-900 border-2 border-blue-500"
                         : "bg-blue-50 border-2 border-blue-500"
-                      : darkMode 
-                        ? "bg-gray-700 hover:bg-gray-600 border border-gray-600" 
+                      : darkMode
+                        ? "bg-gray-700 hover:bg-gray-600 border border-gray-600"
                         : "bg-white hover:bg-gray-50 border border-gray-300"} ${!isAvailable ? "opacity-50 cursor-not-allowed" : ""}`}
                   >
                     <div className="text-xl sm:text-2xl font-bold">{r.chars[0]}</div>
@@ -732,10 +784,10 @@ const handleStartQuiz = () => {
                 <span className="font-medium text-sm mr-2">Include:</span>
                 <button
                   onClick={() => setSettings((s) => ({ ...s, includeTenten: !s.includeTenten }))}
-                  className={`px-3 py-1.5 rounded-lg flex items-center gap-1.5 text-xs ${settings.includeTenten 
-                    ? "bg-green-100 text-green-800 border border-green-300" 
-                    : darkMode 
-                      ? "bg-gray-700 text-gray-300 border border-gray-600" 
+                  className={`px-3 py-1.5 rounded-lg flex items-center gap-1.5 text-xs ${settings.includeTenten
+                    ? "bg-green-100 text-green-800 border border-green-300"
+                    : darkMode
+                      ? "bg-gray-700 text-gray-300 border border-gray-600"
                       : "bg-gray-100 text-gray-700 border border-gray-300"}`}
                 >
                   <span>Dakuten</span>
@@ -743,10 +795,10 @@ const handleStartQuiz = () => {
                 </button>
                 <button
                   onClick={() => setSettings((s) => ({ ...s, includeMaru: !s.includeMaru }))}
-                  className={`px-3 py-1.5 rounded-lg flex items-center gap-1.5 text-xs ${settings.includeMaru 
-                    ? "bg-green-100 text-green-800 border border-green-300" 
-                    : darkMode 
-                      ? "bg-gray-700 text-gray-300 border border-gray-600" 
+                  className={`px-3 py-1.5 rounded-lg flex items-center gap-1.5 text-xs ${settings.includeMaru
+                    ? "bg-green-100 text-green-800 border border-green-300"
+                    : darkMode
+                      ? "bg-gray-700 text-gray-300 border border-gray-600"
                       : "bg-gray-100 text-gray-700 border border-gray-300"}`}
                 >
                   <span>Handakuten</span>
@@ -754,10 +806,10 @@ const handleStartQuiz = () => {
                 </button>
                 <button
                   onClick={() => setSettings((s) => ({ ...s, includeCombo: !s.includeCombo }))}
-                  className={`px-3 py-1.5 rounded-lg flex items-center gap-1.5 text-xs ${settings.includeCombo 
-                    ? "bg-green-100 text-green-800 border border-green-300" 
-                    : darkMode 
-                      ? "bg-gray-700 text-gray-300 border border-gray-600" 
+                  className={`px-3 py-1.5 rounded-lg flex items-center gap-1.5 text-xs ${settings.includeCombo
+                    ? "bg-green-100 text-green-800 border border-green-300"
+                    : darkMode
+                      ? "bg-gray-700 text-gray-300 border border-gray-600"
                       : "bg-gray-100 text-gray-700 border border-gray-300"}`}
                 >
                   <span>Combinations</span>
@@ -770,39 +822,53 @@ const handleStartQuiz = () => {
               <div className={`px-3 py-1.5 rounded-lg text-sm ${darkMode ? "bg-gray-700" : "bg-gray-100"}`}>
                 <span className="font-medium">{selectedCharacters.length}</span> chars selected
               </div>
-              <button
-                onClick={handleStartQuiz}
-                className="px-4 py-2.5 rounded-lg bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold flex items-center justify-center gap-1.5 hover:from-blue-700 hover:to-purple-700 transition-all text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                disabled={selectedCharacters.length === 0}
-              >
-                <Play className="w-4 h-4" />
-                Start Quiz ({selectedCharacters.length})
-              </button>
+
+              <div className="flex gap-2">
+                <button
+                  onClick={handlePracticeSelected}
+                  className="px-3 py-2 rounded-lg bg-gradient-to-r from-emerald-500 to-emerald-600 text-white font-semibold flex items-center justify-center gap-1.5 hover:from-emerald-600 hover:to-emerald-700 transition-all text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={selectedCharacters.length === 0}
+                >
+                  Practice Selected ({selectedCharacters.length})
+                </button>
+
+                <button
+                  onClick={handleStartQuiz}
+                  className="px-4 py-2.5 rounded-lg bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold flex items-center justify-center gap-1.5 hover:from-blue-700 hover:to-purple-700 transition-all text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={selectedCharacters.length === 0}
+                >
+                  <Play className="w-4 h-4" />
+                  Start Quiz ({selectedCharacters.length})
+                </button>
+              </div>
             </div>
           </div>
         </div>
 
-        {/* --- Active Row Card Grid --- */}
-        {activeRowId && (
+        {/* --- Active Practice (single-row or multi-row) --- */}
+        {(activeRowId || isPracticing) && (
           <div className={`rounded-lg p-3 sm:p-4 mb-6 ${darkMode ? "bg-gray-800" : "bg-white shadow-sm"}`}>
             {/* Header with score */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
               <div>
                 <h3 className="text-xl sm:text-2xl font-bold">
-                  {rows.find((r) => r.id === activeRowId)?.name || "Row"}
+                  {isPracticing
+                    ? `Practice: ${selectedRows.length} row(s)`
+                    : rows.find((r) => r.id === activeRowId)?.name || "Row"}
                 </h3>
                 <p className={`text-xs sm:text-sm mt-1 ${darkMode ? "text-gray-400" : "text-gray-600"}`}>
                   Practice these characters
                 </p>
               </div>
-              
+
               {/* Score display */}
               <div className="flex items-center gap-3">
-                <div className={`px-4 py-2 rounded-lg flex flex-col items-center ${practiceScore.correct === practiceScore.total && practiceScore.total > 0 
-                  ? "bg-gradient-to-r from-emerald-500 to-emerald-600 text-white" 
-                  : darkMode 
-                    ? "bg-gray-700 text-gray-300" 
-                    : "bg-blue-50 text-blue-700"}`}
+                <div
+                  className={`px-4 py-2 rounded-lg flex flex-col items-center ${practiceScore.correct === practiceScore.total && practiceScore.total > 0
+                    ? "bg-gradient-to-r from-emerald-500 to-emerald-600 text-white"
+                    : darkMode
+                      ? "bg-gray-700 text-gray-300"
+                      : "bg-blue-50 text-blue-700"}`}
                 >
                   <div className="flex items-center gap-2">
                     <Award className="w-5 h-5" />
@@ -816,21 +882,25 @@ const handleStartQuiz = () => {
                     </div>
                   )}
                 </div>
-                
+
                 <div className="flex gap-2">
-                  <button 
-                    onClick={handleResetRow}
-                    className={`px-3 py-1.5 rounded-lg font-medium text-sm flex items-center gap-1.5 ${darkMode 
-                      ? "bg-gray-700 hover:bg-gray-600" 
+                  <button
+                    onClick={handleResetPractice}
+                    className={`px-3 py-1.5 rounded-lg font-medium text-sm flex items-center gap-1.5 ${darkMode
+                      ? "bg-gray-700 hover:bg-gray-600"
                       : "bg-gray-100 hover:bg-gray-200 border border-gray-300"}`}
                   >
                     <RotateCcw className="w-3 h-3" />
                     Reset
                   </button>
-                  <button 
-                    onClick={handleCloseRowView}
-                    className={`px-3 py-1.5 rounded-lg font-medium text-sm ${darkMode 
-                      ? "bg-gray-700 hover:bg-gray-600" 
+                  <button
+                    onClick={() => {
+                      // close whichever is open
+                      if (isPracticing) handleClosePractice();
+                      else handleCloseRowView();
+                    }}
+                    className={`px-3 py-1.5 rounded-lg font-medium text-sm ${darkMode
+                      ? "bg-gray-700 hover:bg-gray-600"
                       : "bg-gray-100 hover:bg-gray-200 border border-gray-300"}`}
                   >
                     Close
@@ -841,7 +911,7 @@ const handleStartQuiz = () => {
 
             {/* Cards grid */}
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
-              {charsForRow(activeRowId).map((ch) => {
+              {getCurrentPracticeChars().map((ch) => {
                 const state = cardAnswers[ch.symbol] || { answer: "", isCorrect: null, tried: false };
                 const isCorrect = state.isCorrect === true;
                 const isIncorrect = state.isCorrect === false;
@@ -851,8 +921,8 @@ const handleStartQuiz = () => {
                   <div
                     key={ch.symbol}
                     className={`relative rounded-xl p-3 flex flex-col items-center justify-between transition-all duration-200 min-h-[140px] sm:min-h-[160px] ${
-                      isCorrect 
-                        ? "bg-gradient-to-br from-emerald-500 to-emerald-600 shadow-lg transform scale-[1.02]" 
+                      isCorrect
+                        ? "bg-gradient-to-br from-emerald-500 to-emerald-600 shadow-lg transform scale-[1.02]"
                         : isIncorrect
                           ? "bg-gradient-to-br from-red-500 to-red-600"
                           : "bg-gradient-to-br from-blue-500 to-blue-600"
@@ -860,15 +930,12 @@ const handleStartQuiz = () => {
                   >
                     {/* Kana symbol */}
                     <div className="flex-1 w-full flex items-center justify-center">
-                      <div className="text-4xl sm:text-5xl font-bold text-white select-none">
-                        {ch.symbol}
-                      </div>
+                      <div className="text-4xl sm:text-5xl font-bold text-white select-none">{ch.symbol}</div>
                     </div>
 
                     {/* Answer section */}
                     <div className="w-full mt-3">
                       {isCompleted ? (
-                        // Completed state - show correct answer
                         <div className="bg-white/20 backdrop-blur-sm rounded-lg p-2">
                           <div className="text-center">
                             <div className="flex items-center justify-center gap-1 text-white mb-1">
@@ -881,7 +948,6 @@ const handleStartQuiz = () => {
                           </div>
                         </div>
                       ) : (
-                        // Input state
                         <>
                           <div className="bg-white rounded-lg p-1.5 flex items-center gap-1.5">
                             <input
@@ -890,9 +956,9 @@ const handleStartQuiz = () => {
                               onChange={(e) => {
                                 setCardAnswers((prev) => ({
                                   ...prev,
-                                  [ch.symbol]: { 
-                                    ...(prev[ch.symbol] || { answer: "", isCorrect: null, tried: false }), 
-                                    answer: e.target.value 
+                                  [ch.symbol]: {
+                                    ...(prev[ch.symbol] || { answer: "", isCorrect: null, tried: false }),
+                                    answer: e.target.value,
                                   },
                                 }));
                               }}
@@ -904,7 +970,7 @@ const handleStartQuiz = () => {
                               readOnly={isCorrect}
                               autoComplete="off"
                             />
-                            {/* Mobile only Check button - hidden on sm screens and above */}
+                            {/* Mobile only Check button */}
                             <button
                               onClick={() => {
                                 checkCardAnswer(ch.symbol);
@@ -928,7 +994,9 @@ const handleStartQuiz = () => {
                               {isIncorrect && (
                                 <div className="flex items-center gap-1 text-red-100">
                                   <XCircle className="w-3 h-3" />
-                                  <span>Answer: <span className="font-bold ml-1">{ch.romaji}</span></span>
+                                  <span>
+                                    Answer: <span className="font-bold ml-1">{ch.romaji}</span>
+                                  </span>
                                 </div>
                               )}
                             </div>
@@ -949,23 +1017,19 @@ const handleStartQuiz = () => {
                 );
               })}
             </div>
-            
+
             {/* Completion Message */}
             {practiceScore.correct === practiceScore.total && practiceScore.total > 0 && (
               <div className={`mt-4 p-4 rounded-lg text-center animate-pulse ${darkMode ? "bg-gradient-to-r from-emerald-700 to-emerald-800" : "bg-gradient-to-r from-emerald-400 to-emerald-500"}`}>
                 <div className="flex flex-col items-center">
                   <Award className="w-10 h-10 text-white mb-2" />
                   <h4 className="text-xl font-bold text-white mb-1">🎉 Perfect Score!</h4>
-                  <p className="text-white text-sm">
-                    You've correctly answered all {practiceScore.total} characters!
-                  </p>
-                  <p className="text-white/90 text-xs mt-1">
-                    Click Reset to practice again or Close to return
-                  </p>
+                  <p className="text-white text-sm">You've correctly answered all {practiceScore.total} characters!</p>
+                  <p className="text-white/90 text-xs mt-1">Click Reset to practice again or Close to return</p>
                 </div>
               </div>
             )}
-            
+
             {/* Instructions */}
             <div className={`mt-4 p-3 rounded-lg ${darkMode ? "bg-gray-700" : "bg-blue-50"}`}>
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
@@ -975,27 +1039,24 @@ const handleStartQuiz = () => {
                   <span className="mx-2">•</span>
                   <span>Tab/Shift+Tab to navigate</span>
                 </p>
-                <div className="sm:hidden text-xs text-gray-500">
-                  Tap Check button on mobile
-                </div>
+                <div className="sm:hidden text-xs text-gray-500">Tap Check button on mobile</div>
               </div>
             </div>
           </div>
         )}
 
         {step === "quiz" && (
-  <QuizPage
-    questions={questions}
-    onFinish={(result) => {
-      setQuizResults(result);
-      setStep("result");
-    }}
-  />
-)}
+          <QuizPage
+            questions={questions}
+            onFinish={(result) => {
+              setQuizResults(result);
+              setStep("result");
+            }}
+          />
+        )}
 
-
-        {/* Instruction helper when no active row */}
-        {!activeRowId && (
+        {/* Instruction helper when no active row and not practicing */}
+        {!activeRowId && !isPracticing && (
           <div className={`rounded-lg p-4 text-center ${darkMode ? "bg-gray-800 border border-gray-700" : "bg-white border border-gray-200 shadow-sm"}`}>
             <Grid3x3 className="w-10 h-10 mx-auto mb-2 text-gray-400" />
             <h3 className="text-base font-medium mb-1">Ready to Practice?</h3>
@@ -1003,7 +1064,7 @@ const handleStartQuiz = () => {
               {selectedCharacters.length > 0 ? (
                 <>You have selected <span className="font-bold">{selectedCharacters.length}</span> characters from <span className="font-bold">{selectedRows.length}</span> rows.</>
               ) : (
-                <>Click any row above to practice its characters.</>
+                <>Click any row above to practice its characters or use "Practice Selected" to practice multiple rows.</>
               )}
             </p>
             <div className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg ${darkMode ? "bg-gray-700" : "bg-gray-100"}`}>
@@ -1013,11 +1074,10 @@ const handleStartQuiz = () => {
             {selectedCharacters.length > 0 && (
               <div className="mt-3">
                 <button
-                  onClick={handleStartQuiz}
-                  className="px-4 py-2 rounded-lg bg-gradient-to-r from-blue-600 to-purple-600 text-white font-medium flex items-center justify-center gap-1.5 mx-auto hover:from-blue-700 hover:to-purple-700 transition-all text-sm"
+                  onClick={handlePracticeSelected}
+                  className="px-4 py-2 rounded-lg bg-gradient-to-r from-emerald-500 to-emerald-600 text-white font-medium flex items-center justify-center gap-1.5 mx-auto hover:from-emerald-600 hover:to-emerald-700 transition-all text-sm"
                 >
-                  <Play className="w-3 h-3" />
-                  Start Quiz with {selectedCharacters.length} characters
+                  Practice Selected ({selectedCharacters.length})
                 </button>
               </div>
             )}

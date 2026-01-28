@@ -169,7 +169,11 @@ const ShortStories = () => {
         setStats(JSON.parse(savedStats));
       }
     } catch (err) {
-      console.error('Error loading stats:', err);
+console.error(
+  'Error loading stats. The stats section is currently under maintenance and we are actively working on it.',
+  err
+);
+
     }
   };
 
