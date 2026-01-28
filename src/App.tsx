@@ -42,6 +42,10 @@ import KanjiDetailPage from "./kanji/KanjiDetailPage";
 import VocabularyMaster from "./pages/Vocabulary/VocabularyMaster";
 import AnkiPage from "./pages/anki/AnkiPage";
 import AnkiUpload from "./pages/anki/AnkiUpload";
+import Stories from "./pages/story";
+import StoriesPage from "./pages/stories/StoriesPagenew";
+import StoryPagefull from "./pages/stories/storyone";
+import KanjiDemoEx from "./pages/KanjiPagedemo";
 
 function App() {
   return (
@@ -58,15 +62,18 @@ function App() {
           <Route path="/hiragana" element={<HiraganaPage />} />
           <Route path="/katakana" element={<KatakanaPage />} />
           <Route path="/kana-quiz" element={<KanaQuiz />} />
-
+ <Route path="/stories/new" element={<Stories />} />
           {/* ---------------- LEARNING HUB ---------------- */}
           <Route path="/learn" element={<LearningHub />} />
              <Route path="/master/vocab" element={<VocabularyMaster />} />
              <Route path="/anki/learn" element={<AnkiPage />} />
 
 <Route path="/anki/master" element={<AnkiUpload />} />
+   <Route path="/stories/access" element={<StoriesPage />} />
+    <Route path="/kanji/value" element={<KanjiDemoEx />} />
 
 
+        <Route path="/stories/:id" element={<StoryPagefull/>} />
           {/* ---------------- COMPREHENSIVE LEARNING ---------------- */}
           <Route path="/kanji" element={<KanjiLearning />} />
                 <Route path="/kanji/view" element={<KanjiView />} />
@@ -76,6 +83,7 @@ function App() {
           <Route path="/daily-conversation" element={<DailyConversation />} />
           <Route path="/vocabulary" element={<VocabularyBuilder />} />
           <Route path="/stories" element={<ShortStories />} />
+          
           <Route path="/community" element={<CommunityLeaderboard />} />
 
           {/* ---------------- FLASHCARDS ---------------- */}

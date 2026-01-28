@@ -82,7 +82,7 @@ const Home = () => {
   title: "Kanji Explorer",
   description: "Explore kanji with meanings, readings, stroke count, and JLPT levels",
   icon: <Book className="w-10 h-10 text-cyan-600" />,
-  link: "/kanji", // ✅ correct route
+  link: "/kanji/value", // ✅ correct route
   color: "bg-cyan-50 hover:bg-cyan-100",
   stats: "JLPT N5–N1",
    status: "new",
@@ -101,7 +101,27 @@ const Home = () => {
   status: "available",
   buttonText: "Explore All",
   progress: null
+},
+{
+  title: "Story Hub",
+  japaneseTitle: "読書ハブ",
+  description: "Explore Japanese stories and improve your reading comprehension",
+  icon: (
+    <div className="relative flex items-center justify-center">
+      <BookOpen className="w-10 h-10 text-blue-600" />
+    </div>
+  ),
+  link: "/stories/access",
+color:
+  "bg-gradient-to-br from-violet-50 via-fuchsia-50 to-pink-50 " +
+  "hover:from-violet-100 hover:to-pink-100 border-violet-200",
+
+  stats: "Stories Library",
+   status: "new",
+  buttonText: "Read Stories",
+  progress: null
 }
+
 
 
 
@@ -202,9 +222,9 @@ const Home = () => {
       icon: Play
     },
     {
-      title: "Daily Review",
-      description: "Review due flashcards",
-      action: () => navigate("/flashcards?mode=review"),
+  title: "Daily Story",
+  description: "Read today’s story and improve your comprehension",
+      action: () => navigate("/stories/access"),
       color: "from-blue-500 to-cyan-500",
       icon: Brain
     }
@@ -289,11 +309,11 @@ const Home = () => {
                 Try Kana Quiz
               </button>
               <button
-                onClick={() => navigate("/flashcards")}
+                onClick={() => navigate("/kanji/value")}
                 className="inline-flex items-center justify-center gap-2 bg-white text-blue-600 px-8 py-4 rounded-xl text-lg font-semibold hover:bg-gray-100 transition transform hover:-translate-y-1 shadow-lg hover:shadow-xl"
               >
                 <Play className="w-5 h-5" />
-                Start Learning
+                Kanji Learning
               </button>
             </div>
 
