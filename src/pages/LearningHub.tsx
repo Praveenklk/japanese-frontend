@@ -125,7 +125,21 @@ const LearningHub = () => {
       level: "All Learners",
       status: "available",
       stats: "Live Leaderboard"
-    }
+    },
+{
+  title: "N5 Vocabulary",
+  japanese: "N5語彙",
+  description: "Learn essential JLPT N5 words with meanings, examples, and practice",
+  icon: <BookOpen className="w-10 h-10 text-blue-600" />,
+  path: "/n5/voc",
+  color: "bg-blue-50 hover:bg-blue-100 border-blue-200",
+  level: "Beginner",
+  status: "new",
+  stats: "800+ Words"
+}
+
+
+
   ];
 
   const quickAccess = [

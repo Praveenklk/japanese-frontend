@@ -46,6 +46,7 @@ import Stories from "./pages/story";
 import StoriesPage from "./pages/stories/StoriesPagenew";
 import StoryPagefull from "./pages/stories/storyone";
 import KanjiDemoEx from "./pages/KanjiPagedemo";
+import N5VocabularyPage from "./pages/N5/vocabulary/N5VocabularyPage";
 
 function App() {
   return (
@@ -74,6 +75,8 @@ function App() {
 
 
         <Route path="/stories/:id" element={<StoryPagefull/>} />
+
+                <Route path="/n5/voc" element={<N5VocabularyPage/>} />
           {/* ---------------- COMPREHENSIVE LEARNING ---------------- */}
           <Route path="/kanji" element={<KanjiLearning />} />
                 <Route path="/kanji/view" element={<KanjiView />} />
