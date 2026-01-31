@@ -47,6 +47,13 @@ import StoriesPage from "./pages/stories/StoriesPagenew";
 import StoryPagefull from "./pages/stories/storyone";
 import KanjiDemoEx from "./pages/KanjiPagedemo";
 import N5VocabularyPage from "./pages/N5/vocabulary/N5VocabularyPage";
+import Vocabularynew from "./pages/N4/n4vocabulary";
+import AboutMe from "./component/aboutme";
+import JLPTHome from "./pages/jlpt/JLPTHome";
+import BasicJapanese from "./pages/jlpt/BasicJapanese";
+import JLPTLevel from "./pages/jlpt/JLPTLevel";
+import N5Dashboard from "./pages/jlpt/levels/N5Dashboard";
+import DashboardN5 from "./pages/jlpt/levels/N5Dashboard";
 
 function App() {
   return (
@@ -58,7 +65,9 @@ function App() {
           <Route path="/" element={<Home />} />
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
-
+    <Route path="/kanji/value" element={<KanjiDemoEx />} />
+    <Route path="/vocabulary/n4" element={<Vocabularynew />} />
+        <Route path="/aboutme" element={<AboutMe />} />
           {/* ---------------- KANA LEARNING ---------------- */}
           <Route path="/hiragana" element={<HiraganaPage />} />
           <Route path="/katakana" element={<KatakanaPage />} />
@@ -71,7 +80,6 @@ function App() {
 
 <Route path="/anki/master" element={<AnkiUpload />} />
    <Route path="/stories/access" element={<StoriesPage />} />
-    <Route path="/kanji/value" element={<KanjiDemoEx />} />
 
 
         <Route path="/stories/:id" element={<StoryPagefull/>} />
@@ -95,6 +103,66 @@ function App() {
             <Route path="hiragana" element={<HiraganaFlashcards />} />
             <Route path="katakana" element={<KatakanaFlashcards />} />
           </Route>
+
+    <Route path="/jlpt/n5" element={<DashboardN5 />} />
+
+    
+  <Route path="jlpt/basic" element={<BasicJapanese />}></Route>
+    <Route path="jlpt/basic/hiragana" element={<HiraganaPage />} />
+    <Route path="jlpt/basic/katakana" element={<KatakanaPage />} />
+    <Route path="jlpt/basic/kana-quiz" element={<KanaQuiz />} />
+
+<Route path="/jlpt" element={<JLPTHome />}>
+  {/* JLPT HOME PAGE */}
+  <Route index element={<JLPTLevel/>} />
+
+  {/* BASIC LEVEL */}
+  <Route path="basic" element={<BasicJapanese />}>
+    <Route path="hiragana" element={<HiraganaPage />} />
+    <Route path="katakana" element={<KatakanaPage />} />
+    <Route path="kana-quiz" element={<KanaQuiz />} />
+  </Route>
+
+  {/* Future levels stay commented */}
+
+
+
+  {/* JLPT Levels */}
+
+  <Route path="n5" element={<JLPTLevel level="N5" />}>
+    {/* <Route index element={<N5Dashboard />} /> */}
+    {/* <Route path="vocabulary" element={<VocabularyPage level="N5" />} />
+    <Route path="grammar" element={<GrammarPage level="N5" />} />
+    <Route path="kanji" element={<KanjiPage level="N5" />} />
+    <Route path="listening" element={<ListeningPage level="N5" />} />
+    <Route path="reading" element={<ReadingPage level="N5" />} />
+    <Route path="practice-test" element={<PracticeTest level="N5" />} /> */}
+  </Route>
+
+  {/* <Route path="n4" element={<JLPTLevel level="N4" />}>
+    <Route index element={<N4Dashboard />} />
+    <Route path="vocabulary" element={<VocabularyPage level="N4" />} />
+    <Route path="grammar" element={<GrammarPage level="N4" />} />
+    <Route path="kanji" element={<KanjiPage level="N4" />} />
+    <Route path="listening" element={<ListeningPage level="N4" />} />
+    <Route path="reading" element={<ReadingPage level="N4" />} />
+    <Route path="practice-test" element={<PracticeTest level="N4" />} />
+  </Route> */}
+
+  {/* Similarly for N3, N2, N1 */}
+  {/* <Route path="n3/*" element={<JLPTLevel level="N3" />} />
+  <Route path="n2/*" element={<JLPTLevel level="N2" />} />
+  <Route path="n1/*" element={<JLPTLevel level="N1" />} /> */}
+
+</Route>
+
+
+
+
+
+
+
+
 
           {/* ---------------- USER (PROTECTED) ---------------- */}
           <Route
