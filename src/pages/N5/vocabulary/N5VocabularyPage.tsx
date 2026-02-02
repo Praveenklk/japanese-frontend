@@ -1,5 +1,5 @@
 // N5VocabularyPage.tsx
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { 
   Bookmark, 
   CheckCircle, 
@@ -33,7 +33,26 @@ import {
   BookOpen,
   List,
   Sparkles,
-  ChevronRight
+  ChevronRight,
+  Zap,
+  TrendingUp,
+  VolumeX,
+  Volume1,
+  Settings,
+  Bell,
+  Calendar,
+  Clock,
+  Heart,
+  Share2,
+  Copy,
+  ExternalLink,
+  DownloadCloud,
+  UploadCloud,
+  RefreshCw,
+  ThumbsUp,
+  ThumbsDown,
+  Maximize2,
+  Minimize2
 } from 'lucide-react';
 
 interface VocabularyItem {
@@ -83,6 +102,8 @@ const N5VocabularyPage: React.FC = () => {
   ]);
   
   const [filteredVocabulary, setFilteredVocabulary] = useState<VocabularyItem[]>([]);
+  const [shuffledVocabulary, setShuffledVocabulary] = useState<VocabularyItem[]>([]);
+  const [isShuffled, setIsShuffled] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [userProgress, setUserProgress] = useState<UserProgress>({
     learnedWords: [],
@@ -104,6 +125,11 @@ const N5VocabularyPage: React.FC = () => {
   const [autoPlay, setAutoPlay] = useState(false);
   const [dailyGoal, setDailyGoal] = useState(10);
   const [todayProgress, setTodayProgress] = useState(0);
+  const [showSettings, setShowSettings] = useState(false);
+  const [animationKey, setAnimationKey] = useState(0);
+  const [isFlipping, setIsFlipping] = useState(false);
+  const [volume, setVolume] = useState(0.8);
+  const [studySpeed, setStudySpeed] = useState(3000);
   
   // Quiz States
   const [quizMode, setQuizMode] = useState<'practice' | 'timed'>('practice');
@@ -115,26 +141,48 @@ const N5VocabularyPage: React.FC = () => {
   const [quizTimeLeft, setQuizTimeLeft] = useState(60);
   const [quizTimerActive, setQuizTimerActive] = useState(false);
   const [showQuizResults, setShowQuizResults] = useState(false);
+  const [showStreakNotification, setShowStreakNotification] = useState(false);
+
+  // Refs
+  const speechSynthesisRef = useRef<SpeechSynthesis | null>(null);
+  const autoPlayTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const flipTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   // Initialize filtered vocabulary
+useEffect(() => {
+  const loadVocabularyData = async () => {
+    try {
+      const module = await import("../../Vocabulary/vocabularyN5.json");
+      const vocabData = module.default; // ✅ this is the array
+
+      setVocabulary(vocabData);
+      setFilteredVocabulary(vocabData);
+      setShuffledVocabulary([...vocabData].sort(() => Math.random() - 0.5));
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
+  loadVocabularyData();
+}, []);
+
+
+  // Initialize speech synthesis
   useEffect(() => {
-    const loadVocabularyData = async () => {
-      try {
-        // setIsLoading(true);
-        const data = await import("../../Vocabulary/vocabularyN5.json");
-        // Ensure data is an array
-        const vocabData = Array.isArray(data.default) ? data.default : [];
-        setVocabulary(vocabData);
-        setFilteredVocabulary(vocabData);
-      } catch (error) {
-        console.error("Error loading vocabulary data:", error);
-        setVocabulary([]);
-        setFilteredVocabulary([]);
-      } finally {
-        // setIsLoading(false);
+    speechSynthesisRef.current = window.speechSynthesis;
+    
+    // Cleanup speech synthesis on unmount
+    return () => {
+      if (speechSynthesisRef.current) {
+        speechSynthesisRef.current.cancel();
+      }
+      if (autoPlayTimerRef.current) {
+        clearTimeout(autoPlayTimerRef.current);
+      }
+      if (flipTimerRef.current) {
+        clearTimeout(flipTimerRef.current);
       }
     };
-    loadVocabularyData();
   }, []);
 
   // Load user progress
@@ -142,7 +190,23 @@ const N5VocabularyPage: React.FC = () => {
     try {
       const savedProgress = localStorage.getItem('n5VocabularyProgress');
       if (savedProgress) {
-        setUserProgress(JSON.parse(savedProgress));
+        const parsed = JSON.parse(savedProgress);
+        // Update streak based on last studied date
+        const today = new Date().toDateString();
+        const lastStudiedDate = new Date(parsed.lastStudied).toDateString();
+        const newStreak = today === lastStudiedDate ? parsed.streak : 
+                         (new Date().getTime() - parsed.lastStudied < 86400000 * 2) ? parsed.streak : 0;
+        
+        setUserProgress({
+          ...parsed,
+          streak: newStreak
+        });
+        
+        // Show streak notification
+        if (newStreak > 0 && newStreak % 5 === 0) {
+          setShowStreakNotification(true);
+          setTimeout(() => setShowStreakNotification(false), 5000);
+        }
       }
     } catch (error) {
       console.error("Error loading user progress:", error);
@@ -193,21 +257,34 @@ const N5VocabularyPage: React.FC = () => {
     }
 
     setFilteredVocabulary(filtered);
+    
+    // If shuffle is active, shuffle the filtered results
+    if (isShuffled) {
+      setShuffledVocabulary([...filtered].sort(() => Math.random() - 0.5));
+    } else {
+      setShuffledVocabulary(filtered);
+    }
+    
+    // Reset current index if out of bounds
     if (currentStudyIndex >= filtered.length) {
       setCurrentStudyIndex(0);
     }
-  }, [searchTerm, selectedTab, vocabulary, userProgress, currentStudyIndex]);
+  }, [searchTerm, selectedTab, vocabulary, userProgress, currentStudyIndex, isShuffled]);
 
   // Auto-play effect
   useEffect(() => {
     if (!autoPlay || !currentStudyWord) return;
 
-    const timer = setTimeout(() => {
+    autoPlayTimerRef.current = setTimeout(() => {
       goToNextWord();
-    }, 3000);
+    }, studySpeed);
 
-    return () => clearTimeout(timer);
-  }, [autoPlay, currentStudyIndex, filteredVocabulary.length]);
+    return () => {
+      if (autoPlayTimerRef.current) {
+        clearTimeout(autoPlayTimerRef.current);
+      }
+    };
+  }, [autoPlay, currentStudyIndex, filteredVocabulary.length, studySpeed]);
 
   // Quiz timer
   useEffect(() => {
@@ -252,15 +329,25 @@ const N5VocabularyPage: React.FC = () => {
     };
   }, [vocabulary, userProgress, todayProgress, dailyGoal]);
 
+  // Get current vocabulary list (shuffled or normal)
+  const getCurrentVocabulary = () => {
+    return isShuffled ? shuffledVocabulary : filteredVocabulary;
+  };
+
+  // Current study word
+  const currentStudyWord = getCurrentVocabulary()[currentStudyIndex];
+
   // Action functions
   const toggleBookmark = useCallback((word: string) => {
     setUserProgress(prev => {
       const isBookmarked = prev.bookmarkedWords.includes(word);
+      const newBookmarkedWords = isBookmarked
+        ? prev.bookmarkedWords.filter(w => w !== word)
+        : [...prev.bookmarkedWords, word];
+      
       return {
         ...prev,
-        bookmarkedWords: isBookmarked
-          ? prev.bookmarkedWords.filter(w => w !== word)
-          : [...prev.bookmarkedWords, word]
+        bookmarkedWords: newBookmarkedWords
       };
     });
   }, []);
@@ -274,6 +361,19 @@ const N5VocabularyPage: React.FC = () => {
       
       if (!isLearned) {
         setTodayProgress(prev => prev + 1);
+        
+        // Update streak
+        const today = new Date().toDateString();
+        const lastStudiedDate = new Date(prev.lastStudied).toDateString();
+        const newStreak = today === lastStudiedDate ? prev.streak : prev.streak + 1;
+        
+        return {
+          ...prev,
+          learnedWords: newLearnedWords,
+          lastStudied: Date.now(),
+          studySessions: prev.studySessions + 1,
+          streak: newStreak
+        };
       }
       
       return {
@@ -286,14 +386,23 @@ const N5VocabularyPage: React.FC = () => {
   }, []);
 
   const toggleShowAnswer = useCallback((word: string) => {
+    setIsFlipping(true);
     setShowAnswer(prev => ({
       ...prev,
       [word]: !prev[word]
     }));
+    
+    if (flipTimerRef.current) {
+      clearTimeout(flipTimerRef.current);
+    }
+    
+    flipTimerRef.current = setTimeout(() => {
+      setIsFlipping(false);
+    }, 300);
   }, []);
 
   const resetProgress = useCallback(() => {
-    if (window.confirm('Are you sure you want to reset all your progress?')) {
+    if (window.confirm('Are you sure you want to reset all your progress? This action cannot be undone.')) {
       setUserProgress({
         learnedWords: [],
         bookmarkedWords: [],
@@ -305,67 +414,97 @@ const N5VocabularyPage: React.FC = () => {
       setShowAnswer({});
       setCurrentStudyIndex(0);
       setTodayProgress(0);
+      setIsShuffled(false);
+      setAnimationKey(prev => prev + 1);
+      
+      // Show confirmation
+      alert('Progress has been reset successfully!');
     }
   }, []);
 
   const shuffleVocabulary = useCallback(() => {
-    if (filteredVocabulary.length === 0) return;
-    const shuffled = [...filteredVocabulary]
-      .sort(() => Math.random() - 0.5);
-    setFilteredVocabulary(shuffled);
-    setCurrentStudyIndex(0);
-  }, [filteredVocabulary]);
+    const currentVocab = getCurrentVocabulary();
+    if (currentVocab.length === 0) return;
+    
+    if (isShuffled) {
+      // Turn off shuffle and restore original order
+      setIsShuffled(false);
+    } else {
+      // Turn on shuffle
+      setIsShuffled(true);
+      const newShuffled = [...currentVocab].sort(() => Math.random() - 0.5);
+      setShuffledVocabulary(newShuffled);
+      setCurrentStudyIndex(0);
+    }
+    
+    setAnimationKey(prev => prev + 1);
+    setShowAnswer(prev => ({ 
+      ...prev, 
+      [currentStudyWord?.word]: false 
+    }));
+  }, [isShuffled, getCurrentVocabulary, currentStudyWord]);
 
   const goToNextWord = useCallback(() => {
-    if (filteredVocabulary.length > 0) {
-      setCurrentStudyIndex((prev) => (prev + 1) % filteredVocabulary.length);
+    const currentVocab = getCurrentVocabulary();
+    if (currentVocab.length > 0) {
+      const newIndex = (currentStudyIndex + 1) % currentVocab.length;
+      setCurrentStudyIndex(newIndex);
       setShowAnswer(prev => ({ 
         ...prev, 
-        [filteredVocabulary[currentStudyIndex]?.word]: false 
+        [currentVocab[currentStudyIndex]?.word]: false 
       }));
+      setAnimationKey(prev => prev + 1);
     }
-  }, [filteredVocabulary, currentStudyIndex]);
+  }, [getCurrentVocabulary, currentStudyIndex]);
 
   const goToPrevWord = useCallback(() => {
-    if (filteredVocabulary.length > 0) {
-      setCurrentStudyIndex((prev) => 
-        (prev - 1 + filteredVocabulary.length) % filteredVocabulary.length
-      );
+    const currentVocab = getCurrentVocabulary();
+    if (currentVocab.length > 0) {
+      const newIndex = (currentStudyIndex - 1 + currentVocab.length) % currentVocab.length;
+      setCurrentStudyIndex(newIndex);
       setShowAnswer(prev => ({ 
         ...prev, 
-        [filteredVocabulary[currentStudyIndex]?.word]: false 
+        [currentVocab[currentStudyIndex]?.word]: false 
       }));
+      setAnimationKey(prev => prev + 1);
     }
-  }, [filteredVocabulary, currentStudyIndex]);
+  }, [getCurrentVocabulary, currentStudyIndex]);
 
   const speakWord = useCallback((text: string, lang: string = 'ja-JP') => {
-    if ('speechSynthesis' in window && speechEnabled && text) {
-      speechSynthesis.cancel();
+    if ('speechSynthesis' in window && speechEnabled && text && speechSynthesisRef.current) {
+      speechSynthesisRef.current.cancel();
       const utterance = new SpeechSynthesisUtterance(text);
       utterance.lang = lang;
-      utterance.rate = 0.8;
-      speechSynthesis.speak(utterance);
+      utterance.rate = volume;
+      utterance.volume = volume;
+      utterance.pitch = 1;
+      speechSynthesisRef.current.speak(utterance);
     }
-  }, [speechEnabled]);
+  }, [speechEnabled, volume]);
 
   const flipCard = useCallback((word: string) => {
-    if (!word) return;
+    if (!word || isFlipping) return;
     toggleShowAnswer(word);
     if (speechEnabled && !showAnswer[word]) {
       speakWord(word);
     }
-  }, [toggleShowAnswer, speakWord, speechEnabled, showAnswer]);
+  }, [toggleShowAnswer, speakWord, speechEnabled, showAnswer, isFlipping]);
 
   const exportProgress = useCallback(() => {
     try {
       const dataStr = JSON.stringify(userProgress, null, 2);
       const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
-      const exportFileDefaultName = `n5-vocabulary-progress.json`;
+      const exportFileDefaultName = `n5-vocabulary-progress-${new Date().toISOString().split('T')[0]}.json`;
       
       const linkElement = document.createElement('a');
       linkElement.setAttribute('href', dataUri);
       linkElement.setAttribute('download', exportFileDefaultName);
+      document.body.appendChild(linkElement);
       linkElement.click();
+      document.body.removeChild(linkElement);
+      
+      // Show success message
+      alert('Progress exported successfully!');
     } catch (error) {
       console.error("Error exporting progress:", error);
       alert('Error exporting progress. Please try again.');
@@ -388,11 +527,13 @@ const N5VocabularyPage: React.FC = () => {
           const progress = JSON.parse(event.target?.result as string);
           if (progress && typeof progress === 'object') {
             setUserProgress(progress);
-            alert('Progress imported successfully!');
+            setTodayProgress(0);
+            alert('Progress imported successfully! Your data has been loaded.');
           } else {
-            alert('Invalid progress file format.');
+            alert('Invalid progress file format. Please select a valid export file.');
           }
         } catch (error) {
+          console.error('Import error:', error);
           alert('Error importing progress. Please check the file format.');
         }
       };
@@ -469,6 +610,7 @@ const N5VocabularyPage: React.FC = () => {
       setQuizTimeLeft(mode === 'timed' ? 60 : 0);
       setQuizTimerActive(mode === 'timed');
       setShowQuizResults(false);
+      setMobileMenuOpen(false);
     } else {
       alert('Not enough vocabulary to generate a quiz. Please load more words.');
     }
@@ -492,7 +634,7 @@ const N5VocabularyPage: React.FC = () => {
       } else {
         endQuiz();
       }
-    }, 1000);
+    }, 1500);
   }, [currentQuestion, quizQuestions, selectedAnswer]);
 
   // End quiz
@@ -518,8 +660,28 @@ const N5VocabularyPage: React.FC = () => {
     setShowQuizResults(true);
   }, [quizScore, quizQuestions, quizMode]);
 
-  // Current study word
-  const currentStudyWord = filteredVocabulary?.[currentStudyIndex];
+  // Jump to word in list
+  const jumpToWord = useCallback((word: string) => {
+    const currentVocab = getCurrentVocabulary();
+    const index = currentVocab.findIndex(item => item.word === word);
+    if (index !== -1) {
+      setCurrentStudyIndex(index);
+      setShowAnswer(prev => ({ ...prev, [word]: false }));
+      setAnimationKey(prev => prev + 1);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  }, [getCurrentVocabulary]);
+
+  // Copy word to clipboard
+  const copyToClipboard = useCallback(async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      // You could add a toast notification here
+      alert('Copied to clipboard!');
+    } catch (err) {
+      console.error('Failed to copy:', err);
+    }
+  }, []);
 
   // Quiz Component
   const QuizComponent = () => {
@@ -531,71 +693,81 @@ const N5VocabularyPage: React.FC = () => {
     const isCorrect = selectedAnswer === currentQuizQuestion.correctAnswer;
 
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
-        <div className="max-w-2xl w-full rounded-2xl overflow-hidden bg-white shadow-2xl">
-          <div className="p-6 bg-gradient-to-r from-blue-50 to-indigo-50">
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fadeIn">
+        <div className="max-w-2xl w-full rounded-2xl overflow-hidden bg-gradient-to-br from-white to-gray-50 shadow-2xl border border-gray-200">
+          <div className="p-6 bg-gradient-to-r from-blue-500 to-indigo-600 text-white">
             <div className="flex items-center justify-between mb-6">
               <div>
-                <h2 className="text-2xl font-bold text-gray-800">Quiz Time! 🎯</h2>
-                <p className="text-gray-600">{quizMode.charAt(0).toUpperCase() + quizMode.slice(1)} Mode</p>
+                <h2 className="text-2xl font-bold flex items-center gap-2">
+                  <Brain size={24} />
+                  Quiz Time! 🎯
+                </h2>
+                <p className="text-blue-100">{quizMode.charAt(0).toUpperCase() + quizMode.slice(1)} Mode • {quizQuestions.length} questions</p>
               </div>
               <div className="flex items-center gap-4">
                 {quizTimerActive && (
-                  <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-blue-500 to-indigo-500 text-white">
+                  <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-white/20 backdrop-blur-sm">
                     <Timer size={18} />
                     <span className="font-bold">{quizTimeLeft}s</span>
                   </div>
                 )}
-                <div className="text-right">
-                  <div className="text-2xl font-bold text-gray-800">{quizScore}</div>
-                  <div className="text-sm text-gray-600">Score</div>
+                <div className="text-center px-4 py-2 rounded-full bg-white/20 backdrop-blur-sm">
+                  <div className="text-xl font-bold">{quizScore}</div>
+                  <div className="text-sm text-blue-100">Score</div>
                 </div>
                 <button
-                  onClick={() => setQuizActive(false)}
-                  className="p-2 hover:bg-gray-100 rounded-xl"
+                  onClick={() => {
+                    if (window.confirm('Are you sure you want to quit the quiz?')) {
+                      setQuizActive(false);
+                    }
+                  }}
+                  className="p-2 hover:bg-white/20 rounded-xl transition-colors"
                 >
-                  <XIcon size={24} className="text-gray-600" />
+                  <XIcon size={24} className="text-white" />
                 </button>
               </div>
             </div>
             
+            {/* Progress bar */}
             <div className="relative pt-1">
-              <div className="overflow-hidden h-2 rounded-full bg-gray-200">
+              <div className="overflow-hidden h-3 rounded-full bg-white/20">
                 <div 
-                  className="h-2 rounded-full bg-gradient-to-r from-green-500 to-emerald-500 transition-all duration-300"
+                  className="h-3 rounded-full bg-gradient-to-r from-emerald-400 to-green-400 transition-all duration-500 ease-out"
                   style={{ width: `${((currentQuestion + 1) / quizQuestions.length) * 100}%` }}
                 />
               </div>
-              <div className="flex justify-between text-sm mt-2 text-gray-600">
-                <span>Question {currentQuestion + 1} of {quizQuestions.length}</span>
-                <span>{Math.round(((currentQuestion + 1) / quizQuestions.length) * 100)}%</span>
+              <div className="flex justify-between text-sm mt-2">
+                <span className="text-blue-100">Question {currentQuestion + 1} of {quizQuestions.length}</span>
+                <span className="font-bold">{Math.round(((currentQuestion + 1) / quizQuestions.length) * 100)}%</span>
               </div>
             </div>
           </div>
           
           <div className="p-8">
+            {/* Question */}
             <div className="mb-8">
-              <div className="text-2xl font-bold mb-6 text-blue-600">
+              <div className="text-2xl font-bold mb-6 text-gray-800 bg-gradient-to-r from-blue-50 to-indigo-50 p-6 rounded-xl border border-gray-100">
                 {currentQuizQuestion.question}
               </div>
             </div>
             
+            {/* Options */}
             <div className="grid grid-cols-1 gap-3">
               {currentQuizQuestion.options.map((option, index) => {
                 const isCorrectOption = option === currentQuizQuestion.correctAnswer;
                 const isSelected = selectedAnswer === option;
-                let buttonClass = '';
+                let buttonClass = 'hover:scale-[1.02] transition-transform duration-200 ';
                 
                 if (selectedAnswer !== null) {
                   if (isCorrectOption) {
-                    buttonClass = 'bg-green-100 border-green-300 text-green-800';
+                    buttonClass += 'bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-300 text-green-800 shadow-lg scale-105';
                   } else if (isSelected) {
-                    buttonClass = 'bg-red-100 border-red-300 text-red-800';
+                    buttonClass += 'bg-gradient-to-r from-red-50 to-pink-50 border-2 border-red-300 text-red-800';
                   } else {
-                    buttonClass = 'bg-gray-50 text-gray-600 opacity-75';
+                    buttonClass += 'bg-gray-50 text-gray-600 opacity-75';
                   }
                 } else {
-                  buttonClass = 'hover:bg-gray-50 hover:border-blue-300 text-gray-700';
+                  buttonClass += 'bg-white hover:bg-gray-50 border-2 border-gray-200 hover:border-blue-300 text-gray-700 shadow-sm';
                 }
                 
                 return (
@@ -603,48 +775,55 @@ const N5VocabularyPage: React.FC = () => {
                     key={index}
                     onClick={() => handleQuizAnswer(option)}
                     disabled={selectedAnswer !== null}
-                    className={`p-4 rounded-xl border-2 border-gray-200 text-left transition-all duration-200 ${buttonClass}`}
+                    className={`p-5 rounded-xl text-left transition-all duration-200 ${buttonClass}`}
                   >
                     <div className="flex items-center gap-4">
-                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
+                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-200 ${
                         selectedAnswer === null 
-                          ? 'bg-gray-100 text-gray-600' 
-                          : isCorrectOption ? 'bg-green-500 text-white' : isSelected ? 'bg-red-500 text-white' : 'bg-gray-200 text-gray-500'
+                          ? 'bg-gradient-to-br from-gray-100 to-gray-200 text-gray-600' 
+                          : isCorrectOption 
+                            ? 'bg-gradient-to-br from-green-500 to-emerald-500 text-white shadow-lg' 
+                            : isSelected 
+                              ? 'bg-gradient-to-br from-red-500 to-pink-500 text-white' 
+                              : 'bg-gray-200 text-gray-500'
                       }`}>
-                        <span className="font-bold">{String.fromCharCode(65 + index)}</span>
+                        <span className="font-bold text-lg">{String.fromCharCode(65 + index)}</span>
                       </div>
-                      <span className="font-medium">{option}</span>
+                      <span className="font-medium text-lg">{option}</span>
                     </div>
                   </button>
                 );
               })}
             </div>
             
+            {/* Feedback */}
             {selectedAnswer !== null && (
-              <div className={`mt-6 p-4 rounded-xl ${
+              <div className={`mt-6 p-5 rounded-xl animate-fadeIn ${
                 isCorrect
-                  ? 'bg-green-50 border border-green-200'
-                  : 'bg-red-50 border border-red-200'
+                  ? 'bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200'
+                  : 'bg-gradient-to-r from-red-50 to-pink-50 border border-red-200'
               }`}>
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-4">
                   {isCorrect ? (
                     <>
-                      <div className="w-10 h-10 rounded-lg bg-green-500 flex items-center justify-center">
-                        <Check size={24} className="text-white" />
+                      <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-green-500 to-emerald-500 flex items-center justify-center shadow-lg">
+                        <Check size={28} className="text-white" />
                       </div>
                       <div>
-                        <h4 className="font-bold text-lg text-green-800">Correct! 🎉</h4>
-                        <p className="text-green-600">Great job! You got it right!</p>
+                        <h4 className="font-bold text-xl text-green-800">Correct! 🎉</h4>
+                        <p className="text-green-600">Excellent! You're getting better!</p>
                       </div>
                     </>
                   ) : (
                     <>
-                      <div className="w-10 h-10 rounded-lg bg-red-500 flex items-center justify-center">
-                        <XIcon size={24} className="text-white" />
+                      <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-red-500 to-pink-500 flex items-center justify-center shadow-lg">
+                        <XIcon size={28} className="text-white" />
                       </div>
                       <div>
-                        <h4 className="font-bold text-lg text-red-800">Not quite</h4>
-                        <p className="text-red-600">Correct answer: {currentQuizQuestion.correctAnswer}</p>
+                        <h4 className="font-bold text-xl text-red-800">Not quite right</h4>
+                        <p className="text-red-600">
+                          Correct answer: <span className="font-bold">{currentQuizQuestion.correctAnswer}</span>
+                        </p>
                       </div>
                     </>
                   )}
@@ -658,9 +837,21 @@ const N5VocabularyPage: React.FC = () => {
                       endQuiz();
                     }
                   }}
-                  className="mt-4 w-full py-3 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-lg font-semibold hover:shadow-lg transition-all duration-200"
+                  className="mt-5 w-full py-4 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-xl font-bold hover:shadow-xl transition-all duration-200 transform hover:scale-[1.02]"
                 >
-                  {currentQuestion < quizQuestions.length - 1 ? 'Next Question →' : 'Finish Quiz'}
+                  <div className="flex items-center justify-center gap-2">
+                    {currentQuestion < quizQuestions.length - 1 ? (
+                      <>
+                        <span>Next Question</span>
+                        <ArrowRight size={20} />
+                      </>
+                    ) : (
+                      <>
+                        <span>Finish Quiz</span>
+                        <Trophy size={20} />
+                      </>
+                    )}
+                  </div>
                 </button>
               </div>
             )}
@@ -675,42 +866,46 @@ const N5VocabularyPage: React.FC = () => {
     if (!showQuizResults) return null;
 
     const accuracy = quizQuestions.length > 0 ? Math.round((quizScore / quizQuestions.length) * 100) : 0;
+    const performance = accuracy >= 90 ? 'Excellent! 🌟' : 
+                       accuracy >= 70 ? 'Good Job! 👍' : 
+                       accuracy >= 50 ? 'Keep Practicing! 📚' : 'Need More Practice 💪';
 
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
-        <div className="max-w-md w-full rounded-2xl overflow-hidden bg-white shadow-2xl">
-          <div className="p-8 text-center bg-gradient-to-r from-blue-50 to-indigo-50">
-            <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gradient-to-r from-yellow-400 to-orange-400 mb-6">
-              <Trophy size={32} className="text-white" />
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fadeIn">
+        <div className="max-w-md w-full rounded-2xl overflow-hidden bg-gradient-to-br from-white to-gray-50 shadow-2xl border border-gray-200">
+          <div className="p-8 text-center bg-gradient-to-r from-blue-500 to-indigo-600 text-white">
+            <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-gradient-to-r from-yellow-400 via-orange-400 to-red-400 mb-6 shadow-lg animate-pulse">
+              <Trophy size={36} className="text-white" />
             </div>
             
-            <h2 className="text-2xl font-bold mb-4 text-gray-800">
+            <h2 className="text-3xl font-bold mb-2">
               Quiz Complete!
             </h2>
+            <p className="text-blue-100 mb-6">{performance}</p>
             
             <div className="grid grid-cols-2 gap-4 mb-8">
-              <div className="p-4 rounded-xl bg-white/50">
-                <div className="text-2xl font-bold text-blue-600">
-                  {quizScore}
+              <div className="p-4 rounded-xl bg-white/20 backdrop-blur-sm">
+                <div className="text-3xl font-bold">
+                  {quizScore}/{quizQuestions.length}
                 </div>
-                <div className="text-sm text-gray-600">Score</div>
+                <div className="text-sm text-blue-100">Score</div>
               </div>
               
-              <div className="p-4 rounded-xl bg-white/50">
-                <div className="text-2xl font-bold text-green-600">
+              <div className="p-4 rounded-xl bg-white/20 backdrop-blur-sm">
+                <div className="text-3xl font-bold">
                   {accuracy}%
                 </div>
-                <div className="text-sm text-gray-600">Accuracy</div>
+                <div className="text-sm text-blue-100">Accuracy</div>
               </div>
             </div>
             
-            <div className="flex gap-3">
+            <div className="flex flex-col sm:flex-row gap-3">
               <button
                 onClick={() => {
                   setShowQuizResults(false);
                   setQuizActive(false);
                 }}
-                className="flex-1 py-3 bg-gray-200 text-gray-700 rounded-lg font-semibold hover:bg-gray-300 transition-all duration-200"
+                className="flex-1 py-3 bg-white/20 backdrop-blur-sm text-white rounded-xl font-bold hover:bg-white/30 transition-all duration-200"
               >
                 Back to Study
               </button>
@@ -720,12 +915,43 @@ const N5VocabularyPage: React.FC = () => {
                   setShowQuizResults(false);
                   startQuiz(quizMode);
                 }}
-                className="flex-1 py-3 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-lg font-semibold hover:shadow-lg transition-all duration-200"
+                className="flex-1 py-3 bg-gradient-to-r from-emerald-500 to-green-500 text-white rounded-xl font-bold hover:shadow-xl transition-all duration-200 transform hover:scale-[1.02]"
               >
                 Try Again
               </button>
             </div>
           </div>
+          
+          <div className="p-6 text-center">
+            <div className="text-sm text-gray-600">
+              You've completed {userProgress.quizScores.length} quizzes
+            </div>
+            {userProgress.quizScores.length > 0 && (
+              <div className="text-sm text-gray-600 mt-2">
+                Best score: {Math.max(...userProgress.quizScores.map(s => s.score))}/{userProgress.quizScores[0]?.total || 10}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // Streak Notification
+  const StreakNotification = () => {
+    if (!showStreakNotification || userProgress.streak < 5) return null;
+
+    return (
+      <div className="fixed top-4 right-4 z-50 animate-slideIn">
+        <div className="bg-gradient-to-r from-orange-500 to-red-500 text-white p-4 rounded-xl shadow-xl flex items-center gap-3">
+          <Flame className="animate-pulse" />
+          <div>
+            <div className="font-bold">🔥 {userProgress.streak} Day Streak!</div>
+            <div className="text-sm text-orange-100">Keep up the great work!</div>
+          </div>
+          <button onClick={() => setShowStreakNotification(false)} className="ml-4">
+            <XIcon size={18} />
+          </button>
         </div>
       </div>
     );
@@ -734,7 +960,7 @@ const N5VocabularyPage: React.FC = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 text-gray-800">
       {/* Header */}
-      <header className="sticky top-0 z-40 bg-white/90 backdrop-blur-sm border-b border-gray-100 shadow-sm">
+      <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-sm border-b border-gray-100 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 py-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
@@ -746,15 +972,21 @@ const N5VocabularyPage: React.FC = () => {
               </button>
               <div className="flex items-center gap-3">
                 <div className="relative">
-                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center">
-                    <span className="text-white font-bold">N5</span>
+                  <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-lg">
+                    <span className="text-white font-bold text-xl">N5</span>
+                  </div>
+                  <div className="absolute -top-1 -right-1 w-5 h-5 bg-gradient-to-br from-emerald-500 to-green-500 rounded-full flex items-center justify-center">
+                    <span className="text-white text-xs font-bold">{vocabulary.length}</span>
                   </div>
                 </div>
                 <div>
-                  <h1 className="text-xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+                  <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
                     Japanese N5 Vocabulary
                   </h1>
-                  <p className="text-sm text-gray-600">{vocabulary.length} Essential Words</p>
+                  <p className="text-sm text-gray-600 flex items-center gap-1">
+                    <Target size={14} />
+                    {stats.learnedWords} mastered • {stats.bookmarkedWords} bookmarked
+                  </p>
                 </div>
               </div>
             </div>
@@ -762,10 +994,10 @@ const N5VocabularyPage: React.FC = () => {
             <div className="flex items-center gap-3">
               <button
                 onClick={() => startQuiz('practice')}
-                className="px-4 py-2 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-lg font-semibold hover:shadow-lg transition-all duration-200 flex items-center gap-2"
+                className="px-5 py-2.5 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl font-bold hover:shadow-xl transition-all duration-200 flex items-center gap-2 hover:scale-105"
               >
                 <Brain size={18} />
-                <span>Quiz</span>
+                <span>Start Quiz</span>
               </button>
               
               <button
@@ -775,6 +1007,14 @@ const N5VocabularyPage: React.FC = () => {
               >
                 {darkMode ? <Sun size={20} className="text-gray-600" /> : <Moon size={20} className="text-gray-600" />}
               </button>
+
+              <button
+                onClick={() => setShowSettings(!showSettings)}
+                className="p-2 hover:bg-gray-100 rounded-xl transition-colors"
+                title="Settings"
+              >
+                <Settings size={20} className="text-gray-600" />
+              </button>
             </div>
           </div>
         </div>
@@ -782,13 +1022,13 @@ const N5VocabularyPage: React.FC = () => {
 
       {/* Mobile Menu */}
       {mobileMenuOpen && (
-        <div className="fixed inset-0 z-30 pt-20 bg-white/95 backdrop-blur-sm lg:hidden">
+        <div className="fixed inset-0 z-30 pt-20 bg-white/95 backdrop-blur-sm lg:hidden animate-fadeIn">
           <div className="p-6 space-y-2">
             {[
-              { id: 'all', icon: Home, label: 'All Words', count: vocabulary.length },
-              { id: 'unlearned', icon: Target, label: 'To Learn', count: vocabulary.length - userProgress.learnedWords.length },
-              { id: 'bookmarked', icon: Star, label: 'Bookmarked', count: userProgress.bookmarkedWords.length },
-              { id: 'learned', icon: Award, label: 'Mastered', count: userProgress.learnedWords.length },
+              { id: 'all', icon: Home, label: 'All Words', count: vocabulary.length, color: 'blue' },
+              { id: 'unlearned', icon: Target, label: 'To Learn', count: vocabulary.length - userProgress.learnedWords.length, color: 'red' },
+              { id: 'bookmarked', icon: Star, label: 'Bookmarked', count: userProgress.bookmarkedWords.length, color: 'amber' },
+              { id: 'learned', icon: Award, label: 'Mastered', count: userProgress.learnedWords.length, color: 'green' },
             ].map((tab) => (
               <button
                 key={tab.id}
@@ -796,21 +1036,102 @@ const N5VocabularyPage: React.FC = () => {
                   setSelectedTab(tab.id as any);
                   setMobileMenuOpen(false);
                 }}
-                className={`w-full flex items-center justify-between p-4 rounded-xl transition-all duration-200 ${
+                className={`w-full flex items-center justify-between p-5 rounded-xl transition-all duration-200 ${
                   selectedTab === tab.id
-                    ? 'bg-gradient-to-r from-blue-500 to-indigo-500 text-white'
+                    ? `bg-gradient-to-r from-${tab.color}-500 to-${tab.color}-600 text-white shadow-lg`
                     : 'hover:bg-gray-100'
                 }`}
               >
                 <div className="flex items-center gap-4">
-                  <tab.icon size={22} />
-                  <span className="font-medium">{tab.label}</span>
+                  <tab.icon size={24} />
+                  <div className="text-left">
+                    <span className="font-bold text-lg">{tab.label}</span>
+                    <p className="text-sm opacity-90">{tab.count} words</p>
+                  </div>
                 </div>
-                <span className={`font-bold ${
-                  selectedTab === tab.id ? 'text-white/90' : 'text-gray-600'
-                }`}>{tab.count}</span>
+                <ChevronRight className={selectedTab === tab.id ? 'text-white/90' : 'text-gray-400'} />
               </button>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* Settings Panel */}
+      {showSettings && (
+        <div className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 animate-fadeIn">
+          <div className="max-w-md w-full rounded-2xl bg-white p-6 shadow-2xl">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-xl font-bold text-gray-800">Settings</h3>
+              <button onClick={() => setShowSettings(false)}>
+                <XIcon size={24} className="text-gray-500 hover:text-gray-700" />
+              </button>
+            </div>
+            
+            <div className="space-y-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Daily Goal</label>
+                <div className="flex items-center gap-4">
+                  <input
+                    type="range"
+                    min="5"
+                    max="50"
+                    step="5"
+                    value={dailyGoal}
+                    onChange={(e) => setDailyGoal(Number(e.target.value))}
+                    className="flex-1"
+                  />
+                  <span className="font-bold text-lg text-blue-600">{dailyGoal} words</span>
+                </div>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Speech Volume</label>
+                <div className="flex items-center gap-4">
+                  <VolumeX size={20} className="text-gray-500" />
+                  <input
+                    type="range"
+                    min="0"
+                    max="1"
+                    step="0.1"
+                    value={volume}
+                    onChange={(e) => setVolume(Number(e.target.value))}
+                    className="flex-1"
+                  />
+                  <Volume2 size={20} className="text-gray-500" />
+                  <span className="font-bold text-lg text-blue-600">{Math.round(volume * 100)}%</span>
+                </div>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Auto-play Speed</label>
+                <div className="flex items-center gap-4">
+                  <span className="text-sm text-gray-600">Slow</span>
+                  <input
+                    type="range"
+                    min="1000"
+                    max="10000"
+                    step="1000"
+                    value={studySpeed}
+                    onChange={(e) => setStudySpeed(Number(e.target.value))}
+                    className="flex-1"
+                  />
+                  <span className="text-sm text-gray-600">Fast</span>
+                  <span className="font-bold text-lg text-blue-600">{studySpeed/1000}s</span>
+                </div>
+              </div>
+              
+              <div className="pt-4 border-t border-gray-200">
+                <button
+                  onClick={() => {
+                    setShowSettings(false);
+                    resetProgress();
+                  }}
+                  className="w-full py-3 bg-gradient-to-r from-red-500 to-pink-600 text-white rounded-xl font-bold hover:shadow-xl transition-all duration-200"
+                >
+                  Reset All Progress
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
@@ -819,11 +1140,11 @@ const N5VocabularyPage: React.FC = () => {
       <div className="max-w-7xl mx-auto px-4 py-6">
         {/* Stats Dashboard */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-          <div className="rounded-xl p-4 bg-white shadow-sm border border-gray-100">
+          <div className="rounded-2xl p-5 bg-gradient-to-br from-white to-gray-50 shadow-lg border border-gray-100 hover:shadow-xl transition-all duration-300">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center">
-                  <Target size={20} className="text-white" />
+                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-lg">
+                  <Target size={24} className="text-white" />
                 </div>
                 <div>
                   <h3 className="font-bold text-gray-700">Progress</h3>
@@ -831,51 +1152,57 @@ const N5VocabularyPage: React.FC = () => {
                 </div>
               </div>
               <div className="text-right">
-                <div className="text-2xl font-bold text-blue-600">{stats.progressPercentage}%</div>
+                <div className="text-3xl font-bold text-blue-600">{stats.progressPercentage}%</div>
               </div>
             </div>
             <div className="mt-4">
-              <div className="overflow-hidden h-2 rounded-full bg-gray-200">
+              <div className="overflow-hidden h-3 rounded-full bg-gray-200">
                 <div 
-                  className="h-2 rounded-full bg-gradient-to-r from-blue-500 to-indigo-500 transition-all duration-500"
+                  className="h-3 rounded-full bg-gradient-to-r from-blue-500 to-indigo-500 transition-all duration-1000 ease-out"
                   style={{ width: `${stats.progressPercentage}%` }}
                 />
               </div>
             </div>
           </div>
           
-          <div className="rounded-xl p-4 bg-white shadow-sm border border-gray-100">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center">
-                <CheckCircle size={20} className="text-white" />
+          <div className="rounded-2xl p-5 bg-gradient-to-br from-white to-gray-50 shadow-lg border border-gray-100 hover:shadow-xl transition-all duration-300">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center shadow-lg">
+                <CheckCircle size={24} className="text-white" />
               </div>
               <div>
                 <div className="text-sm text-gray-600">Mastered</div>
-                <div className="text-2xl font-bold text-green-600">{stats.learnedWords}</div>
+                <div className="text-3xl font-bold text-green-600">{stats.learnedWords}</div>
+                <div className="text-xs text-gray-500">{stats.todayProgress} today</div>
               </div>
             </div>
           </div>
           
-          <div className="rounded-xl p-4 bg-white shadow-sm border border-gray-100">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-yellow-500 to-amber-600 flex items-center justify-center">
-                <Star size={20} className="text-white" />
+          <div className="rounded-2xl p-5 bg-gradient-to-br from-white to-gray-50 shadow-lg border border-gray-100 hover:shadow-xl transition-all duration-300">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-yellow-500 to-amber-600 flex items-center justify-center shadow-lg">
+                <Star size={24} className="text-white" />
               </div>
               <div>
                 <div className="text-sm text-gray-600">Bookmarks</div>
-                <div className="text-2xl font-bold text-amber-600">{stats.bookmarkedWords}</div>
+                <div className="text-3xl font-bold text-amber-600">{stats.bookmarkedWords}</div>
+                <div className="text-xs text-gray-500">Favorites</div>
               </div>
             </div>
           </div>
           
-          <div className="rounded-xl p-4 bg-white shadow-sm border border-gray-100">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-orange-500 to-red-600 flex items-center justify-center">
-                <Flame size={20} className="text-white" />
+          <div className="rounded-2xl p-5 bg-gradient-to-br from-white to-gray-50 shadow-lg border border-gray-100 hover:shadow-xl transition-all duration-300">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-orange-500 to-red-600 flex items-center justify-center shadow-lg">
+                <Flame size={24} className="text-white" />
               </div>
               <div>
                 <div className="text-sm text-gray-600">Streak</div>
-                <div className="text-2xl font-bold text-orange-600">{stats.streak} days</div>
+                <div className="text-3xl font-bold text-orange-600">{stats.streak} days</div>
+                <div className="text-xs text-gray-500 flex items-center gap-1">
+                  <Calendar size={12} />
+                  Keep going!
+                </div>
               </div>
             </div>
           </div>
@@ -886,32 +1213,39 @@ const N5VocabularyPage: React.FC = () => {
           {/* Left Column - Study Area */}
           <div className="lg:col-span-2 space-y-8">
             {/* Study Card */}
-            <div className="rounded-2xl overflow-hidden bg-white shadow-sm border border-gray-100">
-              <div className="p-6 bg-gradient-to-r from-blue-50 to-indigo-50">
+            <div key={animationKey} className="rounded-2xl overflow-hidden bg-gradient-to-br from-white to-gray-50 shadow-xl border border-gray-100 transform transition-all duration-300 hover:shadow-2xl">
+              <div className="p-6 bg-gradient-to-r from-blue-500 to-indigo-600 text-white">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center">
-                      <BookOpen size={24} className="text-white" />
+                    <div className="w-12 h-12 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center">
+                      <BookOpen size={28} className="text-white" />
                     </div>
                     <div>
-                      <h2 className="text-xl font-bold text-gray-800">Study Mode</h2>
-                      <p className="text-gray-600">Word {currentStudyIndex + 1} of {filteredVocabulary.length}</p>
+                      <h2 className="text-2xl font-bold">Study Mode</h2>
+                      <p className="text-blue-100">
+                        {isShuffled ? '🔀 Shuffled • ' : ''}
+                        Word {currentStudyIndex + 1} of {getCurrentVocabulary().length}
+                      </p>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => speakWord(currentStudyWord?.word || '')}
-                      className="p-2 rounded-lg bg-white text-gray-600 hover:bg-gray-50 border border-gray-200 transition-colors"
+                      className="p-2 rounded-xl bg-white/20 text-white hover:bg-white/30 backdrop-blur-sm transition-colors"
                       title="Listen"
                     >
-                      <Volume2 size={20} />
+                      <Volume2 size={22} />
                     </button>
                     <button
                       onClick={shuffleVocabulary}
-                      className="p-2 rounded-lg bg-white text-gray-600 hover:bg-gray-50 border border-gray-200 transition-colors"
-                      title="Shuffle"
+                      className={`p-2 rounded-xl backdrop-blur-sm transition-all duration-300 ${
+                        isShuffled 
+                          ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg' 
+                          : 'bg-white/20 text-white hover:bg-white/30'
+                      }`}
+                      title={isShuffled ? "Turn off shuffle" : "Shuffle words"}
                     >
-                      <Shuffle size={20} />
+                      <Shuffle size={22} />
                     </button>
                   </div>
                 </div>
@@ -922,18 +1256,18 @@ const N5VocabularyPage: React.FC = () => {
                   {/* Word Display */}
                   <div className="p-8 text-center">
                     <div className="mb-8">
-                      <div className="text-6xl font-bold mb-4 text-gray-800">
+                      <div className={`text-7xl font-bold mb-6 text-gray-800 transition-all duration-300 ${isFlipping ? 'scale-95 opacity-80' : 'scale-100 opacity-100'}`}>
                         {currentStudyWord.word}
                       </div>
                       
-                      <div className="space-y-2">
+                      <div className="space-y-3">
                         {showFurigana && (
-                          <div className="text-xl text-gray-600">
+                          <div className="text-2xl text-gray-600 font-medium">
                             {currentStudyWord.furigana}
                           </div>
                         )}
                         {showRomaji && (
-                          <div className="text-lg text-gray-500">
+                          <div className="text-xl text-gray-500 italic">
                             {currentStudyWord.romaji}
                           </div>
                         )}
@@ -942,135 +1276,182 @@ const N5VocabularyPage: React.FC = () => {
                     
                     {/* Answer Section */}
                     {showAnswer[currentStudyWord.word] ? (
-                      <div className="animate-fadeIn">
-                        <div className="text-3xl font-bold mb-6 text-green-600">
+                      <div className={`animate-fadeIn ${isFlipping ? 'opacity-80' : 'opacity-100'}`}>
+                        <div className="text-4xl font-bold mb-8 text-green-600 bg-gradient-to-r from-green-50 to-emerald-50 p-6 rounded-2xl border border-green-200">
                           {currentStudyWord.meaning}
                         </div>
                         {currentStudyWord.example && (
-                          <div className="p-4 rounded-lg bg-gray-50">
-                            <div className="text-sm font-semibold text-gray-600 mb-2">Example Sentence</div>
-                            <div className="text-lg">{currentStudyWord.example}</div>
+                          <div className="p-5 rounded-xl bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-100">
+                            <div className="text-sm font-semibold text-gray-600 mb-3 flex items-center gap-2">
+                              <Sparkles size={16} />
+                              Example Sentence
+                            </div>
+                            <div className="text-xl text-gray-700 mb-3">{currentStudyWord.example}</div>
+                            <div className="text-sm text-gray-500">
+                              Practice reading this sentence aloud!
+                            </div>
                           </div>
                         )}
                       </div>
                     ) : (
                       <button
-                        onClick={() => toggleShowAnswer(currentStudyWord.word)}
-                        className="px-8 py-3 bg-gradient-to-r from-blue-500 to-indigo-600 text-white font-semibold rounded-lg hover:shadow-lg transition-all duration-200"
+                        onClick={() => flipCard(currentStudyWord.word)}
+                        className="px-10 py-4 bg-gradient-to-r from-blue-500 to-indigo-600 text-white font-bold rounded-xl hover:shadow-2xl transition-all duration-200 transform hover:scale-105 active:scale-95"
                       >
-                        <div className="flex items-center justify-center gap-2">
-                          <Eye size={20} />
-                          <span>Reveal Meaning</span>
+                        <div className="flex items-center justify-center gap-3">
+                          <Eye size={24} />
+                          <span className="text-lg">Reveal Meaning</span>
                         </div>
                       </button>
                     )}
                   </div>
                   
                   {/* Action Buttons */}
-                  <div className="p-6 border-t border-gray-100">
-                    <div className="grid grid-cols-2 gap-3">
+                  <div className="p-6 border-t border-gray-100 bg-gray-50/50">
+                    {/* Navigation */}
+                    <div className="grid grid-cols-2 gap-4 mb-4">
                       <button
                         onClick={goToPrevWord}
-                        className="flex items-center justify-center gap-2 py-3 rounded-lg bg-gray-50 text-gray-700 hover:bg-gray-100 transition-colors"
+                        className="flex items-center justify-center gap-3 py-4 rounded-xl bg-white text-gray-700 hover:bg-gray-50 transition-all duration-200 border border-gray-200 hover:border-blue-300 disabled:opacity-50 disabled:cursor-not-allowed"
                         disabled={currentStudyIndex === 0}
                       >
-                        <ArrowLeft size={20} />
-                        <span className="font-medium">Previous</span>
+                        <ArrowLeft size={22} />
+                        <span className="font-bold">Previous</span>
                       </button>
                       
                       <button
                         onClick={goToNextWord}
-                        className="flex items-center justify-center gap-2 py-3 rounded-lg bg-gradient-to-r from-blue-500 to-indigo-600 text-white hover:shadow-lg transition-all duration-200"
+                        className="flex items-center justify-center gap-3 py-4 rounded-xl bg-gradient-to-r from-blue-500 to-indigo-600 text-white hover:shadow-xl transition-all duration-200 transform hover:scale-[1.02]"
                       >
-                        <span className="font-medium">Next</span>
-                        <ArrowRight size={20} />
+                        <span className="font-bold">Next</span>
+                        <ArrowRight size={22} />
                       </button>
                     </div>
                     
-                    <div className="grid grid-cols-2 gap-3 mt-3">
+                    {/* Word Actions */}
+                    <div className="grid grid-cols-2 gap-4">
                       <button
                         onClick={() => toggleBookmark(currentStudyWord.word)}
-                        className={`flex items-center justify-center gap-2 py-3 rounded-lg transition-colors ${
+                        className={`flex items-center justify-center gap-3 py-4 rounded-xl transition-all duration-200 ${
                           userProgress.bookmarkedWords.includes(currentStudyWord.word)
-                            ? 'bg-amber-50 text-amber-600 border border-amber-200'
-                            : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
+                            ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-lg'
+                            : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-200 hover:border-amber-300'
                         }`}
                       >
-                        <Star size={20} fill={userProgress.bookmarkedWords.includes(currentStudyWord.word) ? 'currentColor' : 'none'} />
-                        <span className="font-medium">
+                        <Star size={22} fill={userProgress.bookmarkedWords.includes(currentStudyWord.word) ? 'currentColor' : 'none'} />
+                        <span className="font-bold">
                           {userProgress.bookmarkedWords.includes(currentStudyWord.word) ? 'Bookmarked' : 'Bookmark'}
                         </span>
                       </button>
                       
                       <button
                         onClick={() => toggleLearned(currentStudyWord.word)}
-                        className={`flex items-center justify-center gap-2 py-3 rounded-lg transition-colors ${
+                        className={`flex items-center justify-center gap-3 py-4 rounded-xl transition-all duration-200 ${
                           userProgress.learnedWords.includes(currentStudyWord.word)
-                            ? 'bg-green-50 text-green-600 border border-green-200'
-                            : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
+                            ? 'bg-gradient-to-r from-green-500 to-emerald-500 text-white shadow-lg'
+                            : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-200 hover:border-green-300'
                         }`}
                       >
                         {userProgress.learnedWords.includes(currentStudyWord.word) ? (
-                          <CheckCircle size={20} />
+                          <CheckCircle size={22} />
                         ) : (
-                          <Circle size={20} />
+                          <Circle size={22} />
                         )}
-                        <span className="font-medium">
-                          {userProgress.learnedWords.includes(currentStudyWord.word) ? 'Mastered' : 'Mark as Learned'}
+                        <span className="font-bold">
+                          {userProgress.learnedWords.includes(currentStudyWord.word) ? 'Mastered' : 'Mark Learned'}
                         </span>
+                      </button>
+                    </div>
+                    
+                    {/* Auto-play Toggle */}
+                    <div className="mt-4 pt-4 border-t border-gray-200">
+                      <button
+                        onClick={() => setAutoPlay(!autoPlay)}
+                        className={`w-full flex items-center justify-center gap-3 py-3 rounded-xl transition-all duration-200 ${
+                          autoPlay
+                            ? 'bg-gradient-to-r from-emerald-500 to-green-500 text-white shadow-lg'
+                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                        }`}
+                      >
+                        {autoPlay ? <Pause size={20} /> : <Play size={20} />}
+                        <span className="font-bold">
+                          {autoPlay ? 'Auto-play: ON' : 'Auto-play: OFF'}
+                        </span>
+                        {autoPlay && (
+                          <span className="text-sm opacity-90">{studySpeed/1000}s per word</span>
+                        )}
                       </button>
                     </div>
                   </div>
                 </>
               ) : (
                 <div className="p-12 text-center">
-                  <Search className="w-16 h-16 mx-auto mb-4 text-gray-300" />
-                  <h3 className="text-xl font-bold mb-2 text-gray-700">No words found</h3>
-                  <p className="text-gray-500">Try changing your filters or search terms</p>
+                  <Search className="w-20 h-20 mx-auto mb-6 text-gray-300" />
+                  <h3 className="text-2xl font-bold mb-3 text-gray-700">No words found</h3>
+                  <p className="text-gray-500 mb-6">Try changing your filters or search terms</p>
+                  <button
+                    onClick={() => {
+                      setSearchTerm('');
+                      setSelectedTab('all');
+                    }}
+                    className="px-6 py-3 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-xl font-bold hover:shadow-xl transition-all duration-200"
+                  >
+                    Show All Words
+                  </button>
                 </div>
               )}
             </div>
             
             {/* Vocabulary List */}
-            <div className="rounded-2xl overflow-hidden bg-white shadow-sm border border-gray-100">
-              <div className="p-6 bg-gradient-to-r from-blue-50 to-indigo-50">
+            <div className="rounded-2xl overflow-hidden bg-gradient-to-br from-white to-gray-50 shadow-lg border border-gray-100">
+              <div className="p-6 bg-gradient-to-r from-blue-500 to-indigo-600 text-white">
                 <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
                   <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center">
-                      <List size={24} className="text-white" />
+                    <div className="w-12 h-12 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center">
+                      <List size={28} className="text-white" />
                     </div>
                     <div>
-                      <h3 className="text-xl font-bold text-gray-800">Vocabulary List</h3>
-                      <p className="text-gray-600">{filteredVocabulary.length} words</p>
+                      <h3 className="text-2xl font-bold">Vocabulary List</h3>
+                      <p className="text-blue-100">
+                        {filteredVocabulary.length} words • {selectedTab}
+                      </p>
                     </div>
                   </div>
                   
                   <div className="flex flex-col sm:flex-row gap-3">
-                    <div className="relative flex-1 sm:w-64">
-                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+                    <div className="relative flex-1 sm:w-72">
+                      <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
                       <input
                         type="text"
-                        placeholder="Search words or meanings..."
+                        placeholder="Search words, meanings, or readings..."
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
-                        className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-300 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-700"
+                        className="w-full pl-12 pr-4 py-3 rounded-xl border-0 bg-white/20 backdrop-blur-sm text-white placeholder-blue-200 focus:outline-none focus:ring-2 focus:ring-white/50 focus:bg-white/30 transition-all"
                       />
+                      {searchTerm && (
+                        <button
+                          onClick={() => setSearchTerm('')}
+                          className="absolute right-3 top-1/2 transform -translate-y-1/2 text-blue-200 hover:text-white"
+                        >
+                          <XIcon size={18} />
+                        </button>
+                      )}
                     </div>
                     
                     <div className="flex gap-2">
                       {[
-                        { id: 'all', label: 'All' },
-                        { id: 'unlearned', label: 'To Learn' },
-                        { id: 'bookmarked', label: 'Bookmarked' },
-                        { id: 'learned', label: 'Mastered' }
+                        { id: 'all', label: 'All', color: 'blue' },
+                        { id: 'unlearned', label: 'To Learn', color: 'red' },
+                        { id: 'bookmarked', label: 'Bookmarked', color: 'amber' },
+                        { id: 'learned', label: 'Mastered', color: 'green' }
                       ].map((tab) => (
                         <button
                           key={tab.id}
                           onClick={() => setSelectedTab(tab.id as any)}
-                          className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                          className={`px-4 py-2.5 rounded-xl font-bold transition-all duration-200 ${
                             selectedTab === tab.id
-                              ? 'bg-gradient-to-r from-blue-500 to-indigo-600 text-white'
-                              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                              ? `bg-gradient-to-r from-${tab.color}-500 to-${tab.color}-600 text-white shadow-lg`
+                              : 'bg-white/20 text-white hover:bg-white/30'
                           }`}
                         >
                           {tab.label}
@@ -1083,59 +1464,92 @@ const N5VocabularyPage: React.FC = () => {
               
               <div className="overflow-hidden">
                 <div className="overflow-y-auto max-h-[500px]">
-                  {filteredVocabulary.map((item, index) => (
-                    <div
-                      key={`${item.word}-${index}`}
-                      className="p-4 border-b border-gray-100 hover:bg-gray-50 transition-colors group"
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-start gap-4">
-                          <div className="flex-shrink-0">
-                            <div className="text-2xl font-bold text-gray-800">
-                              {item.word}
-                            </div>
-                            <div className="text-sm text-gray-500 mt-1">{item.furigana}</div>
-                          </div>
-                          
-                          <div>
-                            <div className="text-lg font-medium text-gray-700 mb-1">{item.meaning}</div>
-                            <div className="text-sm text-gray-500">{item.romaji}</div>
-                            {item.example && (
-                              <div className="mt-2 p-2 rounded bg-gray-100 text-sm text-gray-600">
-                                {item.example}
+                  {filteredVocabulary.length === 0 ? (
+                    <div className="p-12 text-center">
+                      <Search className="w-16 h-16 mx-auto mb-4 text-gray-300" />
+                      <h3 className="text-xl font-bold mb-2 text-gray-700">No words match your filters</h3>
+                      <p className="text-gray-500">Try a different search term or category</p>
+                    </div>
+                  ) : (
+                    filteredVocabulary.map((item, index) => (
+                      <div
+                        key={`${item.word}-${index}`}
+                        className="p-5 border-b border-gray-100 hover:bg-gray-50/50 transition-all duration-200 group"
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-start gap-5">
+                            <div className="flex-shrink-0">
+                              <div className="text-3xl font-bold text-gray-800">
+                                {item.word}
                               </div>
-                            )}
+                              <div className="flex items-center gap-2 mt-2">
+                                {showFurigana && (
+                                  <span className="text-sm text-gray-600 bg-gray-100 px-2 py-1 rounded">
+                                    {item.furigana}
+                                  </span>
+                                )}
+                                {showRomaji && (
+                                  <span className="text-sm text-gray-500 italic bg-gray-50 px-2 py-1 rounded">
+                                    {item.romaji}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                            
+                            <div>
+                              <div className="flex items-center gap-3 mb-2">
+                                <div className="text-xl font-bold text-gray-700">{item.meaning}</div>
+                                {userProgress.learnedWords.includes(item.word) && (
+                                  <span className="text-xs font-bold bg-gradient-to-r from-green-500 to-emerald-500 text-white px-2 py-1 rounded-full">
+                                    MASTERED
+                                  </span>
+                                )}
+                                {userProgress.bookmarkedWords.includes(item.word) && (
+                                  <span className="text-xs font-bold bg-gradient-to-r from-amber-500 to-orange-500 text-white px-2 py-1 rounded-full">
+                                    BOOKMARKED
+                                  </span>
+                                )}
+                              </div>
+                              {item.example && (
+                                <div className="mt-3 p-3 rounded-lg bg-blue-50 border border-blue-100">
+                                  <div className="text-sm text-gray-600 mb-1">Example:</div>
+                                  <div className="text-gray-700">{item.example}</div>
+                                </div>
+                              )}
+                            </div>
                           </div>
-                        </div>
-                        
-                        <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <button
-                            onClick={() => toggleBookmark(item.word)}
-                            className={`p-2 rounded-lg transition-colors ${
-                              userProgress.bookmarkedWords.includes(item.word)
-                                ? 'text-amber-500 bg-amber-50'
-                                : 'text-gray-400 hover:text-amber-500 hover:bg-amber-50'
-                            }`}
-                          >
-                            <Star size={18} fill={userProgress.bookmarkedWords.includes(item.word) ? 'currentColor' : 'none'} />
-                          </button>
                           
-                          <button
-                            onClick={() => {
-                              const wordIndex = filteredVocabulary.findIndex(w => w.word === item.word);
-                              if (wordIndex !== -1) {
-                                setCurrentStudyIndex(wordIndex);
-                                window.scrollTo({ top: 0, behavior: 'smooth' });
-                              }
-                            }}
-                            className="p-2 rounded-lg text-gray-400 hover:text-blue-500 hover:bg-blue-50 transition-colors"
-                          >
-                            <Sparkles size={18} />
-                          </button>
+                          <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button
+                              onClick={() => speakWord(item.word)}
+                              className="p-2 rounded-lg text-gray-400 hover:text-blue-500 hover:bg-blue-50 transition-colors"
+                              title="Listen"
+                            >
+                              <Volume2 size={18} />
+                            </button>
+                            <button
+                              onClick={() => jumpToWord(item.word)}
+                              className="p-2 rounded-lg text-gray-400 hover:text-green-500 hover:bg-green-50 transition-colors"
+                              title="Study this word"
+                            >
+                              <Sparkles size={18} />
+                            </button>
+                            <button
+                              onClick={() => toggleBookmark(item.word)}
+                              className={`p-2 rounded-lg transition-colors ${
+                                userProgress.bookmarkedWords.includes(item.word)
+                                  ? 'text-amber-500 bg-amber-50'
+                                  : 'text-gray-400 hover:text-amber-500 hover:bg-amber-50'
+                              }`}
+                              title={userProgress.bookmarkedWords.includes(item.word) ? "Remove bookmark" : "Bookmark"}
+                            >
+                              <Star size={18} fill={userProgress.bookmarkedWords.includes(item.word) ? 'currentColor' : 'none'} />
+                            </button>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    ))
+                  )}
                 </div>
               </div>
             </div>
@@ -1143,97 +1557,125 @@ const N5VocabularyPage: React.FC = () => {
           
           {/* Right Column - Sidebar */}
           <div className="space-y-6">
-            {/* Progress */}
-            <div className="rounded-2xl p-6 bg-white shadow-sm border border-gray-100">
+            {/* Daily Progress */}
+            <div className="rounded-2xl p-6 bg-gradient-to-br from-white to-gray-50 shadow-lg border border-gray-100 hover:shadow-xl transition-all duration-300">
               <div className="flex items-center justify-between mb-6">
                 <div className="flex items-center gap-3">
-                  <Target className="text-blue-500" size={24} />
+                  <Target className="text-blue-500" size={28} />
                   <div>
-                    <h3 className="font-bold text-gray-700">Daily Progress</h3>
-                    <p className="text-sm text-gray-600">{stats.todayProgress} words today</p>
+                    <h3 className="font-bold text-gray-700 text-lg">Daily Progress</h3>
+                    <p className="text-sm text-gray-600">{stats.todayProgress} words studied today</p>
                   </div>
                 </div>
                 <div className="text-right">
-                  <div className="text-2xl font-bold text-blue-600">
+                  <div className="text-3xl font-bold text-blue-600">
                     {Math.round((stats.todayProgress / dailyGoal) * 100)}%
                   </div>
                 </div>
               </div>
               
               <div className="mb-6">
-                <div className="w-full rounded-full h-2 bg-gray-200">
+                <div className="w-full rounded-full h-4 bg-gray-200">
                   <div 
-                    className="h-2 rounded-full bg-gradient-to-r from-blue-500 to-indigo-500 transition-all duration-500"
+                    className="h-4 rounded-full bg-gradient-to-r from-blue-500 to-indigo-500 transition-all duration-1000 ease-out"
                     style={{ width: `${Math.min(100, (stats.todayProgress / dailyGoal) * 100)}%` }}
                   ></div>
                 </div>
-                <div className="flex justify-between text-sm text-gray-500 mt-2">
-                  <span>Goal: {dailyGoal} words</span>
-                  <span>{stats.todayProgress} / {dailyGoal}</span>
+                <div className="flex justify-between text-sm text-gray-600 mt-2">
+                  <span>Daily Goal: {dailyGoal} words</span>
+                  <span className="font-bold">{stats.todayProgress} / {dailyGoal}</span>
                 </div>
               </div>
+              
+              <button
+                onClick={() => {
+                  const unlearned = vocabulary.filter(w => !userProgress.learnedWords.includes(w.word));
+                  if (unlearned.length > 0) {
+                    const randomWord = unlearned[Math.floor(Math.random() * unlearned.length)];
+                    jumpToWord(randomWord.word);
+                  }
+                }}
+                className="w-full py-3 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-xl font-bold hover:shadow-xl transition-all duration-200 transform hover:scale-[1.02]"
+              >
+                Study Random Word
+              </button>
             </div>
             
             {/* Practice Modes */}
-            <div className="rounded-2xl p-6 bg-white shadow-sm border border-gray-100">
+            <div className="rounded-2xl p-6 bg-gradient-to-br from-white to-gray-50 shadow-lg border border-gray-100 hover:shadow-xl transition-all duration-300">
               <div className="flex items-center gap-3 mb-6">
-                <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center">
-                  <Brain size={24} className="text-white" />
+                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center shadow-lg">
+                  <Brain size={28} className="text-white" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-gray-700">Practice Modes</h3>
+                  <h3 className="font-bold text-gray-700 text-lg">Practice Modes</h3>
                   <p className="text-sm text-gray-600">Test your knowledge</p>
                 </div>
               </div>
               
-              <div className="space-y-3">
+              <div className="space-y-4">
                 <button
                   onClick={() => startQuiz('practice')}
-                  className="w-full flex items-center justify-between p-3 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors group"
+                  className="w-full flex items-center justify-between p-4 rounded-xl bg-gradient-to-r from-blue-50 to-indigo-50 text-blue-600 hover:shadow-lg transition-all duration-200 group border border-blue-100 hover:border-blue-300"
                 >
-                  <div className="flex items-center gap-3">
-                    <HelpCircle size={20} />
+                  <div className="flex items-center gap-4">
+                    <div className="w-10 h-10 rounded-lg bg-gradient-to-r from-blue-500 to-indigo-500 flex items-center justify-center">
+                      <HelpCircle size={22} className="text-white" />
+                    </div>
                     <div className="text-left">
-                      <div className="font-medium">Practice Quiz</div>
-                      <div className="text-sm opacity-75">10 questions, no time limit</div>
+                      <div className="font-bold text-lg">Practice Quiz</div>
+                      <div className="text-sm opacity-75">10 questions • No time limit</div>
                     </div>
                   </div>
-                  <ChevronRight className="opacity-50 group-hover:opacity-100 group-hover:translate-x-1 transition-all" />
+                  <ChevronRight className="opacity-50 group-hover:opacity-100 group-hover:translate-x-2 transition-all" />
                 </button>
                 
                 <button
                   onClick={() => startQuiz('timed')}
-                  className="w-full flex items-center justify-between p-3 rounded-lg bg-purple-50 text-purple-600 hover:bg-purple-100 transition-colors group"
+                  className="w-full flex items-center justify-between p-4 rounded-xl bg-gradient-to-r from-purple-50 to-pink-50 text-purple-600 hover:shadow-lg transition-all duration-200 group border border-purple-100 hover:border-purple-300"
                 >
-                  <div className="flex items-center gap-3">
-                    <Timer size={20} />
+                  <div className="flex items-center gap-4">
+                    <div className="w-10 h-10 rounded-lg bg-gradient-to-r from-purple-500 to-pink-500 flex items-center justify-center">
+                      <Timer size={22} className="text-white" />
+                    </div>
                     <div className="text-left">
-                      <div className="font-medium">Timed Challenge</div>
-                      <div className="text-sm opacity-75">60 seconds, race against time</div>
+                      <div className="font-bold text-lg">Timed Challenge</div>
+                      <div className="text-sm opacity-75">60 seconds • Race against time</div>
                     </div>
                   </div>
-                  <ChevronRight className="opacity-50 group-hover:opacity-100 group-hover:translate-x-1 transition-all" />
+                  <ChevronRight className="opacity-50 group-hover:opacity-100 group-hover:translate-x-2 transition-all" />
                 </button>
               </div>
             </div>
             
-            {/* Settings */}
-            <div className="rounded-2xl p-6 bg-white shadow-sm border border-gray-100">
-              <h3 className="font-bold text-gray-700 mb-6">Settings</h3>
+            {/* Quick Settings */}
+            <div className="rounded-2xl p-6 bg-gradient-to-br from-white to-gray-50 shadow-lg border border-gray-100 hover:shadow-xl transition-all duration-300">
+              <div className="flex items-center gap-3 mb-6">
+                <Settings className="text-gray-600" size={28} />
+                <div>
+                  <h3 className="font-bold text-gray-700 text-lg">Quick Settings</h3>
+                  <p className="text-sm text-gray-600">Customize your study</p>
+                </div>
+              </div>
               
-              <div className="space-y-4">
+              <div className="space-y-5">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <Eye size={20} className="text-gray-600" />
-                    <span className="text-gray-700">Show Furigana</span>
+                    <div className="w-10 h-10 rounded-lg bg-gradient-to-r from-blue-500 to-indigo-500 flex items-center justify-center">
+                      <Eye size={22} className="text-white" />
+                    </div>
+                    <div>
+                      <div className="font-medium text-gray-700">Furigana</div>
+                      <div className="text-sm text-gray-500">Japanese reading</div>
+                    </div>
                   </div>
                   <button
                     onClick={() => setShowFurigana(!showFurigana)}
-                    className={`w-12 h-6 rounded-full relative transition-all duration-200 ${
-                      showFurigana ? 'bg-blue-500' : 'bg-gray-300'
+                    className={`w-14 h-7 rounded-full relative transition-all duration-300 ${
+                      showFurigana ? 'bg-gradient-to-r from-blue-500 to-indigo-500' : 'bg-gray-300'
                     }`}
                   >
-                    <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${
+                    <div className={`absolute top-1 w-5 h-5 rounded-full bg-white transition-all duration-300 shadow-lg ${
                       showFurigana ? 'right-1' : 'left-1'
                     }`}></div>
                   </button>
@@ -1241,16 +1683,21 @@ const N5VocabularyPage: React.FC = () => {
                 
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <Sparkles size={20} className="text-gray-600" />
-                    <span className="text-gray-700">Show Romaji</span>
+                    <div className="w-10 h-10 rounded-lg bg-gradient-to-r from-green-500 to-emerald-500 flex items-center justify-center">
+                      <Sparkles size={22} className="text-white" />
+                    </div>
+                    <div>
+                      <div className="font-medium text-gray-700">Romaji</div>
+                      <div className="text-sm text-gray-500">Romanized text</div>
+                    </div>
                   </div>
                   <button
                     onClick={() => setShowRomaji(!showRomaji)}
-                    className={`w-12 h-6 rounded-full relative transition-all duration-200 ${
-                      showRomaji ? 'bg-green-500' : 'bg-gray-300'
+                    className={`w-14 h-7 rounded-full relative transition-all duration-300 ${
+                      showRomaji ? 'bg-gradient-to-r from-green-500 to-emerald-500' : 'bg-gray-300'
                     }`}
                   >
-                    <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${
+                    <div className={`absolute top-1 w-5 h-5 rounded-full bg-white transition-all duration-300 shadow-lg ${
                       showRomaji ? 'right-1' : 'left-1'
                     }`}></div>
                   </button>
@@ -1258,34 +1705,22 @@ const N5VocabularyPage: React.FC = () => {
                 
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <Volume2 size={20} className="text-gray-600" />
-                    <span className="text-gray-700">Speech</span>
+                    <div className="w-10 h-10 rounded-lg bg-gradient-to-r from-purple-500 to-pink-500 flex items-center justify-center">
+                      <Volume2 size={22} className="text-white" />
+                    </div>
+                    <div>
+                      <div className="font-medium text-gray-700">Speech</div>
+                      <div className="text-sm text-gray-500">Audio pronunciation</div>
+                    </div>
                   </div>
                   <button
                     onClick={() => setSpeechEnabled(!speechEnabled)}
-                    className={`w-12 h-6 rounded-full relative transition-all duration-200 ${
-                      speechEnabled ? 'bg-purple-500' : 'bg-gray-300'
+                    className={`w-14 h-7 rounded-full relative transition-all duration-300 ${
+                      speechEnabled ? 'bg-gradient-to-r from-purple-500 to-pink-500' : 'bg-gray-300'
                     }`}
                   >
-                    <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${
+                    <div className={`absolute top-1 w-5 h-5 rounded-full bg-white transition-all duration-300 shadow-lg ${
                       speechEnabled ? 'right-1' : 'left-1'
-                    }`}></div>
-                  </button>
-                </div>
-                
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <Play size={20} className="text-gray-600" />
-                    <span className="text-gray-700">Auto-play</span>
-                  </div>
-                  <button
-                    onClick={() => setAutoPlay(!autoPlay)}
-                    className={`w-12 h-6 rounded-full relative transition-all duration-200 ${
-                      autoPlay ? 'bg-amber-500' : 'bg-gray-300'
-                    }`}
-                  >
-                    <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${
-                      autoPlay ? 'right-1' : 'left-1'
                     }`}></div>
                   </button>
                 </div>
@@ -1293,33 +1728,60 @@ const N5VocabularyPage: React.FC = () => {
             </div>
             
             {/* Data Management */}
-            <div className="rounded-2xl p-6 bg-white shadow-sm border border-gray-100">
-              <h3 className="font-bold text-gray-700 mb-6">Data Management</h3>
+            <div className="rounded-2xl p-6 bg-gradient-to-br from-white to-gray-50 shadow-lg border border-gray-100 hover:shadow-xl transition-all duration-300">
+              <div className="flex items-center gap-3 mb-6">
+                <DownloadCloud className="text-gray-600" size={28} />
+                <div>
+                  <h3 className="font-bold text-gray-700 text-lg">Data Management</h3>
+                  <p className="text-sm text-gray-600">Backup or restore your progress</p>
+                </div>
+              </div>
               
               <div className="space-y-3">
                 <button
                   onClick={exportProgress}
-                  className="w-full flex items-center justify-center gap-2 py-3 rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors"
+                  className="w-full flex items-center justify-center gap-3 py-3.5 rounded-xl bg-gradient-to-r from-blue-50 to-indigo-50 text-blue-600 hover:shadow-lg transition-all duration-200 border border-blue-100 hover:border-blue-300"
                 >
-                  <Download size={18} />
-                  <span>Export Progress</span>
+                  <Download size={20} />
+                  <span className="font-bold">Export Progress</span>
                 </button>
                 
                 <button
                   onClick={importProgress}
-                  className="w-full flex items-center justify-center gap-2 py-3 rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors"
+                  className="w-full flex items-center justify-center gap-3 py-3.5 rounded-xl bg-gradient-to-r from-green-50 to-emerald-50 text-green-600 hover:shadow-lg transition-all duration-200 border border-green-100 hover:border-green-300"
                 >
-                  <Upload size={18} />
-                  <span>Import Progress</span>
+                  <Upload size={20} />
+                  <span className="font-bold">Import Progress</span>
                 </button>
                 
                 <button
                   onClick={resetProgress}
-                  className="w-full flex items-center justify-center gap-2 py-3 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition-colors"
+                  className="w-full flex items-center justify-center gap-3 py-3.5 rounded-xl bg-gradient-to-r from-red-50 to-pink-50 text-red-600 hover:shadow-lg transition-all duration-200 border border-red-100 hover:border-red-300"
                 >
-                  <RotateCw size={18} />
-                  <span>Reset Progress</span>
+                  <RefreshCw size={20} />
+                  <span className="font-bold">Reset Progress</span>
                 </button>
+              </div>
+            </div>
+            
+            {/* Study Tips */}
+            <div className="rounded-2xl p-6 bg-gradient-to-br from-amber-50 to-orange-50 shadow-lg border border-amber-100">
+              <div className="flex items-center gap-3 mb-4">
+                <Brain className="text-amber-600" size={28} />
+                <div>
+                  <h3 className="font-bold text-gray-700 text-lg">Study Tip</h3>
+                  <p className="text-sm text-amber-600">Improve your learning</p>
+                </div>
+              </div>
+              
+              <div className="p-4 rounded-xl bg-white/50 border border-amber-200">
+                <p className="text-gray-700 mb-3">
+                  <span className="font-bold">Spaced Repetition:</span> Review words at increasing intervals to maximize memory retention.
+                </p>
+                <div className="text-sm text-amber-600 flex items-center gap-2">
+                  <Zap size={14} />
+                  <span>Study consistently for better results!</span>
+                </div>
               </div>
             </div>
           </div>
@@ -1328,15 +1790,24 @@ const N5VocabularyPage: React.FC = () => {
         {/* Footer */}
         <footer className="mt-12 pt-8 border-t border-gray-200">
           <div className="flex flex-col md:flex-row justify-between items-center">
-            <div className="mb-4 md:mb-0">
-              <div className="flex items-center gap-2">
-                <Brain className="text-blue-500" size={24} />
-                <span className="font-bold text-gray-800">N5 Vocabulary Master</span>
+            <div className="mb-6 md:mb-0">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center">
+                  <Brain className="text-white" size={24} />
+                </div>
+                <div>
+                  <span className="font-bold text-xl text-gray-800">N5 Vocabulary Master</span>
+                  <p className="text-sm text-gray-600">Track progress • Learn faster • Achieve mastery</p>
+                </div>
               </div>
-              <p className="text-sm text-gray-600 mt-2">Track progress • Learn faster • Achieve mastery</p>
             </div>
-            <div className="text-sm text-gray-500">
-              Built with ❤️ for Japanese learners
+            <div className="text-center md:text-right">
+              <div className="text-sm text-gray-500 mb-2">
+                Built with ❤️ for Japanese learners
+              </div>
+              <div className="text-xs text-gray-400">
+                Version 1.0 • {new Date().getFullYear()}
+              </div>
             </div>
           </div>
         </footer>
@@ -1345,6 +1816,7 @@ const N5VocabularyPage: React.FC = () => {
       {/* Quiz Components */}
       <QuizComponent />
       <QuizResults />
+      <StreakNotification />
     </div>
   );
 };
