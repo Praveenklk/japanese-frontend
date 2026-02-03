@@ -30,7 +30,7 @@ const DashboardN5 = () => {
       icon: <Award className="w-6 h-6 text-amber-600" />,
       progress: 85,
       color: "amber",
-      link: "kanji",
+      link: "/kanji/n5/",
       lessons: 20,
       mastered: 17
     },

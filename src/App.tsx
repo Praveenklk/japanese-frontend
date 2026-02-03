@@ -54,13 +54,17 @@ import BasicJapanese from "./pages/jlpt/BasicJapanese";
 import JLPTLevel from "./pages/jlpt/JLPTLevel";
 import N5Dashboard from "./pages/jlpt/levels/N5Dashboard";
 import DashboardN5 from "./pages/jlpt/levels/N5Dashboard";
+import ScrollToTop from "./pages/ScrollToTop";
+import KanjiRouter from "./pages/N5/Kanji/KanjiRouter";
 
 function App() {
   return (
     <div className="flex flex-col min-h-screen">
       <Header />
+            <ScrollToTop />   
       <main className="flex-grow">
         <Routes>
+
           {/* ---------------- PUBLIC ---------------- */}
           <Route path="/" element={<Home />} />
           <Route path="/login" element={<Login />} />
@@ -68,6 +72,9 @@ function App() {
     <Route path="/kanji/value" element={<KanjiDemoEx />} />
     <Route path="/vocabulary/n4" element={<Vocabularynew />} />
         <Route path="/aboutme" element={<AboutMe />} />
+
+        <Route path="/kanji/n5/*" element={<KanjiRouter />} />
+
           {/* ---------------- KANA LEARNING ---------------- */}
           <Route path="/hiragana" element={<HiraganaPage />} />
           <Route path="/katakana" element={<KatakanaPage />} />
