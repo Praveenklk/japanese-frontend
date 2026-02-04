@@ -56,6 +56,9 @@ import N5Dashboard from "./pages/jlpt/levels/N5Dashboard";
 import DashboardN5 from "./pages/jlpt/levels/N5Dashboard";
 import ScrollToTop from "./pages/ScrollToTop";
 import KanjiRouter from "./pages/N5/Kanji/KanjiRouter";
+import CardBrowser from "./pages/cardBrowser";
+import RadicalHomePage from "./pages/Radical/RadicalHomepage";
+import GrammarN5Page from "./pages/Grammer/GrammerPage/GrammerN5Page";
 
 function App() {
   return (
@@ -72,9 +75,12 @@ function App() {
     <Route path="/kanji/value" element={<KanjiDemoEx />} />
     <Route path="/vocabulary/n4" element={<Vocabularynew />} />
         <Route path="/aboutme" element={<AboutMe />} />
+     <Route path="/radical" element={<RadicalHomePage />} />
 
         <Route path="/kanji/n5/*" element={<KanjiRouter />} />
 
+        <Route path="/gramm" element={<GrammarN5Page />} />
+        <Route path="/CardBrowser" element={<CardBrowser />} />
           {/* ---------------- KANA LEARNING ---------------- */}
           <Route path="/hiragana" element={<HiraganaPage />} />
           <Route path="/katakana" element={<KatakanaPage />} />

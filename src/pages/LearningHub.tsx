@@ -102,6 +102,17 @@ const LearningHub = () => {
   buttonText: "Manage Decks"
 },
 
+{
+  title: "Radical Explorer",
+  japanese: "部首エクスプローラー",
+  description: "Learn kanji radicals, understand their meanings, and break down kanji easily",
+  icon: <Brain className="w-10 h-10 text-purple-600" />,
+  path: "/radical",
+  color: "bg-purple-50 hover:bg-purple-100 border-purple-200",
+  level: "All Levels",
+  status: "available",
+  stats: "200+ Radicals"
+},
 
 
     {

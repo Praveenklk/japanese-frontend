@@ -63,8 +63,8 @@ const Header = () => {
       highlight: false 
     },
     { 
-      path: "/kana-quiz", 
-      label: "Kana Quiz", 
+      path: "/CardBrowser", 
+      label: "JLPT", 
       icon: <Target className="w-4 h-4" />,
       highlight: true 
     },

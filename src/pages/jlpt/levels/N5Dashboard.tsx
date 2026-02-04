@@ -20,7 +20,7 @@ const DashboardN5 = () => {
       icon: <Target className="w-6 h-6 text-blue-600" />,
       progress: 60,
       color: "blue",
-      link: "grammar",
+      link: "/gramm",
       lessons: 25,
       mastered: 15
     },
