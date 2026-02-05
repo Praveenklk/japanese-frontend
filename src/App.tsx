@@ -59,6 +59,7 @@ import KanjiRouter from "./pages/N5/Kanji/KanjiRouter";
 import CardBrowser from "./pages/cardBrowser";
 import RadicalHomePage from "./pages/Radical/RadicalHomepage";
 import GrammarN5Page from "./pages/Grammer/GrammerPage/GrammerN5Page";
+import CardDetails from "./pages/CardDetails";
 
 function App() {
   return (
@@ -96,7 +97,7 @@ function App() {
 
 
         <Route path="/stories/:id" element={<StoryPagefull/>} />
-
+ <Route path="/card/:cardType/:index/:word" element={<CardDetails />} />
                 <Route path="/n5/voc" element={<N5VocabularyPage/>} />
           {/* ---------------- COMPREHENSIVE LEARNING ---------------- */}
           <Route path="/kanji" element={<KanjiLearning />} />

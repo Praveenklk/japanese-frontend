@@ -138,6 +138,7 @@ type QuizDifficulty = 'easy' | 'medium' | 'hard';
 class ProgressStorage {
   private static readonly STORAGE_KEY = 'japanese_vocab_progress';
   private static readonly QUIZ_STATS_KEY = 'vocab_quiz_stats';
+  private static readonly SHUFFLE_MODE_KEY = 'shuffle_mode';
 
   static getProgress(): UserProgress {
     if (typeof window === 'undefined') return this.getDefaultProgress();
@@ -329,12 +330,24 @@ class ProgressStorage {
     stats.highestScore = Math.max(stats.highestScore, score);
     localStorage.setItem(this.QUIZ_STATS_KEY, JSON.stringify(stats));
   }
+
+  static getShuffleMode(): boolean {
+    if (typeof window === 'undefined') return false;
+    const stored = localStorage.getItem(this.SHUFFLE_MODE_KEY);
+    return stored ? JSON.parse(stored) : false;
+  }
+
+  static setShuffleMode(shuffle: boolean): void {
+    if (typeof window === 'undefined') return;
+    localStorage.setItem(this.SHUFFLE_MODE_KEY, JSON.stringify(shuffle));
+  }
 }
 
 const VocabularyMaster = () => {
   // State Management
   const [allWords, setAllWords] = useState<VocabularyWord[]>([]);
   const [filteredWords, setFilteredWords] = useState<VocabularyWord[]>([]);
+  const [displayedWords, setDisplayedWords] = useState<VocabularyWord[]>([]);
   const [currentWordIndex, setCurrentWordIndex] = useState(0);
   const [showAnswer, setShowAnswer] = useState(false);
   const [showFurigana, setShowFurigana] = useState(true);
@@ -352,6 +365,7 @@ const VocabularyMaster = () => {
   const [autoPlay, setAutoPlay] = useState(false);
   const [showExample, setShowExample] = useState(true);
   const [cardAnimation, setCardAnimation] = useState(true);
+  const [isShuffled, setIsShuffled] = useState(false);
   const [progress, setProgress] = useState<UserProgress>(ProgressStorage.getProgress());
 
   // Quiz State
@@ -401,6 +415,8 @@ const VocabularyMaster = () => {
   useEffect(() => {
     loadVocabulary();
     updateStats();
+    const shuffleMode = ProgressStorage.getShuffleMode();
+    setIsShuffled(shuffleMode);
     
     return () => {
       if (audioRef.current) {
@@ -433,7 +449,6 @@ const VocabularyMaster = () => {
     }));
     
     setAllWords(enrichedVocabulary);
-    setFilteredWords(enrichedVocabulary);
     setIsLoading(false);
     updateStats();
   }, []);
@@ -466,10 +481,18 @@ const VocabularyMaster = () => {
 
     setFilteredWords(filtered);
     
-    if (currentWordIndex >= filtered.length && filtered.length > 0) {
+    // Apply shuffle if enabled
+    let displayWords = [...filtered];
+    if (isShuffled) {
+      displayWords = [...filtered].sort(() => Math.random() - 0.5);
+    }
+    
+    setDisplayedWords(displayWords);
+    
+    if (currentWordIndex >= displayWords.length && displayWords.length > 0) {
       setCurrentWordIndex(0);
     }
-  }, [allWords, selectedLevel, searchTerm, showDueOnly, progress, currentWordIndex]);
+  }, [allWords, selectedLevel, searchTerm, showDueOnly, progress, isShuffled, currentWordIndex]);
 
   // Update stats
   const updateStats = useCallback(() => {
@@ -501,7 +524,7 @@ const VocabularyMaster = () => {
     });
   }, [allWords]);
 
-  const currentWord = filteredWords[currentWordIndex] || filteredWords[0];
+  const currentWord = displayedWords[currentWordIndex] || displayedWords[0];
 
   // Text-to-Speech - optimized
   const playJapaneseAudio = useCallback(async (text: string) => {
@@ -553,7 +576,7 @@ const VocabularyMaster = () => {
       updateStats();
       
       // Move to next word
-      if (currentWordIndex < filteredWords.length - 1) {
+      if (currentWordIndex < displayedWords.length - 1) {
         setCurrentWordIndex(prev => prev + 1);
       } else {
         setCurrentWordIndex(0);
@@ -569,8 +592,8 @@ const VocabularyMaster = () => {
       }
       
       // Auto-play if enabled
-      if (autoPlay && currentWordIndex + 1 < filteredWords.length) {
-        const nextWord = filteredWords[currentWordIndex + 1];
+      if (autoPlay && currentWordIndex + 1 < displayedWords.length) {
+        const nextWord = displayedWords[currentWordIndex + 1];
         playJapaneseAudio(nextWord.word);
       }
     } catch (error) {
@@ -578,7 +601,7 @@ const VocabularyMaster = () => {
     } finally {
       setIsReviewing(false);
     }
-  }, [currentWord, currentWordIndex, filteredWords.length, autoFlip, autoPlay, playJapaneseAudio, updateStats]);
+  }, [currentWord, currentWordIndex, displayedWords.length, autoFlip, autoPlay, playJapaneseAudio, updateStats]);
 
   const toggleBookmark = useCallback((word: string) => {
     ProgressStorage.toggleBookmark(word);
@@ -594,28 +617,55 @@ const VocabularyMaster = () => {
     setSelectedLevel('all');
     setSearchTerm('');
     setShowDueOnly(false);
+    setIsShuffled(false);
+    ProgressStorage.setShuffleMode(false);
   }, []);
 
   const nextCard = useCallback(() => {
-    setCurrentWordIndex(prev => prev < filteredWords.length - 1 ? prev + 1 : 0);
+    setCurrentWordIndex(prev => prev < displayedWords.length - 1 ? prev + 1 : 0);
     setShowAnswer(false);
-  }, [filteredWords.length]);
+  }, [displayedWords.length]);
 
   const prevCard = useCallback(() => {
-    setCurrentWordIndex(prev => prev > 0 ? prev - 1 : filteredWords.length - 1);
+    setCurrentWordIndex(prev => prev > 0 ? prev - 1 : displayedWords.length - 1);
     setShowAnswer(false);
-  }, [filteredWords.length]);
+  }, [displayedWords.length]);
 
-  const shuffleCards = useCallback(() => {
-    const shuffled = [...filteredWords];
-    for (let i = shuffled.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  // Improved shuffle function
+  const toggleShuffle = useCallback(() => {
+    const newShuffleState = !isShuffled;
+    setIsShuffled(newShuffleState);
+    ProgressStorage.setShuffleMode(newShuffleState);
+    
+    if (newShuffleState) {
+      // Create a new shuffled array based on current filtered words
+      const shuffled = [...filteredWords].sort(() => Math.random() - 0.5);
+      setDisplayedWords(shuffled);
+    } else {
+      // Reset to original filtered order
+      setDisplayedWords([...filteredWords]);
     }
-    setFilteredWords(shuffled);
+    
     setCurrentWordIndex(0);
     setShowAnswer(false);
-  }, [filteredWords]);
+  }, [isShuffled, filteredWords]);
+
+  const shuffleCards = useCallback(() => {
+    if (!isShuffled) {
+      // If shuffle is off, turn it on and shuffle
+      setIsShuffled(true);
+      ProgressStorage.setShuffleMode(true);
+      const shuffled = [...filteredWords].sort(() => Math.random() - 0.5);
+      setDisplayedWords(shuffled);
+    } else {
+      // If shuffle is already on, reshuffle the current displayed words
+      const reshuffled = [...displayedWords].sort(() => Math.random() - 0.5);
+      setDisplayedWords(reshuffled);
+    }
+    
+    setCurrentWordIndex(0);
+    setShowAnswer(false);
+  }, [isShuffled, filteredWords, displayedWords]);
 
   // Quiz Functions
   const startQuiz = useCallback((type: QuizType = 'multiple-choice', difficulty: QuizDifficulty = 'medium') => {
@@ -629,8 +679,8 @@ const VocabularyMaster = () => {
     setShowResult(false);
     setUserInput('');
     
-    // Select questions
-    let pool = [...filteredWords];
+    // Select questions from displayed words
+    let pool = [...displayedWords];
     if (difficulty === 'easy') {
       pool = pool.filter(word => word.level >= 4);
     } else if (difficulty === 'medium') {
@@ -645,7 +695,7 @@ const VocabularyMaster = () => {
     // Set time
     const time = difficulty === 'easy' ? 40 : difficulty === 'medium' ? 30 : 20;
     setTimeLeft(time);
-  }, [filteredWords]);
+  }, [displayedWords]);
 
   const checkAnswer = useCallback((answer: string) => {
     if (!quizQuestions[currentQuestion]) return;
@@ -785,13 +835,13 @@ const VocabularyMaster = () => {
         setFullscreen(!fullscreen);
         break;
       case 'r':
-        loadVocabulary();
+        resetFilters();
         break;
       case 'q':
         startQuiz();
         break;
     }
-  }, [quizActive, quizType, viewMode, showAnswer, currentWord, prevCard, nextCard, reviewWord, playJapaneseAudio, toggleBookmark, toggleLearned, shuffleCards, loadVocabulary, startQuiz, checkTypingAnswer]);
+  }, [quizActive, quizType, viewMode, showAnswer, currentWord, prevCard, nextCard, reviewWord, playJapaneseAudio, toggleBookmark, toggleLearned, shuffleCards, resetFilters, startQuiz, checkTypingAnswer]);
 
   useEffect(() => {
     document.addEventListener('keydown', handleKeyPress);
@@ -803,7 +853,9 @@ const VocabularyMaster = () => {
     if (window.confirm('Are you sure you want to clear all progress? This cannot be undone.')) {
       localStorage.removeItem('japanese_vocab_progress');
       localStorage.removeItem('vocab_quiz_stats');
+      localStorage.removeItem('shuffle_mode');
       setProgress(ProgressStorage.getDefaultProgress());
+      setIsShuffled(false);
       updateStats();
     }
   };
@@ -1018,7 +1070,13 @@ const VocabularyMaster = () => {
                 { icon: Bell, label: `Due Only (${stats.dueToday})`, active: showDueOnly, onClick: () => setShowDueOnly(!showDueOnly), color: 'amber' },
                 { icon: Type, label: 'Furigana', active: showFurigana, onClick: () => setShowFurigana(!showFurigana), color: 'emerald' },
                 { icon: Hash, label: 'Romaji', active: showRomaji, onClick: () => setShowRomaji(!showRomaji), color: 'purple' },
-                { icon: Shuffle, label: 'Shuffle', onClick: shuffleCards },
+                { 
+                  icon: Shuffle, 
+                  label: isShuffled ? 'Shuffled' : 'Shuffle', 
+                  active: isShuffled, 
+                  onClick: () => shuffleCards(),
+                  color: 'violet'
+                },
                 { icon: RotateCw, label: 'Reset', onClick: resetFilters },
               ].map((action) => (
                 <motion.button
@@ -1032,7 +1090,7 @@ const VocabularyMaster = () => {
                       : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                   }`}
                 >
-                  <action.icon className="w-3 h-3 sm:w-4 sm:h-4" />
+                  <action.icon className={`w-3 h-3 sm:w-4 sm:h-4 ${isShuffled && action.label === 'Shuffled' ? 'animate-pulse' : ''}`} />
                   <span className="font-medium">{action.label}</span>
                 </motion.button>
               ))}
@@ -1042,7 +1100,7 @@ const VocabularyMaster = () => {
 
         {/* Main Content */}
         <AnimatePresence mode="wait">
-          {filteredWords.length === 0 ? (
+          {displayedWords.length === 0 ? (
             <motion.div
               key="no-results"
               initial={{ opacity: 0, scale: 0.9 }}
@@ -1056,7 +1114,7 @@ const VocabularyMaster = () => {
                 </div>
                 <h3 className="text-lg sm:text-xl md:text-2xl font-bold text-gray-800 mb-2 sm:mb-3">No Words Found</h3>
                 <p className="text-gray-600 mb-4 sm:mb-6 md:mb-8 text-sm sm:text-base">
-                  Try adjusting your filters or search term to find vocabulary.
+                  {searchTerm ? 'No words match your search. Try a different term.' : 'Try adjusting your filters to find vocabulary.'}
                 </p>
                 <motion.button
                   whileHover={{ scale: 1.05 }}
@@ -1233,7 +1291,7 @@ const VocabularyMaster = () => {
                         
                         <motion.button
                           whileHover={{ scale: 1.05 }}
-                          whileTap={{ scale: 0.95 }}
+                          whileTap={{ scale: 0.98 }}
                           onClick={checkTypingAnswer}
                           disabled={!userInput.trim() || showResult}
                           className="w-full py-3 sm:py-3.5 md:py-4 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-lg sm:rounded-xl font-semibold text-sm sm:text-base md:text-lg disabled:opacity-50 disabled:cursor-not-allowed"
@@ -1319,11 +1377,25 @@ const VocabularyMaster = () => {
                     N{currentWord?.level}
                   </div>
                   <div className="text-xs sm:text-sm text-gray-600">
-                    Card {currentWordIndex + 1} of {filteredWords.length}
+                    Card {currentWordIndex + 1} of {displayedWords.length}
+                    {isShuffled && <span className="ml-2 text-violet-600"> • 🔀 Shuffled</span>}
                   </div>
                 </div>
                 
                 <div className="flex items-center gap-1 sm:gap-2">
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => shuffleCards()}
+                    className={`p-2 sm:p-2.5 md:p-3 rounded-lg sm:rounded-xl transition-all duration-300 flex items-center gap-1 sm:gap-2 ${
+                      isShuffled 
+                        ? 'bg-violet-100 text-violet-600 border border-violet-200' 
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    }`}
+                    title="Shuffle cards"
+                  >
+                    <Shuffle className={`w-4 h-4 sm:w-5 sm:h-5 ${isShuffled ? 'animate-pulse' : ''}`} />
+                  </motion.button>
                   <button
                     onClick={() => currentWord && toggleBookmark(currentWord.word)}
                     className={`p-2 sm:p-2.5 md:p-3 rounded-lg sm:rounded-xl transition-all duration-300 ${
@@ -1490,13 +1562,19 @@ const VocabularyMaster = () => {
                     <CheckCircle className="w-3 h-3 sm:w-4 sm:h-4" />
                     {currentWord && progress.learnedWords.includes(currentWord.word) ? 'Learned' : 'Mark Learned'}
                   </button>
-                  <button
-                    onClick={shuffleCards}
-                    className="px-3 sm:px-4 md:px-5 py-1.5 sm:py-2 md:py-2.5 bg-gray-100 text-gray-700 rounded-lg sm:rounded-xl hover:bg-gray-200 transition-colors flex items-center gap-2 text-sm sm:text-base"
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => shuffleCards()}
+                    className={`px-3 sm:px-4 md:px-5 py-1.5 sm:py-2 md:py-2.5 rounded-lg sm:rounded-xl flex items-center gap-2 transition-all duration-300 text-sm sm:text-base ${
+                      isShuffled 
+                        ? 'bg-violet-100 text-violet-700 border-2 border-violet-200' 
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200 border-2 border-gray-200'
+                    }`}
                   >
-                    <Shuffle className="w-3 h-3 sm:w-4 sm:h-4" />
-                    Shuffle
-                  </button>
+                    <Shuffle className={`w-3 h-3 sm:w-4 sm:h-4 ${isShuffled ? 'animate-pulse' : ''}`} />
+                    {isShuffled ? 'Reshuffle' : 'Shuffle'}
+                  </motion.button>
                 </div>
                 
                 <button
@@ -1531,7 +1609,7 @@ const VocabularyMaster = () => {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-200">
-                    {filteredWords.map((word, index) => {
+                    {displayedWords.map((word, index) => {
                       const isBookmarked = progress.bookmarkedWords.includes(word.word);
                       const isLearned = progress.learnedWords.includes(word.word);
                       
@@ -1578,11 +1656,12 @@ const VocabularyMaster = () => {
                             <div className="flex gap-1 sm:gap-2">
                               <button
                                 onClick={() => {
-                                  const wordIndex = filteredWords.findIndex(w => w.word === word.word);
+                                  const wordIndex = displayedWords.findIndex(w => w.word === word.word);
                                   setCurrentWordIndex(wordIndex);
                                   setViewMode('flashcard');
                                 }}
                                 className="p-1.5 sm:p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors duration-200"
+                                title="Study this word"
                               >
                                 <BookOpen className="w-3 h-3 sm:w-4 sm:h-4" />
                               </button>
@@ -1593,12 +1672,14 @@ const VocabularyMaster = () => {
                                     ? 'text-amber-600 hover:bg-amber-50' 
                                     : 'text-gray-600 hover:bg-gray-100'
                                 }`}
+                                title={isBookmarked ? 'Remove bookmark' : 'Bookmark this word'}
                               >
                                 <Bookmark className={`w-3 h-3 sm:w-4 sm:h-4 ${isBookmarked ? 'fill-current' : ''}`} />
                               </button>
                               <button
                                 onClick={() => playJapaneseAudio(word.word)}
                                 className="p-1.5 sm:p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors duration-200"
+                                title="Listen to pronunciation"
                               >
                                 <Volume2 className="w-3 h-3 sm:w-4 sm:h-4" />
                               </button>
@@ -1620,7 +1701,7 @@ const VocabularyMaster = () => {
               exit={{ opacity: 0 }}
               className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 md:gap-6"
             >
-              {filteredWords.map((word, index) => {
+              {displayedWords.map((word, index) => {
                 const isBookmarked = progress.bookmarkedWords.includes(word.word);
                 const isLearned = progress.learnedWords.includes(word.word);
                 
@@ -1645,9 +1726,9 @@ const VocabularyMaster = () => {
                       </div>
                       <button
                         onClick={() => toggleBookmark(word.word)}
-                        className="text-gray-400 hover:text-amber-500 transition-all duration-300"
+                        className={`transition-all duration-300 ${isBookmarked ? 'text-amber-500' : 'text-gray-400 hover:text-amber-500'}`}
                       >
-                        <Bookmark className={`w-4 h-4 sm:w-5 sm:h-5 ${isBookmarked ? 'fill-current text-amber-500' : ''}`} />
+                        <Bookmark className={`w-4 h-4 sm:w-5 sm:h-5 ${isBookmarked ? 'fill-current' : ''}`} />
                       </button>
                     </div>
                     
@@ -1655,13 +1736,17 @@ const VocabularyMaster = () => {
                       <div className="font-japanese text-xl sm:text-2xl md:text-3xl font-bold text-gray-800 mb-2 sm:mb-3">
                         {word.word}
                       </div>
-                      <div className="text-xs sm:text-sm text-gray-600 mb-1">{word.furigana}</div>
-                      <div className="text-xs sm:text-sm text-gray-500">{word.romaji}</div>
+                      {showFurigana && (
+                        <div className="text-xs sm:text-sm text-gray-600 mb-1">{word.furigana}</div>
+                      )}
+                      {showRomaji && (
+                        <div className="text-xs sm:text-sm text-gray-500">{word.romaji}</div>
+                      )}
                     </div>
                     
                     <div className="mb-4 sm:mb-6 md:mb-8">
                       <div className="text-base sm:text-lg md:text-xl font-semibold text-gray-800">{word.meaning}</div>
-                      {word.example && (
+                      {showExample && word.example && (
                         <div className="text-xs sm:text-sm text-gray-600 italic mt-2 sm:mt-3">
                           "{word.example}"
                         </div>
@@ -1672,7 +1757,7 @@ const VocabularyMaster = () => {
                       <div className="flex gap-1 sm:gap-2">
                         <button
                           onClick={() => {
-                            const wordIndex = filteredWords.findIndex(w => w.word === word.word);
+                            const wordIndex = displayedWords.findIndex(w => w.word === word.word);
                             setCurrentWordIndex(wordIndex);
                             setViewMode('flashcard');
                           }}
@@ -1684,16 +1769,24 @@ const VocabularyMaster = () => {
                         <button
                           onClick={() => playJapaneseAudio(word.word)}
                           className="p-1.5 sm:p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors"
+                          title="Listen to pronunciation"
                         >
                           <Volume2 className="w-3 h-3 sm:w-4 sm:h-4" />
                         </button>
                       </div>
                       
-                      {isLearned && (
-                        <div className="px-2 sm:px-3 py-1 bg-emerald-100 text-emerald-700 rounded-full text-xs font-semibold">
-                          Learned
-                        </div>
-                      )}
+                      <div className="flex flex-wrap gap-1">
+                        {isLearned && (
+                          <span className="px-2 py-1 bg-emerald-100 text-emerald-700 rounded-full text-xs font-semibold">
+                            Learned
+                          </span>
+                        )}
+                        {isBookmarked && (
+                          <span className="px-2 py-1 bg-amber-100 text-amber-700 rounded-full text-xs font-semibold">
+                            Bookmarked
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </motion.div>
                 );
@@ -1774,6 +1867,38 @@ const VocabularyMaster = () => {
                   </div>
                   
                   <div>
+                    <h4 className="text-sm font-semibold text-gray-700 mb-2 sm:mb-3">Shuffle Settings</h4>
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-gray-600">Shuffle mode</span>
+                        <button
+                          onClick={() => toggleShuffle()}
+                          className={`relative inline-flex h-5 w-9 sm:h-6 sm:w-11 items-center rounded-full transition-colors ${
+                            isShuffled ? 'bg-violet-500' : 'bg-gray-300'
+                          }`}
+                        >
+                          <span className={`inline-block h-3 w-3 sm:h-4 sm:w-4 transform rounded-full bg-white transition-transform ${
+                            isShuffled ? 'translate-x-4 sm:translate-x-6' : 'translate-x-1'
+                          }`} />
+                        </button>
+                      </div>
+                      {isShuffled && (
+                        <motion.button
+                          initial={{ opacity: 0, y: -10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          whileHover={{ scale: 1.02 }}
+                          whileTap={{ scale: 0.98 }}
+                          onClick={() => shuffleCards()}
+                          className="w-full px-3 sm:px-4 py-2 sm:py-2.5 bg-violet-50 text-violet-700 rounded-lg hover:bg-violet-100 transition-colors flex items-center justify-center gap-2 text-sm"
+                        >
+                          <Shuffle className="w-3 h-3 sm:w-4 sm:h-4 animate-pulse" />
+                          Reshuffle Current Words
+                        </motion.button>
+                      )}
+                    </div>
+                  </div>
+                  
+                  <div>
                     <h4 className="text-sm font-semibold text-gray-700 mb-2 sm:mb-3">Data Management</h4>
                     <div className="space-y-2">
                       <motion.button
@@ -1826,6 +1951,8 @@ const VocabularyMaster = () => {
                 { key: 'L', action: 'Learned' },
                 { key: 'S', action: 'Shuffle' },
                 { key: 'Q', action: 'Start quiz' },
+                { key: 'R', action: 'Reset filters' },
+                { key: 'F', action: 'Fullscreen' },
               ].map(({ key, action }) => (
                 <div key={key} className="flex items-center gap-2">
                   <kbd className="px-2 sm:px-3 py-1 sm:py-1.5 bg-white border border-gray-300 rounded text-xs font-medium text-gray-700 min-w-12 sm:min-w-16 text-center">

@@ -56,12 +56,13 @@ const Header = () => {
       icon: <span className="text-lg font-bold">あ</span>,
       highlight: false 
     },
-    { 
-      path: "/katakana", 
-      label: "Katakana", 
-      icon: <span className="text-lg font-bold">ア</span>,
-      highlight: false 
-    },
+{ 
+  path: "/kanji/value", 
+  label: "Kanji", 
+  icon: <span className="text-lg font-bold text-indigo-500">漢</span>,
+  kanji: true
+},
+
     { 
       path: "/CardBrowser", 
       label: "JLPT", 
@@ -129,6 +130,14 @@ const Header = () => {
                       <Flame className="w-3 h-3 text-orange-500 animate-pulse" />
                     </span>
                   )}
+
+                  {item.kanji && (
+  <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center 
+                   bg-gradient-to-r from-indigo-500 to-purple-500 text-white text-[10px] font-bold shadow-md animate-pulse">
+      字
+  </span>
+)}
+
                   {/* Hover underline effect */}
                   <span className={`absolute bottom-0 left-4 right-4 h-0.5 bg-gradient-to-r from-red-500 to-blue-500 transform scale-x-0 group-hover:scale-x-100 transition-transform duration-300 ${isActive(item.path) ? "scale-x-100" : ""}`} />
                 </Link>

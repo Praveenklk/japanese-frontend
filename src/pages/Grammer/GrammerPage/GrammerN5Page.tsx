@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { 
   Volume2, Star, BookOpen, ChevronLeft, ChevronRight,
   Brain, Target, Sparkles, Moon, Sun, Play, Pause,
@@ -14,7 +14,8 @@ import {
   Bell, BookmarkPlus, DownloadCloud, UploadCloud,
   RefreshCw, Sparkle, MousePointerClick,
   MessageSquare, BookText, Hash, Grid,
-  List, Layout, Settings2, User, LogOut
+  List, Layout, Settings2, User, LogOut,
+  Volume1, Volume, Mic2, Repeat
 } from 'lucide-react';
 import grammarJson from "../grammerN5.json";
 
@@ -22,7 +23,7 @@ type GrammarExample = {
   jp: string;
   romaji: string;
   en: string;
-  grammar_audio: string;
+  grammar_audio?: string;
 };
 
 type GrammarPoint = {
@@ -33,6 +34,13 @@ type GrammarPoint = {
   examples: GrammarExample[];
   p_tag: string;
   s_tag: string;
+};
+
+type AudioConfig = {
+  rate: number;
+  volume: number;
+  autoPlay: boolean;
+  autoRepeat: boolean;
 };
 
 const GrammarN5Page: React.FC = () => {
@@ -48,7 +56,13 @@ const GrammarN5Page: React.FC = () => {
     }
     return false;
   });
-  const [studyStreak, setStudyStreak] = useState(7);
+  const [studyStreak, setStudyStreak] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('studyStreak');
+      return saved ? parseInt(saved) : 1;
+    }
+    return 1;
+  });
   const [autoPlay, setAutoPlay] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -65,6 +79,17 @@ const GrammarN5Page: React.FC = () => {
   const [showTour, setShowTour] = useState(false);
   const [activeTourStep, setActiveTourStep] = useState(0);
   const [audioLoading, setAudioLoading] = useState<number | null>(null);
+  const [audioConfig, setAudioConfig] = useState<AudioConfig>({
+    rate: 1.0,
+    volume: 1.0,
+    autoPlay: false,
+    autoRepeat: false
+  });
+  const [showAudioSettings, setShowAudioSettings] = useState(false);
+  const [speechSynthesis, setSpeechSynthesis] = useState<SpeechSynthesis | null>(null);
+  const [showRomaji, setShowRomaji] = useState(true);
+  const [showTranslation, setShowTranslation] = useState(true);
+  const [currentExamplePlaying, setCurrentExamplePlaying] = useState<number | null>(null);
   
   const audioRefs = useRef<(HTMLAudioElement | null)[]>([]);
   const mainContentRef = useRef<HTMLDivElement>(null);
@@ -73,11 +98,18 @@ const GrammarN5Page: React.FC = () => {
     { title: "Welcome!", description: "Start learning N5 grammar with this interactive app" },
     { title: "Grammar List", description: "Browse all grammar points from the sidebar" },
     { title: "Practice Mode", description: "Test your knowledge with interactive exercises" },
-    { title: "Examples", description: "Listen to native pronunciation and repeat" }
+    {title: "Audio Features", description: "Use text-to-speech and audio examples for pronunciation" }
   ];
 
   const [grammarData, setGrammarData] = useState<GrammarPoint[]>([]);
   const [filteredGrammar, setFilteredGrammar] = useState<GrammarPoint[]>([]);
+
+  // Initialize speech synthesis
+  useEffect(() => {
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      setSpeechSynthesis(window.speechSynthesis);
+    }
+  }, []);
 
   // Toggle dark mode and save preference
   const toggleDarkMode = () => {
@@ -168,6 +200,7 @@ const GrammarN5Page: React.FC = () => {
     setShowAnswer(false);
     setActiveTab('explanation');
     setCurrentIndex((prev) => (prev + 1) % filteredGrammar.length);
+    setCurrentExamplePlaying(null);
     
     const todayKey = new Date().toDateString();
     const storedProgress = localStorage.getItem(`progress_${todayKey}`);
@@ -190,6 +223,7 @@ const GrammarN5Page: React.FC = () => {
     setShowAnswer(false);
     setActiveTab('explanation');
     setCurrentIndex((prev) => (prev - 1 + filteredGrammar.length) % filteredGrammar.length);
+    setCurrentExamplePlaying(null);
     if (mainContentRef.current) {
       mainContentRef.current.scrollTo({ top: 0, behavior: 'smooth' });
     }
@@ -202,71 +236,123 @@ const GrammarN5Page: React.FC = () => {
     } else {
       newFavorites.add(title);
       setStudyStreak(prev => prev + 1);
+      localStorage.setItem('studyStreak', (studyStreak + 1).toString());
     }
     setFavorites(newFavorites);
   };
 
-  const playAudio = async (audioUrl: string, exampleIndex: number) => {
-    if (!audioUrl) {
-      console.warn('No audio URL provided');
+  const speakText = useCallback((text: string, rate: number = 1.0) => {
+    if (!speechSynthesis) {
+      console.warn('Speech synthesis not supported');
       return;
     }
-    
-    setAudioLoading(exampleIndex);
-    
-    try {
-      // Stop all other audio
-      audioRefs.current.forEach(audio => {
-        if (audio) {
-          audio.pause();
-          audio.currentTime = 0;
-        }
-      });
-      
-      setIsPlaying(`${currentIndex}-${exampleIndex}`);
-      
-      // Check if audio URL exists and handle relative paths
-      let finalAudioUrl = audioUrl;
-      if (!audioUrl.startsWith('http') && !audioUrl.startsWith('/')) {
-        finalAudioUrl = `/${audioUrl}`;
-      }
-      
-      console.log('Playing audio:', finalAudioUrl);
-      
-      const audio = new Audio(finalAudioUrl);
-      audioRefs.current[exampleIndex] = audio;
-      
-      // Set up error handling
-      audio.onerror = () => {
-        console.error('Failed to load audio:', finalAudioUrl);
-        setIsPlaying(null);
-        setAudioLoading(null);
-      };
-      
-      audio.oncanplaythrough = () => {
-        setAudioLoading(null);
-      };
-      
-      await audio.play();
-      audio.onended = () => {
-        setIsPlaying(null);
-        setAudioLoading(null);
-      };
-    } catch (error) {
-      console.error('Error playing audio:', error);
+
+    speechSynthesis.cancel();
+
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.rate = rate;
+    utterance.volume = audioConfig.volume;
+    utterance.lang = 'ja-JP';
+
+    utterance.onstart = () => setIsPlaying('tts');
+    utterance.onend = () => setIsPlaying(null);
+    utterance.onerror = () => setIsPlaying(null);
+
+    speechSynthesis.speak(utterance);
+  }, [speechSynthesis, audioConfig.volume]);
+
+  const stopSpeech = useCallback(() => {
+    if (speechSynthesis) {
+      speechSynthesis.cancel();
       setIsPlaying(null);
-      setAudioLoading(null);
+      setCurrentExamplePlaying(null);
     }
+  }, [speechSynthesis]);
+
+  const playAudio = useCallback(async (audioUrl: string | undefined, exampleIndex: number, japaneseText: string) => {
+    // Stop any ongoing speech
+    stopSpeech();
+    
+    // If there's a custom audio URL, use it
+    if (audioUrl) {
+      setAudioLoading(exampleIndex);
+      
+      try {
+        // Stop all other audio
+        audioRefs.current.forEach(audio => {
+          if (audio) {
+            audio.pause();
+            audio.currentTime = 0;
+          }
+        });
+        
+        setIsPlaying(`audio-${exampleIndex}`);
+        setCurrentExamplePlaying(exampleIndex);
+        
+        // Check if audio URL exists and handle relative paths
+        let finalAudioUrl = audioUrl;
+        if (!audioUrl.startsWith('http') && !audioUrl.startsWith('/') && !audioUrl.startsWith('./')) {
+          finalAudioUrl = `/${audioUrl}`;
+        }
+        
+        console.log('Playing audio:', finalAudioUrl);
+        
+        const audio = new Audio(finalAudioUrl);
+        audioRefs.current[exampleIndex] = audio;
+        audio.volume = audioConfig.volume;
+        audio.playbackRate = audioConfig.rate;
+        
+        // Set up error handling
+        audio.onerror = () => {
+          console.error('Failed to load audio:', finalAudioUrl);
+          // Fall back to TTS
+          speakText(japaneseText, audioConfig.rate);
+          setAudioLoading(null);
+        };
+        
+        audio.oncanplaythrough = () => {
+          setAudioLoading(null);
+        };
+        
+        await audio.play();
+        audio.onended = () => {
+          setIsPlaying(null);
+          setCurrentExamplePlaying(null);
+          setAudioLoading(null);
+          
+          // Auto repeat if enabled
+          if (audioConfig.autoRepeat) {
+            setTimeout(() => {
+              if (audioConfig.autoPlay) {
+                playAudio(audioUrl, exampleIndex, japaneseText);
+              }
+            }, 500);
+          }
+        };
+      } catch (error) {
+        console.error('Error playing audio:', error);
+        // Fall back to TTS
+        speakText(japaneseText, audioConfig.rate);
+        setIsPlaying(null);
+        setAudioLoading(null);
+      }
+    } else {
+      // Use TTS as fallback
+      setIsPlaying(`tts-${exampleIndex}`);
+      setCurrentExamplePlaying(exampleIndex);
+      speakText(japaneseText, audioConfig.rate);
+    }
+  }, [speechSynthesis, audioConfig, stopSpeech, speakText]);
+
+  const toggleAudioSettings = () => {
+    setShowAudioSettings(!showAudioSettings);
   };
 
-  const stopAudio = (exampleIndex: number) => {
-    const audio = audioRefs.current[exampleIndex];
-    if (audio) {
-      audio.pause();
-      audio.currentTime = 0;
-    }
-    setIsPlaying(null);
-    setAudioLoading(null);
+  const updateAudioConfig = (key: keyof AudioConfig, value: number | boolean) => {
+    setAudioConfig(prev => ({
+      ...prev,
+      [key]: value
+    }));
   };
 
   const shuffleGrammar = () => {
@@ -275,6 +361,7 @@ const GrammarN5Page: React.FC = () => {
       setCurrentIndex(randomIndex);
       setShowAnswer(false);
       setActiveTab('explanation');
+      setCurrentExamplePlaying(null);
       if (mainContentRef.current) {
         mainContentRef.current.scrollTo({ top: 0, behavior: 'smooth' });
       }
@@ -494,6 +581,83 @@ const GrammarN5Page: React.FC = () => {
         </div>
       )}
 
+      {/* Audio Settings Panel */}
+      {showAudioSettings && (
+        <div className={`fixed top-20 right-4 z-50 rounded-xl p-4 shadow-2xl border backdrop-blur-sm
+          ${darkMode ? 'bg-gray-900/95 border-gray-800' : 'bg-white/95 border-gray-200'}`}>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-bold text-sm flex items-center gap-2">
+              <Volume2 className="w-4 h-4" />
+              Audio Settings
+            </h3>
+            <button
+              onClick={() => setShowAudioSettings(false)}
+              className="p-1 hover:opacity-70"
+            >
+              <X className="w-3 h-3" />
+            </button>
+          </div>
+          
+          <div className="space-y-3">
+            <div>
+              <label className="text-xs opacity-75 mb-1 block">Playback Speed</label>
+              <div className="flex items-center gap-2">
+                <Volume1 className="w-3 h-3 opacity-50" />
+                <input
+                  type="range"
+                  min="0.5"
+                  max="1.5"
+                  step="0.1"
+                  value={audioConfig.rate}
+                  onChange={(e) => updateAudioConfig('rate', parseFloat(e.target.value))}
+                  className="flex-1"
+                />
+                <span className="text-xs font-mono w-8">{audioConfig.rate.toFixed(1)}x</span>
+              </div>
+            </div>
+            
+            <div>
+              <label className="text-xs opacity-75 mb-1 block">Volume</label>
+              <div className="flex items-center gap-2">
+                <Volume className="w-3 h-3 opacity-50" />
+                <input
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.1"
+                  value={audioConfig.volume}
+                  onChange={(e) => updateAudioConfig('volume', parseFloat(e.target.value))}
+                  className="flex-1"
+                />
+                <span className="text-xs font-mono w-8">{Math.round(audioConfig.volume * 100)}%</span>
+              </div>
+            </div>
+            
+            <div className="space-y-2">
+              <label className="flex items-center gap-2 cursor-pointer text-xs">
+                <input
+                  type="checkbox"
+                  checked={audioConfig.autoPlay}
+                  onChange={(e) => updateAudioConfig('autoPlay', e.target.checked)}
+                  className="rounded"
+                />
+                Auto-play next example
+              </label>
+              
+              <label className="flex items-center gap-2 cursor-pointer text-xs">
+                <input
+                  type="checkbox"
+                  checked={audioConfig.autoRepeat}
+                  onChange={(e) => updateAudioConfig('autoRepeat', e.target.checked)}
+                  className="rounded"
+                />
+                Auto-repeat
+              </label>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="flex h-screen">
         {/* Sidebar */}
         <div className={`
@@ -600,6 +764,30 @@ const GrammarN5Page: React.FC = () => {
                     <X className="w-3 h-3" />
                   </button>
                 )}
+              </div>
+              
+              {/* Display Toggles */}
+              <div className="flex gap-2 mb-4">
+                <button
+                  onClick={() => setShowRomaji(!showRomaji)}
+                  className={`flex-1 px-3 py-1.5 rounded-lg text-xs flex items-center justify-center gap-1
+                    ${showRomaji 
+                      ? 'bg-gradient-to-r from-blue-500 to-purple-500 text-white' 
+                      : darkMode ? 'bg-gray-800 text-gray-400' : 'bg-gray-100 text-gray-600'
+                    }`}
+                >
+                  {showRomaji ? '✓ Romaji' : 'Romaji'}
+                </button>
+                <button
+                  onClick={() => setShowTranslation(!showTranslation)}
+                  className={`flex-1 px-3 py-1.5 rounded-lg text-xs flex items-center justify-center gap-1
+                    ${showTranslation 
+                      ? 'bg-gradient-to-r from-green-500 to-emerald-500 text-white' 
+                      : darkMode ? 'bg-gray-800 text-gray-400' : 'bg-gray-100 text-gray-600'
+                    }`}
+                >
+                  {showTranslation ? '✓ Translation' : 'Translation'}
+                </button>
               </div>
               
               {/* Difficulty Filter */}
@@ -748,6 +936,17 @@ const GrammarN5Page: React.FC = () => {
               </div>
 
               <div className="flex items-center gap-2">
+                {/* Audio Settings Button */}
+                <button
+                  onClick={toggleAudioSettings}
+                  className={`p-2 rounded-xl hover:scale-105 transition-all ${
+                    darkMode ? 'hover:bg-gray-800/30' : 'hover:bg-gray-200/50'
+                  }`}
+                  title="Audio Settings"
+                >
+                  <Volume2 className="w-5 h-5" />
+                </button>
+
                 {/* Theme Toggle Button */}
                 <button
                   onClick={toggleDarkMode}
@@ -838,6 +1037,15 @@ const GrammarN5Page: React.FC = () => {
                                   : darkMode ? 'text-gray-500' : 'text-gray-400'
                               }`} />
                             </button>
+                            <button
+                              onClick={() => speakText(currentGrammar.title)}
+                              className={`p-1.5 rounded-lg transition-all ${
+                                darkMode ? 'bg-gray-800/50' : 'bg-gray-100'
+                              }`}
+                              title="Hear pronunciation"
+                            >
+                              <Volume2 className="w-3.5 h-3.5" />
+                            </button>
                           </div>
                         </div>
                       </div>
@@ -925,6 +1133,15 @@ const GrammarN5Page: React.FC = () => {
                               <p className="text-xs opacity-75">Master this pattern</p>
                             </div>
                           </div>
+                          <button
+                            onClick={() => speakText(currentGrammar.formation)}
+                            className={`p-2 rounded-lg ${
+                              darkMode ? 'bg-gray-800/50' : 'bg-gray-100'
+                            }`}
+                            title="Hear formation"
+                          >
+                            <Volume2 className="w-4 h-4" />
+                          </button>
                         </div>
                         
                         <div className={`p-4 rounded-lg mb-4 ${
@@ -1012,6 +1229,25 @@ const GrammarN5Page: React.FC = () => {
                               {autoPlay ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
                               {autoPlay ? 'Auto' : 'Auto'}
                             </button>
+                            <button
+                              onClick={() => {
+                                // Play all examples in sequence
+                                currentGrammar.examples.forEach((example, index) => {
+                                  setTimeout(() => {
+                                    playAudio(example.grammar_audio, index, example.jp);
+                                  }, index * 3000);
+                                });
+                              }}
+                              className={`px-3 py-2 rounded-lg flex items-center gap-2 text-xs
+                                transition-all
+                                ${darkMode 
+                                  ? 'bg-gray-800 text-gray-300 hover:bg-gray-700' 
+                                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                }`}
+                            >
+                              <Repeat className="w-3.5 h-3.5" />
+                              Play All
+                            </button>
                           </div>
                         </div>
                         
@@ -1020,93 +1256,117 @@ const GrammarN5Page: React.FC = () => {
                             <div 
                               key={index}
                               className={`p-4 rounded-xl transition-all duration-300 ${
-                                darkMode 
-                                  ? 'bg-gradient-to-br from-gray-900/50 to-gray-800/30 border border-gray-800/50' 
-                                  : 'bg-gradient-to-br from-white/90 to-gray-50/90 border border-gray-200/50'
+                                currentExamplePlaying === index
+                                  ? darkMode
+                                    ? 'bg-gradient-to-br from-blue-900/20 to-purple-900/20 border-2 border-blue-500/30'
+                                    : 'bg-gradient-to-br from-blue-50/80 to-purple-50/80 border-2 border-blue-300'
+                                  : darkMode 
+                                    ? 'bg-gradient-to-br from-gray-900/50 to-gray-800/30 border border-gray-800/50' 
+                                    : 'bg-gradient-to-br from-white/90 to-gray-50/90 border border-gray-200/50'
                               }`}
                             >
                               <div className="flex flex-col gap-4">
                                 {/* Japanese Section */}
                                 <div className="space-y-3">
-                                  <div>
-                                    <span className={`px-2 py-1 rounded-full text-xs font-bold 
-                                      mb-2 inline-block ${
-                                        darkMode 
-                                          ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30' 
-                                          : 'bg-blue-100 text-blue-700 border border-blue-200'
-                                      }`}>
-                                      Japanese
-                                    </span>
-                                    <div className="flex items-start justify-between">
-                                      <p className="text-lg lg:text-xl font-bold leading-relaxed break-all">
+                                  <div className="flex items-center justify-between">
+                                    <div>
+                                      <span className={`px-2 py-1 rounded-full text-xs font-bold 
+                                        mb-2 inline-block ${
+                                          darkMode 
+                                            ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30' 
+                                            : 'bg-blue-100 text-blue-700 border border-blue-200'
+                                        }`}>
+                                        Japanese
+                                      </span>
+                                      <p className="text-lg lg:text-xl font-bold leading-relaxed break-all mt-2">
                                         {example.jp}
                                       </p>
                                     </div>
+                                    <div className="flex items-center gap-2">
+                                      <button
+                                        onClick={() => playAudio(example.grammar_audio, index, example.jp)}
+                                        disabled={audioLoading === index}
+                                        className={`p-2 rounded-lg transition-all ${
+                                          isPlaying && currentExamplePlaying === index
+                                            ? 'bg-gradient-to-r from-green-500 to-emerald-500 text-white animate-pulse'
+                                            : darkMode 
+                                              ? 'bg-gray-800 text-gray-300 hover:bg-gray-700' 
+                                              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                        } disabled:opacity-50`}
+                                        title="Listen to pronunciation"
+                                      >
+                                        {audioLoading === index ? (
+                                          <Loader2 className="w-4 h-4 animate-spin" />
+                                        ) : isPlaying && currentExamplePlaying === index ? (
+                                          <Pause className="w-4 h-4" />
+                                        ) : (
+                                          <Volume2 className="w-4 h-4" />
+                                        )}
+                                      </button>
+                                    </div>
                                   </div>
                                   
-                                  <div>
-                                    <span className={`px-2 py-1 rounded-full text-xs font-bold 
-                                      mb-2 inline-block ${
-                                        darkMode 
-                                          ? 'bg-purple-500/20 text-purple-400 border border-purple-500/30' 
-                                          : 'bg-purple-100 text-purple-700 border border-purple-200'
-                                      }`}>
-                                      Romaji
-                                    </span>
-                                    <p className={`text-base ${
-                                      darkMode ? 'text-gray-400' : 'text-gray-600'
-                                    } break-all`}>
-                                      {example.romaji}
-                                    </p>
-                                  </div>
+                                  {showRomaji && (
+                                    <div>
+                                      <span className={`px-2 py-1 rounded-full text-xs font-bold 
+                                        mb-2 inline-block ${
+                                          darkMode 
+                                            ? 'bg-purple-500/20 text-purple-400 border border-purple-500/30' 
+                                            : 'bg-purple-100 text-purple-700 border border-purple-200'
+                                        }`}>
+                                        Romaji
+                                      </span>
+                                      <p className={`text-base mt-2 ${
+                                        darkMode ? 'text-gray-400' : 'text-gray-600'
+                                      } break-all`}>
+                                        {example.romaji}
+                                      </p>
+                                    </div>
+                                  )}
                                 </div>
                                 
                                 {/* Translation & Audio Section */}
-                                <div className="space-y-4">
-                                  <div className={`p-3 rounded-lg ${
-                                    darkMode 
-                                      ? 'bg-gradient-to-r from-gray-900 to-gray-800' 
-                                      : 'bg-gradient-to-r from-gray-100 to-gray-50'
-                                  } border ${darkMode ? 'border-gray-800' : 'border-gray-200'}`}>
-                                    <div className="flex items-center gap-2 mb-2">
-                                      <Bookmark className="w-4 h-4 text-blue-500" />
-                                      <div className="text-xs font-semibold">English Translation</div>
+                                {showTranslation && (
+                                  <div className="space-y-4">
+                                    <div className={`p-3 rounded-lg ${
+                                      darkMode 
+                                        ? 'bg-gradient-to-r from-gray-900 to-gray-800' 
+                                        : 'bg-gradient-to-r from-gray-100 to-gray-50'
+                                    } border ${darkMode ? 'border-gray-800' : 'border-gray-200'}`}>
+                                      <div className="flex items-center gap-2 mb-2">
+                                        <Bookmark className="w-4 h-4 text-blue-500" />
+                                        <div className="text-xs font-semibold">English Translation</div>
+                                      </div>
+                                      <p className="text-sm font-medium leading-relaxed">{example.en}</p>
                                     </div>
-                                    <p className="text-sm font-medium leading-relaxed">{example.en}</p>
                                   </div>
-                                  
-                                  <div className="space-y-3">
-                                    <button
-                                      onClick={() => isPlaying === `${currentIndex}-${index}` 
-                                        ? stopAudio(index) 
-                                        : playAudio(example.grammar_audio, index)
-                                      }
-                                      disabled={audioLoading === index}
-                                      className={`w-full py-3 px-4 rounded-lg flex items-center 
-                                        justify-center gap-3 transition-all duration-300
-                                        ${isPlaying === `${currentIndex}-${index}`
-                                          ? 'bg-gradient-to-r from-green-500 to-emerald-500 text-white'
-                                          : 'bg-gradient-to-r from-blue-500 to-purple-500 text-white'
-                                        } disabled:opacity-50`}
-                                    >
-                                      {audioLoading === index ? (
-                                        <>
-                                          <Loader2 className="w-4 h-4 animate-spin" />
-                                          <span className="text-sm font-semibold">Loading...</span>
-                                        </>
-                                      ) : isPlaying === `${currentIndex}-${index}` ? (
-                                        <>
-                                          <Pause className="w-4 h-4" />
-                                          <span className="text-sm font-semibold">Stop Audio</span>
-                                        </>
-                                      ) : (
-                                        <>
-                                          <Headphones className="w-4 h-4" />
-                                          <span className="text-sm font-semibold">Listen & Repeat</span>
-                                        </>
-                                      )}
-                                    </button>
-                                  </div>
+                                )}
+                                
+                                <div className="flex gap-2 pt-2 border-t border-gray-800/30">
+                                  <button
+                                    onClick={() => speakText(example.jp)}
+                                    className={`flex-1 py-2 px-3 rounded-lg text-xs flex items-center 
+                                      justify-center gap-2 transition-all
+                                      ${darkMode 
+                                        ? 'bg-gray-800 text-gray-300 hover:bg-gray-700' 
+                                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                      }`}
+                                  >
+                                    <Mic2 className="w-3 h-3" />
+                                    Repeat After
+                                  </button>
+                                  <button
+                                    onClick={() => copyToClipboard(example.jp, 'japanese')}
+                                    className={`p-2 rounded-lg text-xs flex items-center gap-1 transition-all
+                                      ${copiedText === 'japanese' 
+                                        ? 'bg-green-500/20 text-green-400' 
+                                        : darkMode 
+                                          ? 'bg-gray-800 text-gray-300 hover:bg-gray-700' 
+                                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                      }`}
+                                  >
+                                    {copiedText === 'japanese' ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                                  </button>
                                 </div>
                               </div>
                             </div>
@@ -1164,6 +1424,17 @@ const GrammarN5Page: React.FC = () => {
                                 >
                                   {showAnswer ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                                   {showAnswer ? 'Hide Tips' : 'Show Tips'}
+                                </button>
+                                <button
+                                  onClick={() => speakText(currentGrammar.formation)}
+                                  className={`px-4 py-2 rounded-lg text-sm flex items-center gap-2 ${
+                                    darkMode 
+                                      ? 'bg-gray-800 text-gray-300 hover:bg-gray-700' 
+                                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                  }`}
+                                >
+                                  <Volume2 className="w-4 h-4" />
+                                  Hear Pattern
                                 </button>
                               </div>
                               
@@ -1225,6 +1496,14 @@ const GrammarN5Page: React.FC = () => {
                                       </div>
                                       <div className="text-sm font-semibold">Sentence {num}</div>
                                     </div>
+                                    <button
+                                      onClick={() => speakText(`Sentence ${num}: Try to create a sentence using ${currentGrammar.formation}`)}
+                                      className={`p-1.5 rounded ${
+                                        darkMode ? 'bg-gray-800' : 'bg-gray-100'
+                                      }`}
+                                    >
+                                      <Volume2 className="w-3 h-3" />
+                                    </button>
                                   </div>
                                   <div className={`h-20 rounded-lg ${
                                     darkMode ? 'bg-gray-800/50' : 'bg-gray-100/80'
@@ -1323,7 +1602,7 @@ const GrammarN5Page: React.FC = () => {
           <footer className={`px-4 py-3 ${colors.header} border-t ${colors.headerBorder} backdrop-blur-sm`}>
             <div className="flex justify-between items-center gap-4">
               <div className="text-xs opacity-75">
-                JLPT N5 Grammar Master
+                JLPT N5 Grammar Master • Audio Powered by Web Speech API
               </div>
               <div className="flex items-center gap-3">
                 <button className={`text-xs opacity-75 hover:opacity-100 transition-opacity ${colors.text}`}>
@@ -1362,11 +1641,18 @@ const GrammarN5Page: React.FC = () => {
           0% { transform: translateY(-100px) rotate(0deg); opacity: 1; }
           100% { transform: translateY(100vh) rotate(720deg); opacity: 0; }
         }
+        @keyframes pulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.5; }
+        }
         .animate-fadeIn {
           animation: fadeIn 0.3s ease-out;
         }
         .animate-confetti {
           animation: confetti 2s linear forwards;
+        }
+        .animate-pulse {
+          animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
         }
         
         /* Custom scrollbar */
