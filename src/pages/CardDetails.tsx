@@ -34,13 +34,17 @@ import {
   ChevronsRight,
   TrendingUp,
   Users,
-  Star
+  Star,
+  CheckCircle,
+  X
 } from 'lucide-react';
 import n4Kanji from "./Vocabulary/fullvocabulary.json";
+
 // Reuse the same types from CardBrowser
 type WordType = 'word' | 'kanji';
 type JLPTLevel = 'N5' | 'N4' | 'N3' | 'N2' | 'N1' | '4' | '5';
 type CardType = 'Noun' | 'Verb' | 'Adjective' | 'Adverb' | 'Katakana' | 'Conjunction' | 'Pronoun' | 'Preposition' | 'Other';
+
 interface BaseCard {
   index: number;
   word: string;
@@ -52,6 +56,7 @@ interface BaseCard {
   card: WordType;
   final_index: number;
 }
+
 interface WordCard extends BaseCard {
   card: 'word';
   layout?: never;
@@ -67,6 +72,7 @@ interface WordCard extends BaseCard {
   prev?: string;
   next?: string;
 }
+
 interface KanjiCard extends BaseCard {
   card: 'kanji';
   layout: string;
@@ -86,7 +92,9 @@ interface KanjiCard extends BaseCard {
   kun: string;
   kun_en: string;
 }
+
 type CardData = WordCard | KanjiCard;
+
 interface UserProgress {
   bookmarked: boolean;
   learned: boolean;
@@ -94,12 +102,15 @@ interface UserProgress {
   reviewCount: number;
   mastery: number;
 }
+
 interface AppData {
   [key: string]: UserProgress;
 }
+
 const getCardKey = (card: CardData): string => {
   return `${card.card}-${card.index}-${card.word}`;
 };
+
 const CardDetails: React.FC = () => {
   const { cardType, index, word } = useParams<{ cardType: string; index: string; word: string }>();
   const navigate = useNavigate();
@@ -114,13 +125,17 @@ const CardDetails: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [copied, setCopied] = useState(false);
   const [isFavorite, setIsFavorite] = useState(false);
+  const [showIframe, setShowIframe] = useState(true);
+
   useEffect(() => {
     localStorage.setItem('darkMode', JSON.stringify(darkMode));
   }, [darkMode]);
+
   useEffect(() => {
-    // Load user data and theme
+    // Load user data
     const savedData = localStorage.getItem("japanese-flashcards-progress");
     if (savedData) setUserData(JSON.parse(savedData));
+    
     // Find the card
     const raw = Array.isArray(n4Kanji) ? n4Kanji : Object.values(n4Kanji);
     const decodedWord = decodeURIComponent(word || '');
@@ -131,6 +146,7 @@ const CardDetails: React.FC = () => {
       item.card === cardType &&
       (item.word === decodedWord || item.kanji === decodedWord)
     );
+    
     if (foundCard) {
       const normalized: CardData = (() => {
         const jlptNormalized = String(foundCard.jlpt).startsWith("N")
@@ -174,8 +190,10 @@ const CardDetails: React.FC = () => {
           final_index: foundCard.final_index,
         } as WordCard;
       })();
+      
       setCard(normalized);
       setIsFavorite(userData[getCardKey(normalized)]?.bookmarked || false);
+      
       // Find related cards (same JLPT level and type)
       const related = raw.filter((item: any) =>
         item.jlpt === foundCard.jlpt &&
@@ -225,12 +243,15 @@ const CardDetails: React.FC = () => {
       });
       setRelatedCards(related);
     }
+    
     setIsLoading(false);
-  }, [cardType, index, word, userData]);
+  }, [cardType, index, word]);
+
   const saveUserData = (newData: AppData) => {
     setUserData(newData);
     localStorage.setItem('japanese-flashcards-progress', JSON.stringify(newData));
   };
+
   const toggleBookmark = useCallback(() => {
     if (!card) return;
     const key = getCardKey(card);
@@ -246,6 +267,7 @@ const CardDetails: React.FC = () => {
     saveUserData(newData);
     setIsFavorite(!isFavorite);
   }, [card, userData, isFavorite]);
+
   const toggleLearned = useCallback(() => {
     if (!card) return;
     const key = getCardKey(card);
@@ -261,6 +283,7 @@ const CardDetails: React.FC = () => {
     };
     saveUserData(newData);
   }, [card, userData]);
+
   const speakText = useCallback((text: string) => {
     if ('speechSynthesis' in window) {
       setSpeaking(true);
@@ -272,11 +295,13 @@ const CardDetails: React.FC = () => {
       speechSynthesis.speak(utterance);
     }
   }, []);
+
   const copyToClipboard = useCallback((text: string) => {
     navigator.clipboard.writeText(text);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   }, []);
+
   const getJLPTColor = (jlpt: JLPTLevel) => {
     const colors = {
       '5': {
@@ -329,6 +354,7 @@ const CardDetails: React.FC = () => {
       gradient: 'from-gray-500 to-slate-500'
     };
   };
+
   const getTypeColor = (type?: CardType) => {
     switch (type) {
       case 'Noun':
@@ -353,6 +379,7 @@ const CardDetails: React.FC = () => {
           : 'bg-gradient-to-r from-gray-50 to-slate-50 text-gray-700 border border-gray-200';
     }
   };
+
   const getKanjiCharacterStyle = (card: CardData) => {
     if (card.card !== 'kanji') return '';
    
@@ -377,6 +404,7 @@ const CardDetails: React.FC = () => {
         : 'text-8xl bg-gradient-to-br from-violet-500 via-purple-500 to-violet-600 bg-clip-text text-transparent';
     }
   };
+
   if (isLoading) {
     return (
       <div className={`min-h-screen flex items-center justify-center transition-colors duration-500 ${
@@ -401,6 +429,7 @@ const CardDetails: React.FC = () => {
       </div>
     );
   }
+
   if (!card) {
     return (
       <div className={`min-h-screen flex items-center justify-center transition-colors duration-500 ${
@@ -437,10 +466,12 @@ const CardDetails: React.FC = () => {
       </div>
     );
   }
+
   const userProgress = userData[getCardKey(card)];
   const jlptColor = getJLPTColor(card.jlpt);
   const kanjiStyle = getKanjiCharacterStyle(card);
   const kanjiCard = card.card === 'kanji' ? card as KanjiCard : null;
+
   return (
     <div className={`min-h-screen transition-colors duration-500 ${
       darkMode
@@ -458,6 +489,7 @@ const CardDetails: React.FC = () => {
           <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-gradient-to-r from-cyan-300 to-blue-300 rounded-full blur-3xl animate-pulse"></div>
         </div>
       )}
+
       {/* Enhanced Floating Navigation Bar */}
       <div className="fixed top-0 left-0 right-0 z-50">
         <div className={`px-4 md:px-8 py-4 ${
@@ -535,6 +567,7 @@ const CardDetails: React.FC = () => {
           </div>
         </div>
       </div>
+
       {/* Main Content */}
       <div className="pt-24 pb-12 px-4 md:px-8 max-w-7xl mx-auto">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -653,6 +686,7 @@ const CardDetails: React.FC = () => {
                 </div>
               </div>
             </div>
+
             {/* Enhanced Action Buttons */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
               <button
@@ -757,6 +791,7 @@ const CardDetails: React.FC = () => {
                 </div>
               </button>
             </div>
+
             {/* Enhanced Kanji Details */}
             {kanjiCard && (
               <div className={`relative rounded-3xl border p-8 overflow-hidden backdrop-blur-sm ${
@@ -859,6 +894,7 @@ const CardDetails: React.FC = () => {
               </div>
             )}
           </div>
+
           {/* Right Panel - Iframe & Additional Info */}
           <div className="space-y-8">
             {/* Enhanced Iframe Container */}
@@ -868,7 +904,7 @@ const CardDetails: React.FC = () => {
                   ? 'bg-gradient-to-br from-gray-800/40 to-gray-900/40 border-gray-700/50'
                   : 'bg-white/90 border-gray-200 shadow-2xl'
               }`}>
-                <div className={`p-6 border-b ${
+                <div className={`p-4 border-b ${
                   darkMode ? 'bg-gradient-to-r from-gray-800/80 to-gray-900/80 border-gray-700/50' : 'border-gray-200 bg-white/90'
                 }`}>
                   <div className="flex items-center justify-between">
@@ -889,27 +925,43 @@ const CardDetails: React.FC = () => {
                         }`}>Stroke order & details</p>
                       </div>
                     </div>
-                    <a
-                      href={kanjiCard.redirect_to}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-sm text-indigo-500 hover:text-indigo-600 font-medium flex items-center gap-2"
-                    >
-                      Open Full <ChevronsRight className="w-4 h-4" />
-                    </a>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setShowIframe(!showIframe)}
+                        className={`p-2 rounded-lg ${
+                          darkMode
+                            ? 'hover:bg-gray-800 text-gray-400 hover:text-white'
+                            : 'hover:bg-gray-100 text-gray-600 hover:text-gray-900'
+                        }`}
+                        title={showIframe ? "Hide iframe" : "Show iframe"}
+                      >
+                        {showIframe ? <X className="w-4 h-4" /> : <ExternalLink className="w-4 h-4" />}
+                      </button>
+                      <a
+                        href={kanjiCard.redirect_to}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-sm text-indigo-500 hover:text-indigo-600 font-medium flex items-center gap-2 px-3 py-1 rounded-lg hover:bg-indigo-50"
+                      >
+                        Open Full <ChevronsRight className="w-4 h-4" />
+                      </a>
+                    </div>
                   </div>
                 </div>
-                <div className="h-[500px]">
-                  <iframe
-                    src={kanjiCard.redirect_to}
-                    className="w-full h-full"
-                    title="Kanji details"
-                    sandbox="allow-scripts allow-same-origin"
-                    loading="lazy"
-                  />
-                </div>
+                {showIframe && (
+                  <div className="h-[500px]">
+                    <iframe
+                      src={kanjiCard.redirect_to}
+                      className="w-full h-full"
+                      title="Kanji details"
+                      sandbox="allow-scripts allow-same-origin"
+                      loading="lazy"
+                    />
+                  </div>
+                )}
               </div>
             )}
+
             {/* Enhanced Study Stats */}
             <div className={`relative rounded-3xl border p-6 backdrop-blur-sm overflow-hidden ${
               darkMode
@@ -987,6 +1039,7 @@ const CardDetails: React.FC = () => {
                 </div>
               </div>
             </div>
+
             {/* Enhanced Quick Actions */}
             <div className={`relative rounded-3xl border p-6 backdrop-blur-sm overflow-hidden ${
               darkMode
@@ -1077,6 +1130,7 @@ const CardDetails: React.FC = () => {
             </div>
           </div>
         </div>
+
         {/* Enhanced Related Cards Section */}
         {relatedCards.length > 0 && (
           <div className="mt-16">
@@ -1162,4 +1216,5 @@ const CardDetails: React.FC = () => {
     </div>
   );
 };
+
 export default CardDetails;

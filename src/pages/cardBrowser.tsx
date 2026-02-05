@@ -60,10 +60,12 @@ import {
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import n4Kanji from "./Vocabulary/fullvocabulary.json";
+
 // Type definitions
 type WordType = 'word' | 'kanji';
 type JLPTLevel = 'N5' | 'N4' | 'N3' | 'N2' | 'N1' | '4' | '5';
 type CardType = 'Noun' | 'Verb' | 'Adjective' | 'Adverb' | 'Katakana' | 'Conjunction' | 'Pronoun' | 'Preposition' | 'Other';
+
 interface BaseCard {
   index: number;
   word: string;
@@ -75,6 +77,7 @@ interface BaseCard {
   card: WordType;
   final_index: number;
 }
+
 interface WordCard extends BaseCard {
   card: 'word';
   layout?: never;
@@ -90,6 +93,7 @@ interface WordCard extends BaseCard {
   prev?: string;
   next?: string;
 }
+
 interface KanjiCard extends BaseCard {
   card: 'kanji';
   layout: string;
@@ -109,7 +113,9 @@ interface KanjiCard extends BaseCard {
   kun: string;
   kun_en: string;
 }
+
 type CardData = WordCard | KanjiCard;
+
 interface UserProgress {
   bookmarked: boolean;
   learned: boolean;
@@ -117,19 +123,26 @@ interface UserProgress {
   reviewCount: number;
   mastery: number;
 }
+
 interface AppData {
   [key: string]: UserProgress;
 }
+
 // Get unique key for each card
 const getCardKey = (card: CardData): string => {
   return `${card.card}-${card.index}-${card.word}`;
 };
+
 const CardBrowser: React.FC = () => {
   const navigate = useNavigate();
   const [cards, setCards] = useState<CardData[]>([]);
   const [filteredCards, setFilteredCards] = useState<CardData[]>([]);
   const [userData, setUserData] = useState<AppData>({});
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>(() => {
+    const saved = localStorage.getItem('japanese-flashcards-viewMode');
+    return saved ? JSON.parse(saved) as 'grid' | 'list' : 'grid';
+  });
+  
   const [filter, setFilter] = useState<{
     type: 'all' | 'word' | 'kanji';
     jlpt: JLPTLevel | 'all';
@@ -137,16 +150,25 @@ const CardBrowser: React.FC = () => {
     showBookmarked: boolean;
     showLearned: boolean;
     showNew: boolean;
-  }>({
-    type: 'all',
-    jlpt: 'all',
-    search: '',
-    showBookmarked: false,
-    showLearned: false,
-    showNew: false,
+  }>(() => {
+    const saved = localStorage.getItem('japanese-flashcards-filter');
+    return saved ? JSON.parse(saved) : {
+      type: 'all',
+      jlpt: 'all',
+      search: '',
+      showBookmarked: false,
+      showLearned: false,
+      showNew: false,
+    };
   });
-  const [shuffled, setShuffled] = useState(false);
+  
+  const [shuffled, setShuffled] = useState(() => {
+    const saved = localStorage.getItem('japanese-flashcards-shuffled');
+    return saved ? JSON.parse(saved) : false;
+  });
+  
   const [isLoading, setIsLoading] = useState(true);
+  const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [hoveredCard, setHoveredCard] = useState<string | null>(null);
   const [activeAnimation, setActiveAnimation] = useState<string | null>(null);
   const [speaking, setSpeaking] = useState(false);
@@ -156,45 +178,15 @@ const CardBrowser: React.FC = () => {
   });
   const [showDataLoader, setShowDataLoader] = useState(false);
   const [loadedCardsCount, setLoadedCardsCount] = useState(0);
-  const [showFilters, setShowFilters] = useState(false);
-  // Load persisted states
-  useEffect(() => {
-    const savedFilter = localStorage.getItem('japanese-flashcards-filter');
-    if (savedFilter) {
-      setFilter(JSON.parse(savedFilter));
-    }
-    const savedViewMode = localStorage.getItem('japanese-flashcards-viewMode');
-    if (savedViewMode) {
-      setViewMode(JSON.parse(savedViewMode) as 'grid' | 'list');
-    }
-    const savedShuffled = localStorage.getItem('japanese-flashcards-shuffled');
-    if (savedShuffled) {
-      setShuffled(JSON.parse(savedShuffled));
-    }
-    const savedShowFilters = localStorage.getItem('japanese-flashcards-showFilters');
-    if (savedShowFilters) {
-      setShowFilters(JSON.parse(savedShowFilters));
-    }
-  }, []);
-  // Save states when they change
-  useEffect(() => {
-    localStorage.setItem('japanese-flashcards-filter', JSON.stringify(filter));
-  }, [filter]);
-  useEffect(() => {
-    localStorage.setItem('japanese-flashcards-viewMode', JSON.stringify(viewMode));
-  }, [viewMode]);
-  useEffect(() => {
-    localStorage.setItem('japanese-flashcards-shuffled', JSON.stringify(shuffled));
-  }, [shuffled]);
-  useEffect(() => {
-    localStorage.setItem('japanese-flashcards-showFilters', JSON.stringify(showFilters));
-  }, [showFilters]);
-  useEffect(() => {
-    localStorage.setItem('darkMode', JSON.stringify(darkMode));
-  }, [darkMode]);
+  const [showFilters, setShowFilters] = useState(() => {
+    const saved = localStorage.getItem('japanese-flashcards-showFilters');
+    return saved ? JSON.parse(saved) : true;
+  });
+
   // Initialize data
   useEffect(() => {
     const loadData = async (count: number = 300) => {
+      setIsInitialLoading(true);
       setIsLoading(true);
       try {
         const raw = Array.isArray(n4Kanji) ? n4Kanji : Object.values(n4Kanji);
@@ -245,25 +237,57 @@ const CardBrowser: React.FC = () => {
         );
         const sorted = unique.sort((a, b) => a.index - b.index);
         const limited = count === sorted.length ? sorted : sorted.slice(0, count);
-        setCards(limited);
-        setFilteredCards(limited);
-        setLoadedCardsCount(limited.length);
+        
+        // Add slight delay for better UX
+        setTimeout(() => {
+          setCards(limited);
+          setFilteredCards(limited);
+          setLoadedCardsCount(limited.length);
+          setIsInitialLoading(false);
+          setIsLoading(false);
+        }, 500);
+        
         const savedData = localStorage.getItem("japanese-flashcards-progress");
         if (savedData) setUserData(JSON.parse(savedData));
       } catch (err) {
         console.error("Load error:", err);
-      } finally {
+        setIsInitialLoading(false);
         setIsLoading(false);
       }
     };
     loadData(4000);
   }, []);
+
+  // Save states when they change
+  useEffect(() => {
+    localStorage.setItem('japanese-flashcards-filter', JSON.stringify(filter));
+  }, [filter]);
+  
+  useEffect(() => {
+    localStorage.setItem('japanese-flashcards-viewMode', JSON.stringify(viewMode));
+  }, [viewMode]);
+  
+  useEffect(() => {
+    localStorage.setItem('japanese-flashcards-shuffled', JSON.stringify(shuffled));
+  }, [shuffled]);
+  
+  useEffect(() => {
+    localStorage.setItem('japanese-flashcards-showFilters', JSON.stringify(showFilters));
+  }, [showFilters]);
+  
+  useEffect(() => {
+    localStorage.setItem('darkMode', JSON.stringify(darkMode));
+  }, [darkMode]);
+
   // Save progress
   useEffect(() => {
     localStorage.setItem('japanese-flashcards-progress', JSON.stringify(userData));
   }, [userData]);
+
   // Filter cards
   useEffect(() => {
+    if (isInitialLoading) return;
+    
     let result = [...cards];
     if (filter.type !== 'all') {
       result = result.filter(card => card.card === filter.type);
@@ -304,7 +328,8 @@ const CardBrowser: React.FC = () => {
       result = result.sort((a, b) => a.index - b.index);
     }
     setFilteredCards(result);
-  }, [cards, filter, shuffled, userData]);
+  }, [cards, filter, shuffled, userData, isInitialLoading]);
+
   // Card actions
   const toggleBookmark = useCallback((card: CardData) => {
     const key = getCardKey(card);
@@ -320,6 +345,7 @@ const CardBrowser: React.FC = () => {
     setActiveAnimation(`bookmark-${key}`);
     setTimeout(() => setActiveAnimation(null), 1000);
   }, []);
+
   const toggleLearned = useCallback((card: CardData) => {
     const key = getCardKey(card);
     setUserData(prev => ({
@@ -335,6 +361,7 @@ const CardBrowser: React.FC = () => {
     setActiveAnimation(`learned-${key}`);
     setTimeout(() => setActiveAnimation(null), 1000);
   }, []);
+
   const speakText = useCallback((text: string) => {
     if ('speechSynthesis' in window) {
       setSpeaking(true);
@@ -346,11 +373,13 @@ const CardBrowser: React.FC = () => {
       speechSynthesis.speak(utterance);
     }
   }, []);
+
   // Navigate to card details
   const openDetailsPage = (card: CardData) => {
     const encodedWord = encodeURIComponent(card.word);
     navigate(`/card/${card.card}/${card.index}/${encodedWord}`);
   };
+
   // Load more data
   const loadMoreData = (count: number) => {
     setIsLoading(true);
@@ -374,6 +403,7 @@ const CardBrowser: React.FC = () => {
       setIsLoading(false);
     }, 500);
   };
+
   // Color helpers for dark/light mode
   const getJLPTColor = (jlpt: JLPTLevel) => {
     const colors = {
@@ -419,6 +449,7 @@ const CardBrowser: React.FC = () => {
       border: darkMode ? 'border-gray-400' : 'border-gray-300'
     };
   };
+
   const getTypeColor = (type?: CardType) => {
     switch (type) {
       case 'Noun': return darkMode ? 'bg-gradient-to-r from-blue-500 to-indigo-500' : 'bg-gradient-to-r from-blue-400 to-indigo-400';
@@ -428,18 +459,52 @@ const CardBrowser: React.FC = () => {
       default: return darkMode ? 'bg-gradient-to-r from-gray-500 to-slate-500' : 'bg-gradient-to-r from-gray-400 to-slate-400';
     }
   };
+
   const getCardGradient = (card: CardData) => {
     if (card.card === 'kanji') {
-      return darkMode ? 'from-amber-500/10 via-orange-500/5 to-yellow-500/10' : 'from-amber-200 via-orange-100 to-yellow-200';
+      return darkMode 
+        ? 'from-amber-500/10 via-orange-500/10 to-yellow-500/10' 
+        : 'from-amber-200/90 via-orange-100/90 to-yellow-200/90';
     }
+    
+    // Vocabulary card gradients
     const jlpt = card.jlpt;
-    if (jlpt === '5' || jlpt === 'N5') return darkMode ? 'from-yellow-500/10 via-amber-500/5 to-yellow-500/10' : 'from-yellow-100 via-amber-50 to-yellow-100';
-    if (jlpt === '4' || jlpt === 'N4') return darkMode ? 'from-emerald-500/10 via-green-500/5 to-emerald-500/10' : 'from-emerald-100 via-green-50 to-emerald-100';
-    if (jlpt === 'N3') return darkMode ? 'from-blue-500/10 via-cyan-500/5 to-blue-500/10' : 'from-blue-100 via-cyan-50 to-blue-100';
-    if (jlpt === 'N2') return darkMode ? 'from-purple-500/10 via-violet-500/5 to-purple-500/10' : 'from-purple-100 via-violet-50 to-purple-100';
-    if (jlpt === 'N1') return darkMode ? 'from-rose-500/10 via-red-500/5 to-rose-500/10' : 'from-rose-100 via-red-50 to-rose-100';
-    return darkMode ? 'from-gray-500/10 via-slate-500/5 to-gray-500/10' : 'from-gray-100 via-slate-50 to-gray-100';
+    if (jlpt === '5' || jlpt === 'N5') return darkMode 
+      ? 'from-yellow-500/10 via-amber-500/10 to-yellow-500/10' 
+      : 'from-yellow-100/90 via-amber-100/90 to-yellow-100/90';
+    if (jlpt === '4' || jlpt === 'N4') return darkMode 
+      ? 'from-emerald-500/10 via-green-500/10 to-emerald-500/10' 
+      : 'from-emerald-100/90 via-green-100/90 to-emerald-100/90';
+    if (jlpt === 'N3') return darkMode 
+      ? 'from-blue-500/10 via-cyan-500/10 to-blue-500/10' 
+      : 'from-blue-100/90 via-cyan-100/90 to-blue-100/90';
+    if (jlpt === 'N2') return darkMode 
+      ? 'from-purple-500/10 via-violet-500/10 to-purple-500/10' 
+      : 'from-purple-100/90 via-violet-100/90 to-purple-100/90';
+    if (jlpt === 'N1') return darkMode 
+      ? 'from-rose-500/10 via-red-500/10 to-rose-500/10' 
+      : 'from-rose-100/90 via-red-100/90 to-rose-100/90';
+    
+    return darkMode 
+      ? 'from-gray-500/10 via-slate-500/10 to-gray-500/10' 
+      : 'from-gray-100/90 via-slate-100/90 to-gray-100/90';
   };
+
+  const getCardBorderColor = (card: CardData) => {
+    if (card.card === 'kanji') {
+      return darkMode ? 'border-amber-500/30' : 'border-amber-300/50';
+    }
+    
+    const jlpt = card.jlpt;
+    if (jlpt === '5' || jlpt === 'N5') return darkMode ? 'border-yellow-500/30' : 'border-yellow-300/50';
+    if (jlpt === '4' || jlpt === 'N4') return darkMode ? 'border-emerald-500/30' : 'border-emerald-300/50';
+    if (jlpt === 'N3') return darkMode ? 'border-blue-500/30' : 'border-blue-300/50';
+    if (jlpt === 'N2') return darkMode ? 'border-purple-500/30' : 'border-purple-300/50';
+    if (jlpt === 'N1') return darkMode ? 'border-rose-500/30' : 'border-rose-300/50';
+    
+    return darkMode ? 'border-gray-500/30' : 'border-gray-300/50';
+  };
+
   // Stats
   const stats = useMemo(() => {
     const total = cards.length;
@@ -452,32 +517,102 @@ const CardBrowser: React.FC = () => {
       const key = getCardKey(card);
       return !userData[key] || (!userData[key].bookmarked && !userData[key].learned);
     }).length;
+    
     return { total, bookmarked, learned, reviewCount, mastery, newCards };
   }, [cards.length, userData]);
-  if (isLoading && cards.length === 0) {
-    return (
-      <div className={`min-h-screen flex items-center justify-center transition-colors duration-300 ${
-        darkMode ? 'bg-gradient-to-br from-gray-900 via-black to-gray-900' : 'bg-gradient-to-br from-gray-50 via-white to-blue-50'
-      }`}>
-        <div className="text-center">
-          <div className="relative">
-            <div className={`w-20 h-20 border-4 rounded-full ${
-              darkMode ? 'border-indigo-500/30' : 'border-indigo-300/50'
-            }`}></div>
-            <div className={`w-20 h-20 border-4 border-transparent rounded-full absolute top-0 left-0 animate-spin ${
-              darkMode ? 'border-t-indigo-500' : 'border-t-indigo-600'
-            }`}></div>
-            <Sparkles className={`w-6 h-6 absolute -top-1 -right-1 animate-pulse ${
+
+  // Clear filter button handler
+  const clearFilters = () => {
+    setFilter({
+      type: 'all',
+      jlpt: 'all',
+      search: '',
+      showBookmarked: false,
+      showLearned: false,
+      showNew: false,
+    });
+  };
+
+if (isInitialLoading) {
+  return (
+    <div
+      className={`min-h-screen flex items-center justify-center transition-colors duration-300 ${
+        darkMode
+          ? 'bg-gradient-to-br from-gray-900 via-black to-gray-900'
+          : 'bg-gradient-to-br from-gray-50 via-white to-blue-50'
+      }`}
+    >
+      <div className="relative text-center px-6">
+        {/* Glow */}
+        <div
+          className={`absolute inset-0 blur-3xl opacity-30 ${
+            darkMode
+              ? 'bg-gradient-to-r from-purple-500/30 via-blue-500/30 to-cyan-500/30'
+              : 'bg-gradient-to-r from-blue-300/40 via-cyan-300/40 to-purple-300/40'
+          }`}
+        />
+
+        {/* Loader Rings */}
+        <div className="relative mx-auto mb-10 w-28 h-28">
+          <div
+            className={`absolute inset-0 rounded-full border-4 ${
+              darkMode ? 'border-indigo-500/20' : 'border-indigo-300/40'
+            }`}
+          />
+          <div
+            className={`absolute inset-0 rounded-full border-4 border-transparent animate-spin ${
+              darkMode ? 'border-t-cyan-500' : 'border-t-cyan-600'
+            }`}
+            style={{ animationDuration: '1.2s' }}
+          />
+          <div
+            className={`absolute inset-2 rounded-full border-4 border-transparent animate-spin ${
+              darkMode ? 'border-t-purple-500' : 'border-t-purple-600'
+            }`}
+            style={{ animationDuration: '1.8s' }}
+          />
+
+          {/* Floating Sparkle */}
+          <Sparkles
+            className={`absolute -top-3 -right-3 w-8 h-8 animate-bounce ${
               darkMode ? 'text-indigo-400' : 'text-indigo-500'
-            }`} />
-          </div>
-          <p className={`mt-4 font-medium animate-pulse ${
-            darkMode ? 'text-gray-300' : 'text-gray-600'
-          }`}>Loading Japanese Mastery...</p>
+            }`}
+          />
         </div>
+
+        {/* Title */}
+        <h2 className="text-4xl font-extrabold mb-3 bg-gradient-to-r from-cyan-500 via-blue-500 to-purple-500 bg-clip-text text-transparent">
+          Japanese Mastery
+        </h2>
+
+        {/* Subtitle */}
+        <p
+          className={`mt-2 text-base sm:text-lg font-medium ${
+            darkMode ? 'text-gray-300' : 'text-gray-600'
+          }`}
+        >
+          Preparing your learning experience...
+        </p>
+
+        {/* Animated shimmer bar */}
+        <div className="mt-6 w-56 h-2 mx-auto rounded-full overflow-hidden bg-gray-300/30">
+          <div className="h-full w-1/3 bg-gradient-to-r from-cyan-500 to-purple-500 animate-pulse" />
+        </div>
+
+        {/* Hint text */}
+        <p
+          className={`text-xs mt-4 tracking-wide ${
+            darkMode ? 'text-gray-500' : 'text-gray-400'
+          }`}
+        >
+          Loading vocabulary, kanji & progress
+        </p>
       </div>
-    );
-  }
+    </div>
+  );
+}
+
+
   return (
     <div className={`min-h-screen transition-colors duration-300 ${
       darkMode ? 'bg-gradient-to-br from-gray-900 via-black to-gray-900' : 'bg-gradient-to-br from-gray-50 via-white to-blue-50'
@@ -492,6 +627,7 @@ const CardBrowser: React.FC = () => {
           </div>
         </div>
       )}
+
       {/* Main Content */}
       <div className="relative z-10">
         {/* Header */}
@@ -581,6 +717,7 @@ const CardBrowser: React.FC = () => {
                 </div>
               </div>
             </div>
+
             {/* Stats Cards */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
               {[
@@ -637,130 +774,193 @@ const CardBrowser: React.FC = () => {
                 </div>
               ))}
             </div>
+
             {/* Filters */}
-            <div className={`rounded-3xl border p-6 mb-8 ${
-              darkMode
-                ? 'bg-gradient-to-br from-gray-900 to-black border-gray-800'
-                : 'bg-gradient-to-br from-white to-gray-50 border-gray-200 shadow-lg'
-            }`}>
-              <div className="flex items-center justify-between mb-6">
-                <div className="flex items-center gap-3">
-                  <Filter className="w-6 h-6 text-cyan-500" />
-                  <h2 className={`text-xl font-bold ${
-                    darkMode ? 'text-white' : 'text-gray-800'
-                  }`}>Filters & Search</h2>
-                </div>
-                <div className="flex items-center gap-3">
-                  <button
-                    onClick={() => setShowFilters(!showFilters)}
-                    className={`p-2 rounded-xl transition-colors ${
-                      darkMode
-                        ? 'hover:bg-gray-800'
-                        : 'hover:bg-gray-100'
-                    }`}
-                  >
-                    <Sliders className={`w-5 h-5 ${
-                      darkMode ? 'text-gray-400' : 'text-gray-600'
-                    }`} />
-                  </button>
-                  <button
-                    onClick={() => loadMoreData(loadedCardsCount + 1000)}
-                    className={`px-4 py-2 rounded-xl flex items-center gap-2 ${
-                      darkMode
-                        ? 'bg-gray-800/50 text-gray-300 hover:bg-gray-800'
-                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                    }`}
-                  >
-                    <Database className="w-4 h-4" />
-                    Load More
-                  </button>
-                </div>
-              </div>
-             
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <div>
-                  <div className="relative">
-                    <Search className={`absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 ${
-                      darkMode ? 'text-gray-500' : 'text-gray-400'
-                    }`} />
-                    <input
-                      type="text"
-                      value={filter.search}
-                      onChange={(e) => setFilter(prev => ({ ...prev, search: e.target.value }))}
-                      className={`w-full pl-12 pr-4 py-3 rounded-xl focus:ring-2 focus:ring-cyan-500/30 focus:border-cyan-500 transition-all placeholder-gray-500 ${
-                        darkMode
-                          ? 'bg-gray-900/50 border border-gray-800 text-white'
-                          : 'bg-white/80 border border-gray-300 text-gray-900 shadow-sm'
-                      }`}
-                      placeholder="Search cards..."
-                    />
-                  </div>
-                </div>
-                <select
-                  value={filter.type}
-                  onChange={(e) => setFilter(prev => ({ ...prev, type: e.target.value as any }))}
-                  className={`px-4 py-3 rounded-xl focus:ring-2 focus:ring-cyan-500/30 focus:border-cyan-500 transition-all ${
-                    darkMode
-                      ? 'bg-gray-900/50 border border-gray-800 text-white'
-                      : 'bg-white/80 border border-gray-300 text-gray-900 shadow-sm'
-                  }`}
-                >
-                  <option value="all">Voc&Kanji</option>
-                  <option value="word">Vocabulary</option>
-                  <option value="kanji">Kanji</option>
-                </select>
-                <select
-                  value={filter.jlpt}
-                  onChange={(e) => setFilter(prev => ({ ...prev, jlpt: e.target.value as any }))}
-                  className={`px-4 py-3 rounded-xl focus:ring-2 focus:ring-cyan-500/30 focus:border-cyan-500 transition-all ${
-                    darkMode
-                      ? 'bg-gray-900/50 border border-gray-800 text-white'
-                      : 'bg-white/80 border border-gray-300 text-gray-900 shadow-sm'
-                  }`}
-                >
-                  <option value="all">All JLPT</option>
-                  <option value="N5">N5</option>
-                  <option value="N4">N4</option>
-                  <option value="N3">N3</option>
-                  <option value="N2">N2</option>
-                  <option value="N1">N1</option>
-                </select>
-                <div className="flex items-center gap-4">
-                  <button
-                    onClick={() => setFilter(prev => ({ ...prev, showBookmarked: !prev.showBookmarked }))}
-                    className={`px-4 py-2 rounded-xl transition-all flex items-center gap-2 ${
-                      filter.showBookmarked
-                        ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white'
-                        : darkMode
-                          ? 'bg-gray-900/50 text-gray-400 hover:text-white border border-gray-800'
-                          : 'bg-white/80 text-gray-600 hover:text-gray-900 border border-gray-300 shadow-sm'
-                    }`}
-                  >
-                    <Bookmark className="w-4 h-4" />
-                    Bookmarked
-                  </button>
-                  <button
-                    onClick={() => setFilter(prev => ({ ...prev, showLearned: !prev.showLearned }))}
-                    className={`px-4 py-2 rounded-xl transition-all flex items-center gap-2 ${
-                      filter.showLearned
-                        ? 'bg-gradient-to-r from-emerald-500 to-green-500 text-white'
-                        : darkMode
-                          ? 'bg-gray-900/50 text-gray-400 hover:text-white border border-gray-800'
-                          : 'bg-white/80 text-gray-600 hover:text-gray-900 border border-gray-300 shadow-sm'
-                    }`}
-                  >
-                    <CheckCircle className="w-4 h-4" />
-                    Mastered
-                  </button>
-                </div>
-              </div>
-            </div>
+{/* Filters */}
+<div
+  className={`w-full max-w-7xl mx-auto rounded-3xl border p-4 sm:p-6 mb-8 transition-all duration-300 ${
+    darkMode
+      ? 'bg-gradient-to-br from-gray-900 to-black border-gray-800'
+      : 'bg-gradient-to-br from-white to-gray-50 border-gray-200 shadow-lg'
+  }`}
+>
+  {/* Header */}
+  <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-6">
+    <div className="flex items-center gap-3">
+      <Filter className="w-6 h-6 text-cyan-500" />
+      <h2 className={`text-lg sm:text-xl font-bold ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+        Filters & Search
+      </h2>
+    </div>
+
+    <div className="flex flex-wrap gap-2">
+      <button
+        onClick={clearFilters}
+        className={`px-4 py-2 rounded-xl flex items-center gap-2 text-sm w-full sm:w-auto ${
+          darkMode
+            ? 'bg-gray-800/50 text-gray-300 hover:bg-gray-800 hover:text-white'
+            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+        }`}
+      >
+        <RotateCw className="w-4 h-4" />
+        Clear Filters
+      </button>
+
+      <button
+        onClick={() => loadMoreData(loadedCardsCount + 1000)}
+        className={`px-4 py-2 rounded-xl flex items-center gap-2 text-sm w-full sm:w-auto ${
+          darkMode
+            ? 'bg-gray-800/50 text-gray-300 hover:bg-gray-800 hover:text-white'
+            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+        }`}
+      >
+        <Database className="w-4 h-4" />
+        Load More
+      </button>
+    </div>
+  </div>
+
+  {/* Filters Grid */}
+  <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4">
+    {/* Search */}
+    <div className="relative w-full xl:col-span-2">
+      <Search
+        className={`absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 ${
+          darkMode ? 'text-gray-500' : 'text-gray-400'
+        }`}
+      />
+      <input
+        type="text"
+        value={filter.search}
+        onChange={(e) => setFilter(prev => ({ ...prev, search: e.target.value }))}
+        className={`w-full pl-12 pr-4 py-3 rounded-xl focus:ring-2 focus:ring-cyan-500/30 focus:border-cyan-500 transition-all ${
+          darkMode
+            ? 'bg-gray-900/50 border border-gray-800 text-white'
+            : 'bg-white/80 border border-gray-300 text-gray-900 shadow-sm'
+        }`}
+        placeholder="Search cards..."
+      />
+    </div>
+
+    {/* Type */}
+    <select
+      value={filter.type}
+      onChange={(e) => setFilter(prev => ({ ...prev, type: e.target.value as any }))}
+      className={`w-full px-4 py-3 rounded-xl focus:ring-2 focus:ring-cyan-500/30 transition-all ${
+        darkMode
+          ? 'bg-gray-900/50 border border-gray-800 text-white'
+          : 'bg-white/80 border border-gray-300 text-gray-900 shadow-sm'
+      }`}
+    >
+      <option value="all">Voc & Kanji</option>
+      <option value="word">Vocabulary</option>
+      <option value="kanji">Kanji</option>
+    </select>
+
+    {/* JLPT */}
+    <select
+      value={filter.jlpt}
+      onChange={(e) => setFilter(prev => ({ ...prev, jlpt: e.target.value as any }))}
+      className={`w-full px-4 py-3 rounded-xl focus:ring-2 focus:ring-cyan-500/30 transition-all ${
+        darkMode
+          ? 'bg-gray-900/50 border border-gray-800 text-white'
+          : 'bg-white/80 border border-gray-300 text-gray-900 shadow-sm'
+      }`}
+    >
+      <option value="all">All JLPT</option>
+      <option value="N5">N5</option>
+      <option value="N4">N4</option>
+      <option value="N3">N3</option>
+      <option value="N2">N2</option>
+      <option value="N1">N1</option>
+    </select>
+
+    {/* Toggles */}
+    <div className="flex flex-wrap gap-2 xl:justify-start">
+      <button
+        onClick={() => setFilter(prev => ({ ...prev, showBookmarked: !prev.showBookmarked }))}
+        className={`px-4 py-2 rounded-xl flex items-center gap-2 text-sm w-full sm:w-auto ${
+          filter.showBookmarked
+            ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white'
+            : darkMode
+            ? 'bg-gray-900/50 text-gray-400 hover:text-white border border-gray-800'
+            : 'bg-white/80 text-gray-600 hover:text-gray-900 border border-gray-300 shadow-sm'
+        }`}
+      >
+        <Bookmark className="w-4 h-4" />
+        Bookmarked
+      </button>
+
+      <button
+        onClick={() => setFilter(prev => ({ ...prev, showLearned: !prev.showLearned }))}
+        className={`px-4 py-2 rounded-xl flex items-center gap-2 text-sm w-full sm:w-auto ${
+          filter.showLearned
+            ? 'bg-gradient-to-r from-emerald-500 to-green-500 text-white'
+            : darkMode
+            ? 'bg-gray-900/50 text-gray-400 hover:text-white border border-gray-800'
+            : 'bg-white/80 text-gray-600 hover:text-gray-900 border border-gray-300 shadow-sm'
+        }`}
+      >
+        <CheckCircle className="w-4 h-4" />
+        Mastered
+      </button>
+
+      <button
+        onClick={() => setFilter(prev => ({ ...prev, showNew: !prev.showNew }))}
+        className={`px-4 py-2 rounded-xl flex items-center gap-2 text-sm w-full sm:w-auto ${
+          filter.showNew
+            ? 'bg-gradient-to-r from-purple-500 to-violet-500 text-white'
+            : darkMode
+            ? 'bg-gray-900/50 text-gray-400 hover:text-white border border-gray-800'
+            : 'bg-white/80 text-gray-600 hover:text-gray-900 border border-gray-300 shadow-sm'
+        }`}
+      >
+        <Sparkles className="w-4 h-4" />
+        New
+      </button>
+    </div>
+  </div>
+
+  {/* Active Filters */}
+  <div className="mt-4 flex flex-wrap gap-2">
+    {filter.type !== 'all' && (
+      <span className={`px-3 py-1 rounded-full text-xs ${darkMode ? 'bg-gray-800 text-gray-300' : 'bg-gray-100 text-gray-700'}`}>
+        Type: {filter.type === 'word' ? 'Vocabulary' : 'Kanji'}
+      </span>
+    )}
+    {filter.jlpt !== 'all' && (
+      <span className={`px-3 py-1 rounded-full text-xs ${darkMode ? 'bg-gray-800 text-gray-300' : 'bg-gray-100 text-gray-700'}`}>
+        JLPT: {filter.jlpt}
+      </span>
+    )}
+  </div>
+</div>
+
+
+
           </div>
         </header>
+
         {/* Cards Grid */}
         <main className="px-4 md:px-8 pb-12">
           <div className="max-w-7xl mx-auto">
-            {filteredCards.length === 0 ? (
+            {isLoading && filteredCards.length === 0 ? (
+              <div className="flex justify-center py-12">
+                <div className="text-center">
+                  <div className="relative">
+                    <div className={`w-16 h-16 border-4 rounded-full ${
+                      darkMode ? 'border-indigo-500/30' : 'border-indigo-300/50'
+                    }`}></div>
+                    <div className={`w-16 h-16 border-4 border-transparent rounded-full absolute top-0 left-0 animate-spin ${
+                      darkMode ? 'border-t-indigo-500' : 'border-t-indigo-600'
+                    }`}></div>
+                  </div>
+                  <p className={`mt-4 font-medium ${
+                    darkMode ? 'text-gray-300' : 'text-gray-600'
+                  }`}>Filtering cards...</p>
+                </div>
+              </div>
+            ) : filteredCards.length === 0 ? (
               <div className={`text-center py-16 rounded-3xl border ${
                 darkMode
                   ? 'bg-gradient-to-br from-gray-900 to-black border-gray-800'
@@ -778,6 +978,17 @@ const CardBrowser: React.FC = () => {
                 <p className={`text-lg ${
                   darkMode ? 'text-gray-400' : 'text-gray-600'
                 }`}>No cards found. Try adjusting your filters.</p>
+                <button
+                  onClick={clearFilters}
+                  className={`mt-4 px-6 py-3 rounded-xl inline-flex items-center gap-2 ${
+                    darkMode
+                      ? 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  <RotateCw className="w-4 h-4" />
+                  Clear Filters
+                </button>
               </div>
             ) : (
               <div className={viewMode === 'grid'
@@ -789,33 +1000,32 @@ const CardBrowser: React.FC = () => {
                   const userProgress = userData[key];
                   const jlptColor = getJLPTColor(card.jlpt);
                   const isHovered = hoveredCard === key;
+                  
                   return (
                     <div
                       key={key}
-                      className={`group relative rounded-3xl border transition-all duration-500 overflow-hidden cursor-pointer ${
+                      className={`group relative rounded-3xl border transition-all duration-300 overflow-hidden cursor-pointer h-full ${
                         darkMode
                           ? 'bg-gradient-to-br from-gray-900 to-black'
                           : 'bg-gradient-to-br from-white to-gray-50'
                       } ${
                         isHovered
-                          ? 'scale-105 shadow-2xl border-cyan-500/50'
-                          : darkMode
-                            ? 'border-gray-800 hover:border-cyan-500/30'
-                            : 'border-gray-200 hover:border-cyan-400/50 shadow-sm hover:shadow-lg'
+                          ? 'scale-[1.02] shadow-2xl border-cyan-500/50'
+                          : `${getCardBorderColor(card)} hover:border-cyan-500/30 shadow-sm hover:shadow-xl`
                       }`}
                       onMouseEnter={() => setHoveredCard(key)}
                       onMouseLeave={() => setHoveredCard(null)}
                       onClick={() => openDetailsPage(card)}
                     >
-                      {/* Animated background */}
+                      {/* Animated background gradient */}
                       <div className={`absolute inset-0 bg-gradient-to-br ${getCardGradient(card)} opacity-0 group-hover:opacity-100 transition-opacity duration-500`}></div>
                      
                       {/* Card content */}
-                      <div className="relative z-10 p-6">
+                      <div className="relative z-10 p-6 h-full flex flex-col">
                         <div className="flex items-start justify-between mb-4">
-                          <div className="flex items-center gap-2">
+                          <div className="flex flex-wrap items-center gap-2">
                             <span className={`px-3 py-1 rounded-full text-xs font-bold ${jlptColor.bg} ${jlptColor.text} border ${jlptColor.border}`}>
-                              N{card.jlpt}
+                              {card.jlpt}
                             </span>
                            
                             {card.card === 'word' ? (
@@ -847,47 +1057,61 @@ const CardBrowser: React.FC = () => {
                           </div>
                         </div>
                        
-                    <h3 className={`text-3xl font-bold mb-1 group-hover:text-cyan-600 transition-colors ${
-  darkMode ? 'text-white' : 'text-gray-800'
-}`}>
-  {card.word}
-</h3>
-{/* Show readings only for Kanji cards */}
-{card.card === "kanji" && (
-  <div className={`mb-3 text-xs space-y-1 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-    {card["on-yomi"] && (
-      <div>
-        <span className="font-semibold text-cyan-500">On:</span>{" "}
-        <span>{card["on-yomi"]}</span>
-      </div>
-    )}
-    {card["kun-yomi"] && (
-      <div>
-        <span className="font-semibold text-emerald-500">Kun:</span>{" "}
-        <span>{card["kun-yomi"]}</span>
-      </div>
-    )}
-  </div>
-)}
+                        <div className="flex-1">
+                          <h3 className={`text-3xl font-bold mb-2 group-hover:text-cyan-600 transition-colors ${
+                            darkMode ? 'text-white' : 'text-gray-800'
+                          }`}>
+                            {card.word}
+                          </h3>
+                          
+                          {/* Show readings for Kanji cards */}
+                          {card.card === "kanji" && (
+                            <div className={`mb-3 text-xs space-y-1 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                              {card["on-yomi"] && (
+                                <div>
+                                  <span className="font-semibold text-cyan-500">On:</span>{" "}
+                                  <span>{card["on-yomi"]}</span>
+                                </div>
+                              )}
+                              {card["kun-yomi"] && (
+                                <div>
+                                  <span className="font-semibold text-emerald-500">Kun:</span>{" "}
+                                  <span>{card["kun-yomi"]}</span>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                         
+                          {card.kana && (
+                            <p className={`text-sm mb-3 ${
+                              darkMode ? 'text-gray-400' : 'text-gray-600'
+                            }`}>
+                              {card.kana}
+                              {card.romaji && (
+                                <span className={`ml-2 text-xs ${
+                                  darkMode ? 'text-gray-500' : 'text-gray-500'
+                                }`}>
+                                  ({card.romaji})
+                                </span>
+                              )}
+                            </p>
+                          )}
+                         
+                          <p className={`mb-4 line-clamp-3 ${
+                            darkMode ? 'text-gray-300' : 'text-gray-700'
+                          }`}>
+                            {card.meaning}
+                          </p>
+                        </div>
                        
-                        {card.kana && (
-                          <p className={`text-sm mb-2 ${
-                            darkMode ? 'text-gray-400' : 'text-gray-600'
-                          }`}>{card.kana}</p>
-                        )}
-                       
-                        <p className={`mb-4 line-clamp-2 ${
-                          darkMode ? 'text-gray-300' : 'text-gray-700'
-                        }`}>{card.meaning}</p>
-                       
-                        <div className="flex items-center justify-between">
+                        <div className="flex items-center justify-between pt-4 border-t border-gray-200/20">
                           {card.type && (
                             <span className={`px-3 py-1 rounded-lg text-xs font-medium text-white ${getTypeColor(card.type)}`}>
                               {card.type}
                             </span>
                           )}
                          
-                          <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
                             <span className={`text-xs ${
                               darkMode ? 'text-gray-400' : 'text-gray-500'
                             }`}>View Details</span>
@@ -896,13 +1120,23 @@ const CardBrowser: React.FC = () => {
                         </div>
                       </div>
                      
-                      {/* Hover effect */}
+                      {/* Hover effect line */}
                       <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-cyan-500 to-blue-500 transform scale-x-0 group-hover:scale-x-100 transition-transform duration-500 origin-left"></div>
+                     
+                      {/* Corner accent */}
+                      <div className={`absolute top-0 right-0 w-16 h-16 overflow-hidden`}>
+                        <div className={`absolute w-32 h-32 -top-16 -right-16 rotate-45 ${
+                          card.card === 'kanji' 
+                            ? 'bg-gradient-to-r from-amber-500/20 to-orange-500/20'
+                            : 'bg-gradient-to-r from-indigo-500/20 to-purple-500/20'
+                        }`}></div>
+                      </div>
                     </div>
                   );
                 })}
               </div>
             )}
+            
             {/* Footer */}
             <div className="mt-8 text-center">
               <div className={`inline-flex items-center gap-4 px-6 py-3 rounded-2xl ${
@@ -944,4 +1178,5 @@ const CardBrowser: React.FC = () => {
     </div>
   );
 };
+
 export default CardBrowser;

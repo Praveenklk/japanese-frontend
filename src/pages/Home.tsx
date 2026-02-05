@@ -361,9 +361,9 @@ const Home = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white">
+    <div className="min-h-screen bg-gradient-to-b from-slate-50 via-white to-rose-50/30 text-slate-900">
       {/* Hero Section with Japanese Theme */}
-      <div className="relative overflow-hidden bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-900 text-white">
+      <div className="relative overflow-hidden bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-950 via-indigo-950 to-rose-900 text-white">
         {/* Background with Japanese pattern */}
         <div className="absolute inset-0 opacity-10">
           <div className="absolute inset-0" style={{
@@ -380,14 +380,14 @@ const Home = () => {
         <div className="relative max-w-7xl mx-auto px-4 pt-20 pb-16 sm:px-6 lg:px-8">
           <div className="text-center max-w-4xl mx-auto">
             {/* Welcome Badge */}
-            <div className="inline-flex items-center gap-3 bg-white/10 backdrop-blur-sm px-6 py-3 rounded-full mb-8 border border-white/20">
+            <div className="inline-flex items-center gap-3 bg-white/10 backdrop-blur-sm px-6 py-3 rounded-full mb-8 border border-white/20 shadow-[0_10px_30px_-20px_rgba(0,0,0,0.6)]">
               <Sparkles className="w-4 h-4 text-yellow-300" />
               <span className="text-sm font-medium">ようこそ！ Welcome to Nihongo Master</span>
               <div className="w-2 h-2 bg-gradient-to-r from-pink-400 to-rose-400 rounded-full animate-pulse" />
             </div>
             
             {/* Main Title with Japanese calligraphy effect */}
-            <h1 className="text-5xl md:text-7xl font-bold mb-6 leading-tight">
+            <h1 className="text-5xl md:text-7xl font-bold mb-6 leading-tight tracking-tight drop-shadow-[0_10px_40px_rgba(0,0,0,0.4)]">
               Discover the Beauty of
               <span className="block mt-4">
                 <span className="text-transparent bg-clip-text bg-gradient-to-r from-pink-300 via-red-300 to-orange-300">
@@ -396,15 +396,18 @@ const Home = () => {
               </span>
             </h1>
             
-            <p className="text-xl md:text-2xl mb-10 opacity-90 max-w-3xl mx-auto leading-relaxed font-light">
+            <p className="text-xl md:text-2xl mb-10 text-white/90 max-w-3xl mx-auto leading-relaxed font-light">
               Master Japanese through immersive lessons, cultural insights, and smart practice tools designed for effective learning.
+            </p>
+            <p className="text-sm md:text-base text-white/70 mb-10">
+              日本語と英語の両方で学べるデザイン
             </p>
             
             {/* CTA Buttons */}
             <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
               <button
                 onClick={() => navigate("/kana-quiz")}
-                className="group relative inline-flex items-center justify-center gap-3 bg-gradient-to-r from-pink-500 to-purple-600 text-white px-10 py-4 rounded-xl text-lg font-semibold hover:shadow-2xl transition-all transform hover:-translate-y-1 hover:scale-105 shadow-lg hover:shadow-purple-500/30 backdrop-blur-sm"
+                className="group relative inline-flex items-center justify-center gap-3 bg-gradient-to-r from-rose-500 via-fuchsia-500 to-indigo-600 text-white px-10 py-4 rounded-xl text-lg font-semibold hover:shadow-2xl transition-all transform hover:-translate-y-1 hover:scale-105 shadow-lg hover:shadow-fuchsia-500/40 ring-1 ring-white/10 backdrop-blur-sm"
               >
                 <Target className="w-5 h-5 group-hover:rotate-12 transition-transform" />
                 Start Free Quiz
@@ -413,7 +416,7 @@ const Home = () => {
               
               <button
                 onClick={() => navigate("/hiragana")}
-                className="group relative inline-flex items-center justify-center gap-3 bg-white/10 backdrop-blur-sm text-white px-10 py-4 rounded-xl text-lg font-semibold hover:bg-white/20 transition-all border border-white/20"
+                className="group relative inline-flex items-center justify-center gap-3 bg-white/10 backdrop-blur-sm text-white px-10 py-4 rounded-xl text-lg font-semibold hover:bg-white/20 transition-all border border-white/20 hover:border-white/40"
               >
                 <BookOpen className="w-5 h-5" />
                 Start Learning
@@ -423,7 +426,7 @@ const Home = () => {
 
             {/* Progress Bar */}
             {learnedCount > 0 && (
-              <div className="mt-12 max-w-md mx-auto bg-white/10 backdrop-blur-sm rounded-xl p-5 border border-white/20">
+              <div className="mt-12 max-w-md mx-auto bg-white/10 backdrop-blur-sm rounded-xl p-5 border border-white/20 ring-1 ring-white/10">
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-3">
                     <div className="p-2 bg-white/20 rounded-lg">
@@ -456,13 +459,13 @@ const Home = () => {
       </div>
 
       {/* Cultural Elements Showcase */}
-      <div className="py-12 bg-gradient-to-b from-white to-gray-50">
+      <div className="py-12 bg-gradient-to-b from-white to-rose-50/40">
         <div className="max-w-7xl mx-auto px-4">
           <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
             {culturalElements.map((item, index) => (
               <div 
                 key={index}
-                className={`bg-gradient-to-br ${item.color} rounded-2xl p-4 text-center transition-all duration-300 hover:-translate-y-2 hover:shadow-lg border border-gray-200/50`}
+                className={`bg-gradient-to-br ${item.color} rounded-2xl p-4 text-center transition-all duration-300 hover:-translate-y-3 hover:shadow-xl border border-white/70`}
               >
                 <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-white mb-3 mx-auto shadow-sm">
                   {item.icon}
@@ -477,7 +480,7 @@ const Home = () => {
 
       {/* Quick Actions */}
       <div className="max-w-7xl mx-auto px-4 py-12">
-        <h2 className="text-3xl font-bold text-gray-900 mb-8 text-center">
+        <h2 className="text-3xl font-bold text-gray-900 mb-8 text-center tracking-tight">
           <span className="bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
             クイックスタート
           </span>
@@ -518,10 +521,10 @@ const Home = () => {
       </div>
 
       {/* Learning Journey */}
-      <div className="py-16 bg-gradient-to-b from-white to-gray-50/50">
+      <div className="py-16 bg-gradient-to-b from-white to-rose-50/40">
         <div className="max-w-7xl mx-auto px-4">
           <div className="text-center mb-12">
-            <h2 className="text-4xl font-bold text-gray-900 mb-4">
+            <h2 className="text-4xl font-bold text-gray-900 mb-4 tracking-tight">
               学習の道
               <span className="block text-2xl text-gray-600 font-normal mt-2">Your Learning Journey</span>
             </h2>
@@ -600,7 +603,7 @@ const Home = () => {
       <div className="py-16 bg-gradient-to-b from-gray-50 to-white">
         <div className="max-w-7xl mx-auto px-4">
           <div className="text-center mb-12">
-            <h2 className="text-4xl font-bold text-gray-900 mb-4">
+            <h2 className="text-4xl font-bold text-gray-900 mb-4 tracking-tight">
               学習統計
               <span className="block text-2xl text-gray-600 font-normal mt-2">Learning Statistics</span>
             </h2>
@@ -610,7 +613,7 @@ const Home = () => {
             {stats.map((stat, index) => (
               <div 
                 key={index}
-                className="relative overflow-hidden bg-white rounded-2xl p-6 shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-2 border border-gray-100"
+                className="relative overflow-hidden bg-white/80 backdrop-blur-sm rounded-2xl p-6 shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-2 border border-white/60"
               >
                 {/* Glow effect */}
                 <div className={`absolute -inset-1 bg-gradient-to-r ${stat.color} opacity-10 blur-lg`} />
@@ -638,10 +641,10 @@ const Home = () => {
       </div>
 
       {/* Features Grid */}
-      <div className="py-16 bg-gradient-to-b from-white to-gray-50/50">
+      <div className="py-16 bg-gradient-to-b from-white to-rose-50/40">
         <div className="max-w-7xl mx-auto px-4">
           <div className="text-center mb-12">
-            <h2 className="text-4xl font-bold text-gray-900 mb-4">
+            <h2 className="text-4xl font-bold text-gray-900 mb-4 tracking-tight">
               学習機能
               <span className="block text-2xl text-gray-600 font-normal mt-2">Learning Features</span>
             </h2>
