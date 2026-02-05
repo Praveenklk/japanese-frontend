@@ -1328,8 +1328,13 @@ if (filter.jlpt !== 'all') {
 <select
   value={filter.jlpt}
   onChange={(e) => setFilter(prev => ({ ...prev, jlpt: e.target.value as any }))}
-  className="..."
->
+   className={`px-4 py-3 rounded-xl focus:ring-2 focus:ring-cyan-500/30 focus:border-cyan-500 transition-all ${
+                    darkMode 
+                      ? 'bg-gray-900/50 border border-gray-800 text-white' 
+                      : 'bg-white/80 border border-gray-300 text-gray-900 shadow-sm'
+                  }`}
+                >
+
   <option value="all">All JLPT</option>
   <option value="N5">N5</option>
   <option value="N4">N4</option>
