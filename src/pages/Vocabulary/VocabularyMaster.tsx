@@ -1694,104 +1694,277 @@ const VocabularyMaster = () => {
             </motion.div>
           ) : (
             // Grid View
-            <motion.div
-              key="grid"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 md:gap-6"
+         <motion.div
+  key="grid"
+  initial={{ opacity: 0 }}
+  animate={{ opacity: 1 }}
+  exit={{ opacity: 0 }}
+  className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 sm:gap-6 lg:gap-7"
+>
+  {displayedWords.map((word, index) => {
+    const isBookmarked = progress.bookmarkedWords.includes(word.word);
+    const isLearned = progress.learnedWords.includes(word.word);
+    
+    // Get colors based on JLPT level
+    const getLevelColors = () => {
+      switch(word.level) {
+        case 5: return {
+          bg: 'bg-gradient-to-br from-green-50 to-emerald-50',
+          header: 'bg-gradient-to-r from-green-500 to-emerald-500',
+          text: 'text-green-700',
+          border: 'border-green-200',
+          hoverBorder: 'hover:border-green-300',
+          badge: 'bg-gradient-to-r from-green-500 to-emerald-500 text-white',
+          badgeLight: 'bg-green-100 text-green-700',
+          accent: 'from-green-400 to-emerald-400',
+          shadow: 'shadow-green-200/50'
+        };
+        case 4: return {
+          bg: 'bg-gradient-to-br from-blue-50 to-cyan-50',
+          header: 'bg-gradient-to-r from-blue-500 to-cyan-500',
+          text: 'text-blue-700',
+          border: 'border-blue-200',
+          hoverBorder: 'hover:border-blue-300',
+          badge: 'bg-gradient-to-r from-blue-500 to-cyan-500 text-white',
+          badgeLight: 'bg-blue-100 text-blue-700',
+          accent: 'from-blue-400 to-cyan-400',
+          shadow: 'shadow-blue-200/50'
+        };
+        case 3: return {
+          bg: 'bg-gradient-to-br from-yellow-50 to-amber-50',
+          header: 'bg-gradient-to-r from-yellow-500 to-amber-500',
+          text: 'text-yellow-700',
+          border: 'border-yellow-200',
+          hoverBorder: 'hover:border-yellow-300',
+          badge: 'bg-gradient-to-r from-yellow-500 to-amber-500 text-white',
+          badgeLight: 'bg-yellow-100 text-yellow-700',
+          accent: 'from-yellow-400 to-amber-400',
+          shadow: 'shadow-yellow-200/50'
+        };
+        case 2: return {
+          bg: 'bg-gradient-to-br from-orange-50 to-red-50',
+          header: 'bg-gradient-to-r from-orange-500 to-red-500',
+          text: 'text-orange-700',
+          border: 'border-orange-200',
+          hoverBorder: 'hover:border-orange-300',
+          badge: 'bg-gradient-to-r from-orange-500 to-red-500 text-white',
+          badgeLight: 'bg-orange-100 text-orange-700',
+          accent: 'from-orange-400 to-red-400',
+          shadow: 'shadow-orange-200/50'
+        };
+        case 1: return {
+          bg: 'bg-gradient-to-br from-red-50 to-rose-50',
+          header: 'bg-gradient-to-r from-red-500 to-rose-500',
+          text: 'text-red-700',
+          border: 'border-red-200',
+          hoverBorder: 'hover:border-red-300',
+          badge: 'bg-gradient-to-r from-red-500 to-rose-500 text-white',
+          badgeLight: 'bg-red-100 text-red-700',
+          accent: 'from-red-400 to-rose-400',
+          shadow: 'shadow-red-200/50'
+        };
+        default: return {
+          bg: 'bg-gradient-to-br from-gray-50 to-slate-50',
+          header: 'bg-gradient-to-r from-gray-500 to-slate-500',
+          text: 'text-gray-700',
+          border: 'border-gray-200',
+          hoverBorder: 'hover:border-gray-300',
+          badge: 'bg-gradient-to-r from-gray-500 to-slate-500 text-white',
+          badgeLight: 'bg-gray-100 text-gray-700',
+          accent: 'from-gray-400 to-slate-400',
+          shadow: 'shadow-gray-200/50'
+        };
+      }
+    };
+    
+    const colors = getLevelColors();
+    
+    return (
+      <motion.div
+        key={`${word.word}-${index}`}
+        initial={{ opacity: 0, scale: 0.95, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        transition={{ 
+          duration: 0.3, 
+          delay: index * 0.02,
+          type: "spring",
+          stiffness: 100
+        }}
+        whileHover={{ 
+          y: -8, 
+          scale: 1.03,
+          boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.15)"
+        }}
+        whileTap={{ scale: 0.98 }}
+        className={`relative rounded-2xl overflow-hidden border-2 transition-all duration-300 group cursor-pointer ${colors.bg} ${colors.border} ${colors.hoverBorder} ${colors.shadow}`}
+      >
+        {/* Gradient Header */}
+        <div className={`h-1.5 w-full ${colors.header}`} />
+        
+        {/* Animated Background Effect */}
+        <div className={`absolute inset-0 bg-gradient-to-br ${colors.accent} opacity-0 group-hover:opacity-5 transition-opacity duration-500`} />
+        
+        {/* Card Content */}
+        <div className="relative z-10 p-5 sm:p-6">
+          {/* Header with Level and Bookmark */}
+          <div className="flex justify-between items-center mb-6">
+            <div className={`px-4 py-2 rounded-full font-bold text-sm shadow-lg ${colors.badge}`}>
+              N{word.level}
+            </div>
+            
+            <button
+              onClick={() => toggleBookmark(word.word)}
+              className={`relative p-2.5 rounded-full transition-all duration-300 transform hover:scale-110 active:scale-95 ${
+                isBookmarked 
+                  ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-lg shadow-amber-200' 
+                  : 'bg-white text-gray-400 hover:text-amber-500 hover:bg-amber-50 shadow-md'
+              }`}
+              title={isBookmarked ? "Remove bookmark" : "Add bookmark"}
             >
-              {displayedWords.map((word, index) => {
-                const isBookmarked = progress.bookmarkedWords.includes(word.word);
-                const isLearned = progress.learnedWords.includes(word.word);
-                
-                return (
-                  <motion.div
-                    key={`${word.word}-${index}`}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.2, delay: index * 0.03 }}
-                    whileHover={{ y: -4, transition: { duration: 0.2 } }}
-                    className="bg-white/80 backdrop-blur-sm rounded-xl border border-gray-200 p-3 sm:p-4 md:p-6 hover:shadow-lg transition-all duration-300 hover:border-blue-300 group"
-                  >
-                    <div className="flex justify-between items-start mb-3 sm:mb-4 md:mb-5">
-                      <div className={`px-2 sm:px-3 py-1 sm:py-1.5 rounded-full text-xs font-semibold ${
-                        word.level === 5 ? 'bg-green-100 text-green-700' :
-                        word.level === 4 ? 'bg-blue-100 text-blue-700' :
-                        word.level === 3 ? 'bg-yellow-100 text-yellow-700' :
-                        word.level === 2 ? 'bg-orange-100 text-orange-700' :
-                        'bg-red-100 text-red-700'
-                      }`}>
-                        N{word.level}
-                      </div>
-                      <button
-                        onClick={() => toggleBookmark(word.word)}
-                        className={`transition-all duration-300 ${isBookmarked ? 'text-amber-500' : 'text-gray-400 hover:text-amber-500'}`}
-                      >
-                        <Bookmark className={`w-4 h-4 sm:w-5 sm:h-5 ${isBookmarked ? 'fill-current' : ''}`} />
-                      </button>
+              {isBookmarked ? (
+                <>
+                  <Bookmark className="w-5 h-5 fill-current" />
+                  <div className="absolute -top-1 -right-1 w-4 h-4 bg-amber-500 rounded-full animate-ping opacity-75" />
+                </>
+              ) : (
+                <Bookmark className="w-5 h-5" />
+              )}
+            </button>
+          </div>
+          
+          {/* Japanese Word Section */}
+          <div className="mb-6 text-center">
+            <div className="font-japanese text-4xl sm:text-5xl font-bold mb-4 text-gray-900 leading-tight">
+              {word.word}
+            </div>
+            
+            <div className="space-y-2">
+              {showFurigana && word.furigana && (
+                <div className="text-sm sm:text-base text-gray-600 font-medium">
+                  {word.furigana}
+                </div>
+              )}
+              
+              {showRomaji && word.romaji && (
+                <div className="text-xs sm:text-sm text-gray-500 font-medium">
+                  {word.romaji}
+                </div>
+              )}
+            </div>
+          </div>
+          
+          {/* Meaning Section */}
+          <div className="mb-6 text-center">
+            <div className="text-xl sm:text-2xl font-bold text-gray-900 mb-4 leading-relaxed">
+              {word.meaning}
+            </div>
+            
+            {showExample && word.example && (
+              <div className="relative">
+                <div className="absolute -left-2 top-3 w-1 h-4 bg-gradient-to-b from-gray-400 to-gray-300 rounded-full" />
+                <div className={`pl-4 py-4 rounded-xl ${colors.badgeLight} border ${colors.border}`}>
+                  <div className="text-xs font-semibold text-gray-600 mb-2 uppercase tracking-wider">
+                    Example Sentence
+                  </div>
+                  <div className="font-japanese text-sm sm:text-base text-gray-800 mb-2">
+                    {word.example}
+                  </div>
+                  {word.exampleMeaning && (
+                    <div className="text-xs text-gray-600 italic">
+                      "{word.exampleMeaning}"
                     </div>
-                    
-                    <div className="mb-4 sm:mb-5 md:mb-6">
-                      <div className="font-japanese text-xl sm:text-2xl md:text-3xl font-bold text-gray-800 mb-2 sm:mb-3">
-                        {word.word}
-                      </div>
-                      {showFurigana && (
-                        <div className="text-xs sm:text-sm text-gray-600 mb-1">{word.furigana}</div>
-                      )}
-                      {showRomaji && (
-                        <div className="text-xs sm:text-sm text-gray-500">{word.romaji}</div>
-                      )}
-                    </div>
-                    
-                    <div className="mb-4 sm:mb-6 md:mb-8">
-                      <div className="text-base sm:text-lg md:text-xl font-semibold text-gray-800">{word.meaning}</div>
-                      {showExample && word.example && (
-                        <div className="text-xs sm:text-sm text-gray-600 italic mt-2 sm:mt-3">
-                          "{word.example}"
-                        </div>
-                      )}
-                    </div>
-                    
-                    <div className="flex items-center justify-between">
-                      <div className="flex gap-1 sm:gap-2">
-                        <button
-                          onClick={() => {
-                            const wordIndex = displayedWords.findIndex(w => w.word === word.word);
-                            setCurrentWordIndex(wordIndex);
-                            setViewMode('flashcard');
-                          }}
-                          className="px-2 sm:px-3 md:px-4 py-1.5 sm:py-2 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 transition-colors text-xs sm:text-sm font-semibold flex items-center gap-1 sm:gap-2"
-                        >
-                          <BookOpen className="w-3 h-3 sm:w-4 sm:h-4" />
-                          Study
-                        </button>
-                        <button
-                          onClick={() => playJapaneseAudio(word.word)}
-                          className="p-1.5 sm:p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors"
-                          title="Listen to pronunciation"
-                        >
-                          <Volume2 className="w-3 h-3 sm:w-4 sm:h-4" />
-                        </button>
-                      </div>
-                      
-                      <div className="flex flex-wrap gap-1">
-                        {isLearned && (
-                          <span className="px-2 py-1 bg-emerald-100 text-emerald-700 rounded-full text-xs font-semibold">
-                            Learned
-                          </span>
-                        )}
-                        {isBookmarked && (
-                          <span className="px-2 py-1 bg-amber-100 text-amber-700 rounded-full text-xs font-semibold">
-                            Bookmarked
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </motion.div>
-                );
-              })}
-            </motion.div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+          
+          {/* Footer Actions */}
+          <div className="flex items-center justify-between pt-4 border-t border-gray-200">
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => {
+                  const wordIndex = displayedWords.findIndex(w => w.word === word.word);
+                  setCurrentWordIndex(wordIndex);
+                  setViewMode('flashcard');
+                }}
+                className={`px-4 py-2.5 rounded-lg font-semibold text-sm flex items-center gap-2 transition-all duration-300 hover:scale-105 active:scale-95 shadow-md ${
+                  colors.badgeLight
+                } ${colors.text} hover:shadow-lg`}
+              >
+                <BookOpen className="w-4 h-4" />
+                Study Card
+              </button>
+              
+              <button
+                onClick={() => playJapaneseAudio(word.word)}
+                className={`p-2.5 rounded-full transition-all duration-300 hover:scale-110 active:scale-95 shadow-md ${
+                  isBookmarked 
+                    ? 'bg-gradient-to-r from-emerald-500 to-green-500 text-white' 
+                    : 'bg-gradient-to-r from-green-50 to-emerald-50 text-green-600 hover:text-green-700'
+                }`}
+                title="Listen to pronunciation"
+              >
+                <Volume2 className="w-4 h-4" />
+              </button>
+            </div>
+            
+            {/* Status Badges */}
+            <div className="flex flex-wrap gap-2">
+              {isLearned && (
+                <span className={`px-3 py-1.5 rounded-full text-xs font-bold flex items-center gap-1.5 shadow-sm ${
+                  isBookmarked 
+                    ? 'bg-gradient-to-r from-emerald-500 to-green-500 text-white' 
+                    : 'bg-gradient-to-r from-emerald-100 to-green-100 text-emerald-700 border border-emerald-200'
+                }`}>
+                  <div className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse" />
+                  Mastered
+                </span>
+              )}
+              {isBookmarked && (
+                <span className={`px-3 py-1.5 rounded-full text-xs font-bold flex items-center gap-1.5 shadow-sm ${
+                  colors.badgeLight
+                } ${colors.text} border ${colors.border}`}>
+                  <Bookmark className="w-3 h-3 fill-current" />
+                  Saved
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+        
+        {/* Hover Effect Line */}
+        <div className={`absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r ${colors.accent} transform scale-x-0 group-hover:scale-x-100 transition-transform duration-500 origin-left`} />
+        
+        {/* Corner Accent */}
+        <div className="absolute top-0 right-0 w-20 h-20 overflow-hidden opacity-10 group-hover:opacity-20 transition-opacity duration-300">
+          <div className={`absolute w-32 h-32 -top-10 -right-10 rotate-45 bg-gradient-to-r ${colors.accent}`} />
+        </div>
+        
+        {/* Floating Particles Effect */}
+        <div className="absolute inset-0 overflow-hidden opacity-0 group-hover:opacity-100 transition-opacity duration-500">
+          {[...Array(5)].map((_, i) => (
+            <motion.div
+              key={i}
+              className={`absolute w-1 h-1 rounded-full bg-gradient-to-r ${colors.accent}`}
+              initial={{ y: "100%", x: `${20 * i}%` }}
+              animate={{ 
+                y: ["100%", "-100%"],
+                x: [`${20 * i}%`, `${20 * i + 10}%`]
+              }}
+              transition={{
+                duration: 3,
+                delay: i * 0.2,
+                repeat: Infinity,
+                repeatType: "loop"
+              }}
+            />
+          ))}
+        </div>
+      </motion.div>
+    );
+  })}
+</motion.div>
           )}
         </AnimatePresence>
 

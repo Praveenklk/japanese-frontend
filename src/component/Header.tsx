@@ -16,6 +16,9 @@ import {
   Bookmark,
   Flame,
   Sparkles,
+  JapaneseYen,
+  LeafyGreen,
+  Languages,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 
@@ -69,12 +72,21 @@ const Header = () => {
       icon: <Target className="w-4 h-4" />,
       highlight: true 
     },
+{ 
+  path: "/master/vocab", 
+  label: "Vocabulary", 
+  icon: <Languages className="w-4 h-4" />,
+  highlight: false 
+},
+
     { 
       path: "/flashcards", 
       label: "Flashcards", 
       icon: <BookOpen className="w-4 h-4" />,
       highlight: false 
     },
+
+
   ];
 
   const isActive = (path: string) =>
