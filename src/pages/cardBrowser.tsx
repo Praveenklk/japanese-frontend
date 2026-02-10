@@ -942,238 +942,347 @@ if (isInitialLoading) {
         </header>
 
         {/* Cards Grid */}
-        <main className="px-4 md:px-8 pb-12">
-          <div className="max-w-7xl mx-auto">
-            {isLoading && filteredCards.length === 0 ? (
-              <div className="flex justify-center py-12">
-                <div className="text-center">
-                  <div className="relative">
-                    <div className={`w-16 h-16 border-4 rounded-full ${
-                      darkMode ? 'border-indigo-500/30' : 'border-indigo-300/50'
-                    }`}></div>
-                    <div className={`w-16 h-16 border-4 border-transparent rounded-full absolute top-0 left-0 animate-spin ${
-                      darkMode ? 'border-t-indigo-500' : 'border-t-indigo-600'
-                    }`}></div>
-                  </div>
-                  <p className={`mt-4 font-medium ${
-                    darkMode ? 'text-gray-300' : 'text-gray-600'
-                  }`}>Filtering cards...</p>
-                </div>
-              </div>
-            ) : filteredCards.length === 0 ? (
-              <div className={`text-center py-16 rounded-3xl border ${
+  <main className="px-4 md:px-8 pb-12">
+  <div className="max-w-7xl mx-auto">
+    {isLoading && filteredCards.length === 0 ? (
+      <div className="flex justify-center py-12">
+        <div className="text-center">
+          <div className="relative">
+            <div className={`w-16 h-16 border-4 rounded-full ${
+              darkMode ? 'border-indigo-500/30' : 'border-indigo-300/50'
+            }`}></div>
+            <div className={`w-16 h-16 border-4 border-transparent rounded-full absolute top-0 left-0 animate-spin ${
+              darkMode ? 'border-t-indigo-500' : 'border-t-indigo-600'
+            }`}></div>
+          </div>
+          <p className={`mt-4 font-medium ${
+            darkMode ? 'text-gray-300' : 'text-gray-600'
+          }`}>Filtering cards...</p>
+        </div>
+      </div>
+    ) : filteredCards.length === 0 ? (
+      <div className={`text-center py-16 rounded-3xl border ${
+        darkMode
+          ? 'bg-gradient-to-br from-gray-900 to-black border-gray-800'
+          : 'bg-gradient-to-br from-white to-gray-50 border-gray-200 shadow-lg'
+      }`}>
+        <div className={`w-20 h-20 mx-auto mb-6 rounded-full flex items-center justify-center border ${
+          darkMode
+            ? 'bg-gradient-to-r from-gray-800 to-black border-gray-800'
+            : 'bg-gradient-to-r from-gray-100 to-white border-gray-300'
+        }`}>
+          <Search className={`w-10 h-10 ${
+            darkMode ? 'text-gray-600' : 'text-gray-400'
+          }`} />
+        </div>
+        <p className={`text-lg ${
+          darkMode ? 'text-gray-400' : 'text-gray-600'
+        }`}>No cards found. Try adjusting your filters.</p>
+        <button
+          onClick={clearFilters}
+          className={`mt-4 px-6 py-3 rounded-xl inline-flex items-center gap-2 transition-all ${
+            darkMode
+              ? 'bg-gradient-to-r from-gray-800 to-gray-900 text-gray-300 hover:from-gray-700 hover:to-gray-800 border border-gray-700'
+              : 'bg-gradient-to-r from-gray-100 to-white text-gray-700 hover:from-gray-200 hover:to-gray-100 border border-gray-300'
+          }`}
+        >
+          <RotateCw className="w-4 h-4" />
+          Clear Filters
+        </button>
+      </div>
+    ) : (
+      <div className={viewMode === 'grid'
+        ? 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6'
+        : 'space-y-4'
+      }>
+        {filteredCards.map((card) => {
+          const key = getCardKey(card);
+          const userProgress = userData[key];
+          const jlptColor = getJLPTColor(card.jlpt);
+          const isHovered = hoveredCard === key;
+          const isKanji = card.card === 'kanji';
+          
+          return (
+            <div
+              key={key}
+              className={`group relative rounded-3xl border-2 transition-all duration-300 overflow-hidden cursor-pointer h-full backdrop-blur-sm ${
                 darkMode
-                  ? 'bg-gradient-to-br from-gray-900 to-black border-gray-800'
-                  : 'bg-gradient-to-br from-white to-gray-50 border-gray-200 shadow-lg'
-              }`}>
-                <div className={`w-20 h-20 mx-auto mb-6 rounded-full flex items-center justify-center border ${
-                  darkMode
-                    ? 'bg-gradient-to-r from-gray-800 to-black border-gray-800'
-                    : 'bg-gradient-to-r from-gray-100 to-white border-gray-300'
-                }`}>
-                  <Search className={`w-10 h-10 ${
-                    darkMode ? 'text-gray-600' : 'text-gray-400'
-                  }`} />
-                </div>
-                <p className={`text-lg ${
-                  darkMode ? 'text-gray-400' : 'text-gray-600'
-                }`}>No cards found. Try adjusting your filters.</p>
-                <button
-                  onClick={clearFilters}
-                  className={`mt-4 px-6 py-3 rounded-xl inline-flex items-center gap-2 ${
-                    darkMode
-                      ? 'bg-gray-800 text-gray-300 hover:bg-gray-700'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }`}
-                >
-                  <RotateCw className="w-4 h-4" />
-                  Clear Filters
-                </button>
-              </div>
-            ) : (
-              <div className={viewMode === 'grid'
-                ? 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6'
-                : 'space-y-4'
-              }>
-                {filteredCards.map((card) => {
-                  const key = getCardKey(card);
-                  const userProgress = userData[key];
-                  const jlptColor = getJLPTColor(card.jlpt);
-                  const isHovered = hoveredCard === key;
-                  
-                  return (
-                    <div
-                      key={key}
-                      className={`group relative rounded-3xl border transition-all duration-300 overflow-hidden cursor-pointer h-full ${
-                        darkMode
-                          ? 'bg-gradient-to-br from-gray-900 to-black'
-                          : 'bg-gradient-to-br from-white to-gray-50'
-                      } ${
-                        isHovered
-                          ? 'scale-[1.02] shadow-2xl border-cyan-500/50'
-                          : `${getCardBorderColor(card)} hover:border-cyan-500/30 shadow-sm hover:shadow-xl`
-                      }`}
-                      onMouseEnter={() => setHoveredCard(key)}
-                      onMouseLeave={() => setHoveredCard(null)}
-                      onClick={() => openDetailsPage(card)}
-                    >
-                      {/* Animated background gradient */}
-                      <div className={`absolute inset-0 bg-gradient-to-br ${getCardGradient(card)} opacity-0 group-hover:opacity-100 transition-opacity duration-500`}></div>
-                     
-                      {/* Card content */}
-                      <div className="relative z-10 p-6 h-full flex flex-col">
-                        <div className="flex items-start justify-between mb-4">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <span className={`px-3 py-1 rounded-full text-xs font-bold ${jlptColor.bg} ${jlptColor.text} border ${jlptColor.border}`}>
-                              {card.jlpt}
-                            </span>
-                           
-                            {card.card === 'word' ? (
-                              <span className={`px-3 py-1 rounded-full text-xs font-bold ${
-                                darkMode
-                                  ? 'bg-gradient-to-r from-indigo-500 to-purple-500 text-white'
-                                  : 'bg-gradient-to-r from-indigo-400 to-purple-400 text-white'
-                              }`}>
-                                VOCAB
-                              </span>
-                            ) : (
-                              <span className={`px-3 py-1 rounded-full text-xs font-bold ${
-                                darkMode
-                                  ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white'
-                                  : 'bg-gradient-to-r from-amber-400 to-orange-400 text-white'
-                              }`}>
-                                KANJI
-                              </span>
-                            )}
-                          </div>
-                         
-                          <div className="flex items-center gap-1">
-                            {userProgress?.bookmarked && (
-                              <BookmarkCheck className="w-4 h-4 text-amber-500" />
-                            )}
-                            {userProgress?.learned && (
-                              <Award className="w-4 h-4 text-emerald-500" />
-                            )}
-                          </div>
+                  ? 'bg-gradient-to-br from-gray-900/95 to-black/95'
+                  : 'bg-gradient-to-br from-white/95 to-gray-50/95'
+              } ${
+                isHovered
+                  ? 'scale-[1.02] shadow-2xl transform-gpu'
+                  : 'shadow-lg hover:shadow-xl'
+              } ${
+                isKanji
+                  ? darkMode 
+                    ? 'border-amber-900/30 hover:border-amber-700/50'
+                    : 'border-amber-200 hover:border-amber-400'
+                  : darkMode 
+                    ? 'border-indigo-900/30 hover:border-indigo-700/50'
+                    : 'border-indigo-200 hover:border-indigo-400'
+              }`}
+              onMouseEnter={() => setHoveredCard(key)}
+              onMouseLeave={() => setHoveredCard(null)}
+              onClick={() => openDetailsPage(card)}
+            >
+              {/* Animated gradient overlay */}
+              <div className={`absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 ${
+                isKanji
+                  ? 'bg-gradient-to-br from-amber-500/5 via-transparent to-orange-500/5'
+                  : 'bg-gradient-to-br from-indigo-500/5 via-transparent to-purple-500/5'
+              }`}></div>
+             
+              {/* Card glow effect */}
+              <div className={`absolute -inset-1 opacity-0 group-hover:opacity-100 blur-xl transition-opacity duration-700 ${
+                isKanji
+                  ? 'bg-gradient-to-r from-amber-400/20 to-orange-500/20'
+                  : 'bg-gradient-to-r from-indigo-400/20 to-purple-500/20'
+              }`}></div>
+             
+              {/* Card content */}
+              <div className="relative z-10 p-5 h-full flex flex-col">
+                {/* Header - Type badges & Progress */}
+                <div className="flex items-start justify-between mb-4">
+                  <div className="flex items-center gap-2">
+                    {/* JLPT Level Badge */}
+                    <div className={`relative overflow-hidden rounded-full`}>
+                      <div className={`absolute inset-0 ${
+                        isKanji
+                          ? 'bg-gradient-to-r from-amber-500 to-orange-500'
+                          : 'bg-gradient-to-r from-indigo-500 to-purple-500'
+                      } opacity-20`}></div>
+                      <span className={`relative px-3 py-1 rounded-full text-xs font-bold ${jlptColor.text} border ${
+                        isKanji
+                          ? darkMode ? 'border-amber-700/50' : 'border-amber-300'
+                          : darkMode ? 'border-indigo-700/50' : 'border-indigo-300'
+                      }`}>
+                        {card.jlpt}
+                      </span>
+                    </div>
+                   
+                    {/* Card Type Badge */}
+                    <div className={`relative overflow-hidden rounded-full`}>
+                      <div className={`absolute inset-0 ${
+                        isKanji
+                          ? 'bg-gradient-to-r from-amber-500 to-orange-500'
+                          : 'bg-gradient-to-r from-indigo-500 to-purple-500'
+                      }`}></div>
+                      <span className={`relative px-3 py-1 rounded-full text-xs font-bold text-white`}>
+                        {isKanji ? '漢字' : '語彙'}
+                      </span>
+                    </div>
+                  </div>
+                 
+                  {/* Progress Indicators */}
+                  <div className="flex items-center gap-2">
+                    {userProgress?.bookmarked && (
+                      <div className="relative group/progress">
+                        <div className={`p-1.5 rounded-full ${
+                          darkMode ? 'bg-amber-900/30' : 'bg-amber-100'
+                        }`}>
+                          <BookmarkCheck className="w-4 h-4 text-amber-500" />
                         </div>
-                       
-                        <div className="flex-1">
-                          <h3 className={`text-3xl font-bold mb-2 group-hover:text-cyan-600 transition-colors ${
-                            darkMode ? 'text-white' : 'text-gray-800'
-                          }`}>
-                            {card.word}
-                          </h3>
-                          
-                          {/* Show readings for Kanji cards */}
-                          {card.card === "kanji" && (
-                            <div className={`mb-3 text-xs space-y-1 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                              {card["on-yomi"] && (
-                                <div>
-                                  <span className="font-semibold text-cyan-500">On:</span>{" "}
-                                  <span>{card["on-yomi"]}</span>
-                                </div>
-                              )}
-                              {card["kun-yomi"] && (
-                                <div>
-                                  <span className="font-semibold text-emerald-500">Kun:</span>{" "}
-                                  <span>{card["kun-yomi"]}</span>
-                                </div>
-                              )}
+                        <div className="absolute -top-8 left-1/2 transform -translate-x-1/2 px-2 py-1 bg-gray-900 text-white text-xs rounded opacity-0 group-hover/progress:opacity-100 transition-opacity whitespace-nowrap">
+                          Bookmarked
+                        </div>
+                      </div>
+                    )}
+                    {userProgress?.learned && (
+                      <div className="relative group/progress">
+                        <div className={`p-1.5 rounded-full ${
+                          darkMode ? 'bg-emerald-900/30' : 'bg-emerald-100'
+                        }`}>
+                          <Award className="w-4 h-4 text-emerald-500" />
+                        </div>
+                        <div className="absolute -top-8 left-1/2 transform -translate-x-1/2 px-2 py-1 bg-gray-900 text-white text-xs rounded opacity-0 group-hover/progress:opacity-100 transition-opacity whitespace-nowrap">
+                          Learned
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+               
+                {/* Main Content */}
+                <div className="flex-1">
+                  {/* Japanese Text */}
+                  <div className="mb-4">
+                    <h3 className={`text-4xl font-bold mb-1 transition-all duration-300 ${
+                      darkMode ? 'text-white' : 'text-gray-900'
+                    } ${isHovered ? (isKanji ? 'text-amber-600' : 'text-indigo-600') : ''}`}>
+                      {card.word}
+                    </h3>
+                    
+                    {/* Readings for Kanji */}
+                    {isKanji && (
+                      <div className="space-y-2 mb-3">
+                        <div className="flex flex-wrap gap-2">
+                          {card["on-yomi"] && (
+                            <div className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs ${
+                              darkMode 
+                                ? 'bg-cyan-900/30 text-cyan-300 border border-cyan-700/30'
+                                : 'bg-cyan-100 text-cyan-700 border border-cyan-300'
+                            }`}>
+                              <span className="font-bold">音</span>
+                              <span>{card["on-yomi"]}</span>
                             </div>
                           )}
-                         
-                          {card.kana && (
-                            <p className={`text-sm mb-3 ${
-                              darkMode ? 'text-gray-400' : 'text-gray-600'
+                          {card["kun-yomi"] && (
+                            <div className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs ${
+                              darkMode 
+                                ? 'bg-emerald-900/30 text-emerald-300 border border-emerald-700/30'
+                                : 'bg-emerald-100 text-emerald-700 border border-emerald-300'
                             }`}>
-                              {card.kana}
-                              {card.romaji && (
-                                <span className={`ml-2 text-xs ${
-                                  darkMode ? 'text-gray-500' : 'text-gray-500'
-                                }`}>
-                                  ({card.romaji})
-                                </span>
-                              )}
-                            </p>
+                              <span className="font-bold">訓</span>
+                              <span>{card["kun-yomi"]}</span>
+                            </div>
                           )}
-                         
-                          <p className={`mb-4 line-clamp-3 ${
-                            darkMode ? 'text-gray-300' : 'text-gray-700'
-                          }`}>
-                            {card.meaning}
-                          </p>
-                        </div>
-                       
-                        <div className="flex items-center justify-between pt-4 border-t border-gray-200/20">
-                          {card.type && (
-                            <span className={`px-3 py-1 rounded-lg text-xs font-medium text-white ${getTypeColor(card.type)}`}>
-                              {card.type}
-                            </span>
-                          )}
-                         
-                          <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                            <span className={`text-xs ${
-                              darkMode ? 'text-gray-400' : 'text-gray-500'
-                            }`}>View Details</span>
-                            <ChevronRight className="w-4 h-4 text-cyan-500" />
-                          </div>
                         </div>
                       </div>
-                     
-                      {/* Hover effect line */}
-                      <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-cyan-500 to-blue-500 transform scale-x-0 group-hover:scale-x-100 transition-transform duration-500 origin-left"></div>
-                     
-                      {/* Corner accent */}
-                      <div className={`absolute top-0 right-0 w-16 h-16 overflow-hidden`}>
-                        <div className={`absolute w-32 h-32 -top-16 -right-16 rotate-45 ${
-                          card.card === 'kanji' 
-                            ? 'bg-gradient-to-r from-amber-500/20 to-orange-500/20'
-                            : 'bg-gradient-to-r from-indigo-500/20 to-purple-500/20'
-                        }`}></div>
+                    )}
+                   
+                    {/* Kana and Romaji for Vocabulary */}
+                    {card.kana && (
+                      <div className={`flex items-center gap-2 ${
+                        darkMode ? 'text-gray-400' : 'text-gray-600'
+                      }`}>
+                        <span className="text-lg font-medium">{card.kana}</span>
+                        {card.romaji && (
+                          <span className={`text-sm ${
+                            darkMode ? 'text-gray-500' : 'text-gray-500'
+                          }`}>
+                            [{card.romaji}]
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                 
+                  {/* Meaning */}
+                  <div className="mb-4">
+                    <p className={`text-sm font-medium mb-1 ${
+                      darkMode ? 'text-gray-400' : 'text-gray-600'
+                    }`}>
+                      Meaning
+                    </p>
+                    <p className={`line-clamp-3 leading-relaxed ${
+                      darkMode ? 'text-gray-300' : 'text-gray-700'
+                    }`}>
+                      {card.meaning}
+                    </p>
+                  </div>
+                 
+                  {/* Additional Info */}
+                  {card.type && (
+                    <div className="mb-4">
+                      <p className={`text-sm font-medium mb-1 ${
+                        darkMode ? 'text-gray-400' : 'text-gray-600'
+                      }`}>
+                        Type
+                      </p>
+                      <div className="flex flex-wrap gap-1">
+                        {card.type.split(',').map((type, idx) => (
+                          <span
+                            key={idx}
+                            className={`px-2 py-1 rounded-lg text-xs font-medium ${
+                              getTypeColor(type.trim())
+                            }`}
+                          >
+                            {type.trim()}
+                          </span>
+                        ))}
                       </div>
                     </div>
-                  );
-                })}
-              </div>
-            )}
-            
-            {/* Footer */}
-            <div className="mt-8 text-center">
-              <div className={`inline-flex items-center gap-4 px-6 py-3 rounded-2xl ${
-                darkMode
-                  ? 'bg-gray-900/50 border border-gray-800'
-                  : 'bg-white/80 border border-gray-200 shadow-sm'
-              }`}>
-                <p className={`text-sm ${
-                  darkMode ? 'text-gray-400' : 'text-gray-600'
-                }`}>
-                  Showing <span className="font-bold text-cyan-500">{filteredCards.length}</span> of{' '}
-                  <span className="font-bold">{loadedCardsCount}</span> loaded cards
-                  {shuffled && (
-                    <span className="ml-2">
-                      <Shuffle className="w-3 h-3 inline mr-1 text-purple-500" />
-                      Shuffled
-                    </span>
                   )}
-                </p>
+                </div>
                
-                {loadedCardsCount < (Array.isArray(n4Kanji) ? n4Kanji.length : Object.values(n4Kanji).length) && (
-                  <button
-                    onClick={() => loadMoreData(loadedCardsCount + 1000)}
-                    className={`px-3 py-1 rounded-lg text-sm font-medium flex items-center gap-1 ${
-                      darkMode
-                        ? 'bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white'
-                        : 'bg-gray-100 hover:bg-gray-200 text-gray-700 hover:text-gray-900'
-                    }`}
-                  >
-                    <Database className="w-3 h-3" />
-                    Load More
-                  </button>
-                )}
+                {/* Footer - View Details */}
+                <div className="pt-4 mt-auto border-t border-gray-200/20">
+                  <div className={`flex items-center justify-between p-2 rounded-xl transition-all duration-300 ${
+                    darkMode
+                      ? 'bg-gradient-to-r from-gray-800/50 to-gray-900/50 group-hover:from-gray-800 group-hover:to-gray-900'
+                      : 'bg-gradient-to-r from-gray-100/50 to-white/50 group-hover:from-gray-100 group-hover:to-white'
+                  }`}>
+                    <span className={`text-sm font-medium ${
+                      darkMode ? 'text-gray-400' : 'text-gray-600'
+                    }`}>
+                      View details
+                    </span>
+                    <div className={`p-2 rounded-lg transition-all duration-300 ${
+                      isKanji
+                        ? darkMode 
+                          ? 'bg-amber-900/30 group-hover:bg-amber-900/50'
+                          : 'bg-amber-100 group-hover:bg-amber-200'
+                        : darkMode 
+                          ? 'bg-indigo-900/30 group-hover:bg-indigo-900/50'
+                          : 'bg-indigo-100 group-hover:bg-indigo-200'
+                    }`}>
+                      <ChevronRight className={`w-4 h-4 transition-transform duration-300 group-hover:translate-x-1 ${
+                        isKanji ? 'text-amber-600' : 'text-indigo-600'
+                      }`} />
+                    </div>
+                  </div>
+                </div>
+              </div>
+             
+              {/* Bottom accent line */}
+              <div className={`absolute bottom-0 left-0 right-0 h-1 transform scale-x-0 group-hover:scale-x-100 transition-transform duration-700 origin-left ${
+                isKanji
+                  ? 'bg-gradient-to-r from-amber-400 via-orange-500 to-amber-400'
+                  : 'bg-gradient-to-r from-indigo-400 via-purple-500 to-indigo-400'
+              }`}></div>
+             
+              {/* Corner accent */}
+              <div className={`absolute top-0 right-0 w-20 h-20 overflow-hidden opacity-10`}>
+                <div className={`absolute w-40 h-40 -top-20 -right-20 rotate-45 ${
+                  isKanji
+                    ? 'bg-gradient-to-r from-amber-400 to-orange-500'
+                    : 'bg-gradient-to-r from-indigo-400 to-purple-500'
+                }`}></div>
               </div>
             </div>
-          </div>
-        </main>
+          );
+        })}
+      </div>
+    )}
+    
+    {/* Footer */}
+    <div className="mt-8 text-center">
+      <div className={`inline-flex items-center gap-4 px-6 py-3 rounded-2xl backdrop-blur-sm ${
+        darkMode
+          ? 'bg-gray-900/80 border border-gray-800'
+          : 'bg-white/90 border border-gray-200 shadow-sm'
+      }`}>
+        <p className={`text-sm ${
+          darkMode ? 'text-gray-400' : 'text-gray-600'
+        }`}>
+          Showing <span className="font-bold text-cyan-500">{filteredCards.length}</span> of{' '}
+          <span className="font-bold">{loadedCardsCount}</span> loaded cards
+          {shuffled && (
+            <span className="ml-2">
+              <Shuffle className="w-3 h-3 inline mr-1 text-purple-500" />
+              Shuffled
+            </span>
+          )}
+        </p>
+       
+        {loadedCardsCount < (Array.isArray(n4Kanji) ? n4Kanji.length : Object.values(n4Kanji).length) && (
+          <button
+            onClick={() => loadMoreData(loadedCardsCount + 1000)}
+            className={`px-4 py-2 rounded-xl text-sm font-medium flex items-center gap-2 transition-all ${
+              darkMode
+                ? 'bg-gradient-to-r from-gray-800 to-gray-900 hover:from-gray-700 hover:to-gray-800 text-gray-300 hover:text-white border border-gray-700'
+                : 'bg-gradient-to-r from-gray-100 to-white hover:from-gray-200 hover:to-gray-100 text-gray-700 hover:text-gray-900 border border-gray-300'
+            }`}
+          >
+            <Database className="w-4 h-4" />
+            Load More
+          </button>
+        )}
+      </div>
+    </div>
+  </div>
+</main>
       </div>
     </div>
   );

@@ -60,6 +60,8 @@ import CardBrowser from "./pages/cardBrowser";
 import RadicalHomePage from "./pages/Radical/RadicalHomepage";
 import GrammarN5Page from "./pages/Grammer/GrammerPage/GrammerN5Page";
 import CardDetails from "./pages/CardDetails";
+import JapaneseVocabularyApp from "./pages/Vocabulary/JapaneseVocabularyApp";
+import GrammarN4Page from "./pages/Grammer/GrammerPage/GrammarN4Page";
 
 function App() {
   return (
@@ -87,6 +89,8 @@ function App() {
           <Route path="/katakana" element={<KatakanaPage />} />
           <Route path="/kana-quiz" element={<KanaQuiz />} />
  <Route path="/stories/new" element={<Stories />} />
+
+ <Route path="/jlpt/n4/grammar" element={<GrammarN4Page />} />
           {/* ---------------- LEARNING HUB ---------------- */}
           <Route path="/learn" element={<LearningHub />} />
              <Route path="/master/vocab" element={<VocabularyMaster />} />
@@ -108,6 +112,9 @@ function App() {
           <Route path="/daily-conversation" element={<DailyConversation />} />
           <Route path="/vocabulary" element={<VocabularyBuilder />} />
           <Route path="/stories" element={<ShortStories />} />
+          
+
+            <Route path="/full/voc" element={<JapaneseVocabularyApp />} />
           
           <Route path="/community" element={<CommunityLeaderboard />} />
 

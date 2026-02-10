@@ -58,7 +58,39 @@ import {
   Moon,
   Sun,
   Compass,
-  Map
+  Map,
+  Menu,
+  Home,
+  User,
+  Bell,
+  LogOut,
+  Shield,
+  HelpCircle,
+  Crown,
+  TrendingDown,
+  Feather,
+  Book,
+  Hash,
+  Tag,
+  Filter as FilterIcon,
+  MoreVertical,
+  ExternalLink,
+  Copy,
+  Edit,
+  Trash2,
+  Save,
+  Upload,
+  Image as ImageIcon,
+  Video,
+  Mic,
+  MicOff,
+  Airplay,
+  Cast,
+  Wifi,
+  WifiOff,
+  BatteryCharging,
+  Volume1,
+  Volume
 } from 'lucide-react';
 import { 
   getStories, 
@@ -136,30 +168,30 @@ const convertStatus = (apiStatus: ApiStoryStatus): StoryStatus => {
 
 const getDifficultyColor = (difficulty: Difficulty): string => {
   switch (difficulty) {
-    case 'beginner': return 'bg-gradient-to-r from-green-500 to-emerald-500';
-    case 'intermediate': return 'bg-gradient-to-r from-yellow-500 to-amber-500';
-    case 'advanced': return 'bg-gradient-to-r from-red-500 to-rose-500';
-    default: return 'bg-gradient-to-r from-gray-500 to-slate-500';
+    case 'beginner': return 'bg-gradient-to-r from-emerald-400 to-green-500';
+    case 'intermediate': return 'bg-gradient-to-r from-amber-400 to-orange-500';
+    case 'advanced': return 'bg-gradient-to-r from-rose-500 to-pink-600';
+    default: return 'bg-gradient-to-r from-gray-400 to-slate-500';
   }
 };
 
 const getDifficultyBg = (difficulty: Difficulty): string => {
   switch (difficulty) {
-    case 'beginner': return 'bg-green-50 text-green-700 border-green-200';
-    case 'intermediate': return 'bg-yellow-50 text-yellow-700 border-yellow-200';
-    case 'advanced': return 'bg-red-50 text-red-700 border-red-200';
-    default: return 'bg-gray-50 text-gray-700 border-gray-200';
+    case 'beginner': return 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-300 dark:border-emerald-800';
+    case 'intermediate': return 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/20 dark:text-amber-300 dark:border-amber-800';
+    case 'advanced': return 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-900/20 dark:text-rose-300 dark:border-rose-800';
+    default: return 'bg-gray-50 text-gray-700 border-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700';
   }
 };
 
 const getLevelColor = (level: string): string => {
   switch (level) {
-    case 'N5': return 'bg-gradient-to-r from-blue-500 to-cyan-500';
-    case 'N4': return 'bg-gradient-to-r from-indigo-500 to-purple-500';
-    case 'N3': return 'bg-gradient-to-r from-purple-500 to-pink-500';
-    case 'N2': return 'bg-gradient-to-r from-orange-500 to-red-500';
-    case 'N1': return 'bg-gradient-to-r from-red-500 to-rose-500';
-    default: return 'bg-gradient-to-r from-gray-500 to-slate-500';
+    case 'N5': return 'bg-gradient-to-r from-sky-400 to-blue-500';
+    case 'N4': return 'bg-gradient-to-r from-indigo-400 to-purple-500';
+    case 'N3': return 'bg-gradient-to-r from-purple-400 to-pink-500';
+    case 'N2': return 'bg-gradient-to-r from-orange-400 to-red-500';
+    case 'N1': return 'bg-gradient-to-r from-red-500 to-rose-600';
+    default: return 'bg-gradient-to-r from-gray-400 to-slate-500';
   }
 };
 
@@ -195,10 +227,11 @@ const ShortStories = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedLevel, setSelectedLevel] = useState<string>('all');
   const [selectedDifficulty, setSelectedDifficulty] = useState<string>('all');
-  const [speechRate, setSpeechRate] = useState(0.8);
+  const [speechRate, setSpeechRate] = useState(1.0);
   const [showCulturalNotes, setShowCulturalNotes] = useState(false);
   const [autoPlayAudio, setAutoPlayAudio] = useState(false);
   const [userLiked, setUserLiked] = useState<Record<string, boolean>>({});
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const [stats, setStats] = useState<ReadingStats>({
     storiesRead: 15,
@@ -538,16 +571,18 @@ const ShortStories = () => {
 
   if (loading && stories.length === 0) {
     return (
-      <div className={`min-h-screen flex items-center justify-center p-4 ${
-        darkMode ? 'bg-gradient-to-br from-gray-900 to-black' : 'bg-gradient-to-br from-blue-50 to-indigo-50'
+      <div className={`min-h-screen flex items-center justify-center p-4 transition-colors duration-300 ${
+        darkMode ? 'bg-gradient-to-br from-gray-900 to-gray-950' : 'bg-gradient-to-br from-gray-50 to-blue-50'
       }`}>
-        <div className="text-center">
+        <div className="text-center space-y-4">
           <div className="relative">
-            <div className="w-20 h-20 border-4 border-blue-200 rounded-full"></div>
-            <div className="w-20 h-20 border-4 border-blue-600 border-t-transparent rounded-full absolute top-0 animate-spin"></div>
+            <div className="w-20 h-20 border-4 border-gray-200 dark:border-gray-700 rounded-full"></div>
+            <div className="w-20 h-20 border-4 border-blue-500 border-t-transparent rounded-full absolute top-0 animate-spin"></div>
           </div>
-          <p className="mt-6 text-lg font-medium text-gray-700 dark:text-gray-300">Loading Japanese Stories...</p>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">Preparing your reading adventure</p>
+          <div className="space-y-2">
+            <p className="text-lg font-medium text-gray-700 dark:text-gray-300">Loading Japanese Stories</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400">Preparing your reading adventure</p>
+          </div>
         </div>
       </div>
     );
@@ -555,28 +590,30 @@ const ShortStories = () => {
 
   if (error && stories.length === 0) {
     return (
-      <div className={`min-h-screen flex items-center justify-center p-4 ${
-        darkMode ? 'bg-gradient-to-br from-gray-900 to-black' : 'bg-gradient-to-br from-blue-50 to-indigo-50'
+      <div className={`min-h-screen flex items-center justify-center p-4 transition-colors duration-300 ${
+        darkMode ? 'bg-gradient-to-br from-gray-900 to-gray-950' : 'bg-gradient-to-br from-gray-50 to-blue-50'
       }`}>
-        <div className="max-w-md w-full text-center p-8 bg-white dark:bg-gray-800 rounded-2xl shadow-xl">
-          <div className="w-16 h-16 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
-            <AlertCircle className="h-8 w-8 text-red-600 dark:text-red-400" />
-          </div>
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Unable to Load Stories</h2>
-          <p className="text-gray-600 dark:text-gray-400 mb-6">{error}</p>
-          <div className="flex gap-3 justify-center">
-            <button
-              onClick={handleRetry}
-              className="px-6 py-3 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-xl hover:shadow-lg transition-all font-medium"
-            >
-              Try Again
-            </button>
-            <button
-              onClick={() => window.location.reload()}
-              className="px-6 py-3 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-xl hover:bg-gray-200 dark:hover:bg-gray-600 transition"
-            >
-              Reload Page
-            </button>
+        <div className="max-w-md w-full">
+          <div className="p-8 bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700">
+            <div className="w-16 h-16 bg-gradient-to-r from-red-100 to-rose-100 dark:from-red-900/30 dark:to-rose-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
+              <AlertCircle className="h-8 w-8 text-red-600 dark:text-red-400" />
+            </div>
+            <h2 className="text-2xl font-bold text-gray-900 dark:text-white text-center mb-2">Unable to Load Stories</h2>
+            <p className="text-gray-600 dark:text-gray-400 text-center mb-6">{error}</p>
+            <div className="flex flex-col sm:flex-row gap-3 justify-center">
+              <button
+                onClick={handleRetry}
+                className="px-6 py-3 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-xl hover:shadow-lg transition-all duration-300 font-medium hover:scale-[1.02] active:scale-[0.98]"
+              >
+                Try Again
+              </button>
+              <button
+                onClick={() => window.location.reload()}
+                className="px-6 py-3 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-xl hover:bg-gray-200 dark:hover:bg-gray-600 transition-all duration-300"
+              >
+                Reload Page
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -586,66 +623,71 @@ const ShortStories = () => {
   return (
     <div className={`min-h-screen transition-colors duration-300 ${
       darkMode 
-        ? 'bg-gradient-to-br from-gray-900 via-gray-800 to-black text-gray-100' 
-        : 'bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 text-gray-900'
+        ? 'bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-gray-100' 
+        : 'bg-gradient-to-br from-gray-50 via-blue-50 to-purple-50 text-gray-900'
     }`}>
       {/* Header */}
-      <header className={`sticky top-0 z-50 backdrop-blur-lg border-b transition-colors ${
+      <header className={`sticky top-0 z-50 backdrop-blur-md border-b transition-all duration-300 ${
         darkMode 
-          ? 'bg-gray-900/80 border-gray-800' 
-          : 'bg-white/80 border-gray-200'
+          ? 'bg-gray-900/95 border-gray-800/50 shadow-xl' 
+          : 'bg-white/95 border-gray-200/50 shadow-lg'
       }`}>
-        <div className="max-w-7xl mx-auto px-4 py-4">
-          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-            {/* Left: Branding */}
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between h-16">
+            {/* Left: Branding & Mobile Menu */}
             <div className="flex items-center gap-4">
+              <button
+                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                className="lg:hidden p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800"
+              >
+                <Menu className="h-5 w-5" />
+              </button>
+              
               <div className="flex items-center gap-3">
                 <div className="relative">
-                  <div className="w-12 h-12 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-xl flex items-center justify-center">
-                    <BookOpen className="h-7 w-7 text-white" />
+                  <div className="w-10 h-10 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-xl flex items-center justify-center shadow-lg">
+                    <BookOpen className="h-6 w-6 text-white" />
                   </div>
-                  <div className="absolute -top-1 -right-1 w-6 h-6 bg-gradient-to-r from-emerald-500 to-teal-500 rounded-full flex items-center justify-center text-xs font-bold text-white">
+                  <div className="absolute -top-1 -right-1 w-5 h-5 bg-gradient-to-r from-emerald-500 to-teal-500 rounded-full flex items-center justify-center text-xs font-bold text-white shadow">
                     {stats.storiesRead}
                   </div>
                 </div>
-                <div>
-                  <h1 className="text-2xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
+                <div className="hidden sm:block">
+                  <h1 className="text-xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
                     Japanese Stories
                   </h1>
-                  <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                    Immerse yourself in authentic Japanese reading
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    Immerse in authentic reading
                   </p>
                 </div>
               </div>
             </div>
 
-            {/* Right: Controls */}
-            <div className="flex items-center gap-3">
-              {/* View Mode */}
-              <div className="hidden md:flex items-center bg-gray-100 dark:bg-gray-800 rounded-lg p-1">
-                <button
-                  onClick={() => setViewMode('grid')}
-                  className={`p-2 rounded transition ${
-                    viewMode === 'grid' 
-                      ? 'bg-white dark:bg-gray-700 text-indigo-600 dark:text-indigo-300' 
-                      : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
-                  }`}
-                  title="Grid View"
-                >
-                  <Grid3x3 className="h-4 w-4" />
-                </button>
-                <button
-                  onClick={() => setViewMode('detailed')}
-                  className={`p-2 rounded transition ${
-                    viewMode === 'detailed' 
-                      ? 'bg-white dark:bg-gray-700 text-indigo-600 dark:text-indigo-300' 
-                      : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
-                  }`}
-                  title="Detailed View"
-                >
-                  <List className="h-4 w-4" />
-                </button>
+            {/* Center: Search */}
+            <div className="hidden md:block flex-1 max-w-lg mx-4">
+              <div className="relative">
+                <Search className={`absolute left-4 top-1/2 transform -translate-y-1/2 h-4 w-4 ${
+                  darkMode ? 'text-gray-500' : 'text-gray-400'
+                }`} />
+                <input
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search stories, topics, or authors..."
+                  className={`w-full pl-12 pr-4 py-2.5 rounded-xl text-sm transition-all ${
+                    darkMode
+                      ? 'bg-gray-800/50 border border-gray-700/50 text-white placeholder-gray-500 focus:border-indigo-500'
+                      : 'bg-white/80 border border-gray-300/80 text-gray-900 placeholder-gray-400 focus:border-indigo-400'
+                  } focus:outline-none focus:ring-2 focus:ring-indigo-500/20`}
+                />
               </div>
+            </div>
+
+            {/* Right: User Controls */}
+            <div className="flex items-center gap-2">
+              {/* Mobile Search */}
+              <button className="md:hidden p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800">
+                <Search className="h-5 w-5" />
+              </button>
               
               {/* Dark Mode */}
               <button
@@ -653,152 +695,231 @@ const ShortStories = () => {
                   setDarkMode(!darkMode);
                   saveUserPreferences();
                 }}
-                className={`p-2 rounded-lg ${
+                className={`p-2 rounded-lg transition-all duration-300 hover:scale-105 ${
                   darkMode
                     ? 'bg-gray-800 text-yellow-300 hover:bg-gray-700'
                     : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                 }`}
                 title="Toggle dark mode"
               >
-                {darkMode ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+                {darkMode ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
               </button>
               
-              {/* Search */}
+              {/* Notifications */}
+              <button className={`relative p-2 rounded-lg ${
+                darkMode ? 'hover:bg-gray-800' : 'hover:bg-gray-100'
+              }`}>
+                <Bell className="h-5 w-5" />
+                <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
+              </button>
+              
+              {/* User Profile */}
               <div className="relative">
-                <Search className={`absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 ${
-                  darkMode ? 'text-gray-500' : 'text-gray-400'
-                }`} />
-                <input
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search stories..."
-                  className={`pl-10 pr-4 py-2 rounded-xl text-sm transition-all w-40 md:w-48 ${
-                    darkMode
-                      ? 'bg-gray-800 border border-gray-700 text-white placeholder-gray-500'
-                      : 'bg-white border border-gray-300 text-gray-900 placeholder-gray-400'
-                  } focus:outline-none focus:ring-2 focus:ring-indigo-500`}
-                />
+                <button className="flex items-center gap-2 p-1.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800">
+                  <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full flex items-center justify-center text-white font-medium text-sm">
+                    YT
+                  </div>
+                  <span className="hidden lg:inline text-sm font-medium">Yuki</span>
+                  <ChevronDown className="hidden lg:block h-4 w-4" />
+                </button>
               </div>
+            </div>
+          </div>
+
+          {/* Mobile Search */}
+          <div className="md:hidden pb-4">
+            <div className="relative">
+              <Search className={`absolute left-4 top-1/2 transform -translate-y-1/2 h-4 w-4 ${
+                darkMode ? 'text-gray-500' : 'text-gray-400'
+              }`} />
+              <input
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search stories..."
+                className={`w-full pl-12 pr-4 py-2.5 rounded-xl text-sm ${
+                  darkMode
+                    ? 'bg-gray-800 border border-gray-700 text-white placeholder-gray-500'
+                    : 'bg-white border border-gray-300 text-gray-900 placeholder-gray-400'
+                } focus:outline-none focus:ring-2 focus:ring-indigo-500`}
+              />
             </div>
           </div>
 
           {/* Stats Bar */}
-          <div className="mt-4 grid grid-cols-2 md:grid-cols-6 gap-3">
-            <div className={`p-3 rounded-xl ${
-              darkMode ? 'bg-gray-800/50 border border-gray-700' : 'bg-white border border-gray-200'
-            } shadow-sm`}>
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Stories Read</p>
-                  <p className="text-xl font-bold text-purple-600">{stats.storiesRead}</p>
-                </div>
-                <BookOpen className="h-5 w-5 text-purple-500" />
-              </div>
-            </div>
-            
-            <div className={`p-3 rounded-xl ${
-              darkMode ? 'bg-gray-800/50 border border-gray-700' : 'bg-white border border-gray-200'
-            } shadow-sm`}>
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Words Learned</p>
-                  <p className="text-xl font-bold text-green-600">{stats.wordsLearned.toLocaleString()}</p>
-                </div>
-                <TrendingUp className="h-5 w-5 text-green-500" />
-              </div>
-            </div>
-            
-            <div className={`p-3 rounded-xl ${
-              darkMode ? 'bg-gray-800/50 border border-gray-700' : 'bg-white border border-gray-200'
-            } shadow-sm`}>
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Reading Time</p>
-                  <p className="text-xl font-bold text-blue-600">{stats.readingTime}m</p>
-                </div>
-                <Clock className="h-5 w-5 text-blue-500" />
-              </div>
-            </div>
-            
-            <div className={`p-3 rounded-xl ${
-              darkMode ? 'bg-gray-800/50 border border-gray-700' : 'bg-white border border-gray-200'
-            } shadow-sm`}>
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Streak</p>
-                  <p className="text-xl font-bold text-amber-600">{stats.streak} days</p>
-                </div>
-                <Zap className="h-5 w-5 text-amber-500" />
-              </div>
-            </div>
-            
-            <div className={`p-3 rounded-xl ${
-              darkMode ? 'bg-gray-800/50 border border-gray-700' : 'bg-white border border-gray-200'
-            } shadow-sm`}>
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Level</p>
-                  <p className="text-xl font-bold text-indigo-600">{stats.currentLevel}</p>
-                </div>
-                <Trophy className="h-5 w-5 text-indigo-500" />
-              </div>
-            </div>
-            
-            <div className={`p-3 rounded-xl ${
-              darkMode ? 'bg-gray-800/50 border border-gray-700' : 'bg-white border border-gray-200'
-            } shadow-sm`}>
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>XP</p>
-                  <p className="text-xl font-bold text-rose-600">{stats.xp}</p>
-                </div>
-                <Award className="h-5 w-5 text-rose-500" />
-              </div>
-            </div>
+          <div className="grid grid-cols-2 md:grid-cols-6 gap-2 pb-4">
+            <StatCard
+              label="Stories Read"
+              value={stats.storiesRead}
+              icon={<BookOpen className="h-4 w-4" />}
+              color="text-purple-600"
+              iconColor="text-purple-500"
+              darkMode={darkMode}
+            />
+            <StatCard
+              label="Words Learned"
+              value={stats.wordsLearned.toLocaleString()}
+              icon={<TrendingUp className="h-4 w-4" />}
+              color="text-emerald-600"
+              iconColor="text-emerald-500"
+              darkMode={darkMode}
+            />
+            <StatCard
+              label="Reading Time"
+              value={`${stats.readingTime}m`}
+              icon={<Clock className="h-4 w-4" />}
+              color="text-blue-600"
+              iconColor="text-blue-500"
+              darkMode={darkMode}
+            />
+            <StatCard
+              label="Streak"
+              value={`${stats.streak} days`}
+              icon={<Zap className="h-4 w-4" />}
+              color="text-amber-600"
+              iconColor="text-amber-500"
+              darkMode={darkMode}
+            />
+            <StatCard
+              label="Level"
+              value={stats.currentLevel}
+              icon={<Trophy className="h-4 w-4" />}
+              color="text-indigo-600"
+              iconColor="text-indigo-500"
+              darkMode={darkMode}
+            />
+            <StatCard
+              label="XP"
+              value={stats.xp}
+              icon={<Award className="h-4 w-4" />}
+              color="text-rose-600"
+              iconColor="text-rose-500"
+              darkMode={darkMode}
+            />
           </div>
         </div>
       </header>
 
-      {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 py-6">
-        <div className="flex flex-col lg:flex-row gap-6">
-          {/* Stories Sidebar */}
-          <div className="lg:w-1/3">
-            {/* Filters */}
-            <div className={`mb-6 rounded-2xl p-6 ${
-              darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border border-gray-200'
-            } shadow-lg`}>
-              <div className="flex items-center justify-between mb-6">
-                <h3 className={`text-lg font-bold ${
-                  darkMode ? 'text-white' : 'text-gray-900'
-                }`}>
-                  Stories Library
-                </h3>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => setShowFilters(!showFilters)}
-                    className={`p-2 rounded-lg ${
-                      darkMode
-                        ? 'text-gray-400 hover:text-white hover:bg-gray-700'
-                        : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'
-                    }`}
-                  >
-                    <Filter className="h-4 w-4" />
-                  </button>
-                  <span className={`text-sm ${
-                    darkMode ? 'text-gray-400' : 'text-gray-600'
+      {/* Mobile Menu */}
+      {mobileMenuOpen && (
+        <div className="lg:hidden fixed inset-0 z-50">
+          <div className="fixed inset-0 bg-black/50" onClick={() => setMobileMenuOpen(false)} />
+          <div className={`fixed left-0 top-0 h-full w-64 max-w-sm shadow-2xl transform transition-transform duration-300 ${
+            darkMode ? 'bg-gray-900' : 'bg-white'
+          }`}>
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-8">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-xl flex items-center justify-center">
+                    <BookOpen className="h-6 w-6 text-white" />
+                  </div>
+                  <span className="font-bold">Menu</span>
+                </div>
+                <button onClick={() => setMobileMenuOpen(false)}>
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+              
+              <nav className="space-y-2">
+                <MenuItem icon={<Home className="h-5 w-5" />} label="Dashboard" active />
+                <MenuItem icon={<Book className="h-5 w-5" />} label="Stories Library" />
+                <MenuItem icon={<Compass className="h-5 w-5" />} label="Discover" />
+                <MenuItem icon={<TrendingUp className="h-5 w-5" />} label="Progress" />
+                <MenuItem icon={<User className="h-5 w-5" />} label="Profile" />
+                <MenuItem icon={<Settings className="h-5 w-5" />} label="Settings" />
+                <MenuItem icon={<HelpCircle className="h-5 w-5" />} label="Help & Support" />
+              </nav>
+              
+              <div className="mt-8 pt-8 border-t border-gray-200 dark:border-gray-700">
+                <button className="w-full flex items-center justify-between p-3 rounded-xl bg-gray-100 dark:bg-gray-800">
+                  <span className="font-medium">Dark Mode</span>
+                  <div className={`w-12 h-6 rounded-full relative transition-colors ${
+                    darkMode ? 'bg-indigo-600' : 'bg-gray-300'
                   }`}>
-                    {filteredStories.length} stories
-                  </span>
+                    <div className={`absolute top-0.5 w-5 h-5 rounded-full bg-white transition-transform ${
+                      darkMode ? 'transform translate-x-7' : 'transform translate-x-0.5'
+                    }`} />
+                  </div>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Main Content */}
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        <div className="flex flex-col lg:flex-row gap-6">
+          {/* Left Sidebar - Stories & Filters */}
+          <div className="lg:w-1/3 space-y-6">
+            {/* Stories Library Card */}
+            <div className={`rounded-2xl border transition-all duration-300 ${
+              darkMode 
+                ? 'bg-gray-800/50 border-gray-700/50 backdrop-blur-sm' 
+                : 'bg-white border-gray-200/80 backdrop-blur-sm'
+            } shadow-lg`}>
+              {/* Header */}
+              <div className="p-6 border-b border-gray-200 dark:border-gray-700/50">
+                <div className="flex items-center justify-between">
+                  <h3 className={`text-lg font-bold ${
+                    darkMode ? 'text-white' : 'text-gray-900'
+                  }`}>
+                    Stories Library
+                  </h3>
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={() => setShowFilters(!showFilters)}
+                      className={`p-2 rounded-lg transition-all ${
+                        showFilters
+                          ? darkMode
+                            ? 'bg-indigo-600 text-white'
+                            : 'bg-indigo-600 text-white'
+                          : darkMode
+                            ? 'text-gray-400 hover:text-white hover:bg-gray-700'
+                            : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'
+                      }`}
+                    >
+                      <FilterIcon className="h-4 w-4" />
+                    </button>
+                    <div className="flex items-center gap-1">
+                      <span className={`text-sm ${
+                        darkMode ? 'text-gray-400' : 'text-gray-600'
+                      }`}>
+                        {filteredStories.length} stories
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Quick Filters */}
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {['beginner', 'intermediate', 'advanced'].map((diff) => (
+                    <button
+                      key={diff}
+                      onClick={() => setSelectedDifficulty(diff === selectedDifficulty ? 'all' : diff)}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                        selectedDifficulty === diff
+                          ? diff === 'beginner'
+                            ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300'
+                            : diff === 'intermediate'
+                            ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'
+                            : 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300'
+                          : darkMode
+                            ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      }`}
+                    >
+                      {diff.charAt(0).toUpperCase() + diff.slice(1)}
+                    </button>
+                  ))}
                 </div>
               </div>
 
               {/* Filters Panel */}
               {showFilters && (
-                <div className="mb-6 space-y-4 animate-fade-in">
+                <div className="p-6 border-b border-gray-200 dark:border-gray-700/50 space-y-4 animate-fade-in">
                   <div>
-                    <h4 className={`text-sm font-semibold mb-2 ${
-                      darkMode ? 'text-gray-400' : 'text-gray-600'
+                    <h4 className={`text-sm font-semibold mb-3 ${
+                      darkMode ? 'text-gray-300' : 'text-gray-700'
                     }`}>
                       JLPT Level
                     </h4>
@@ -807,50 +928,19 @@ const ShortStories = () => {
                         <button
                           key={level}
                           onClick={() => setSelectedLevel(level)}
-                          className={`px-3 py-1.5 rounded-lg text-sm transition-all ${
+                          className={`px-3 py-1.5 rounded-lg text-sm transition-all hover:scale-[1.02] ${
                             selectedLevel === level
-                              ? darkMode
-                                ? 'bg-indigo-600 text-white'
-                                : 'bg-indigo-600 text-white'
+                              ? level === 'all'
+                                ? darkMode
+                                  ? 'bg-gray-700 text-white'
+                                  : 'bg-gray-900 text-white'
+                                : `px-3 py-1.5 rounded-lg text-white ${getLevelColor(level)}`
                               : darkMode
                                 ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
                                 : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                           }`}
                         >
-                          {level === 'all' ? 'All' : level}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div>
-                    <h4 className={`text-sm font-semibold mb-2 ${
-                      darkMode ? 'text-gray-400' : 'text-gray-600'
-                    }`}>
-                      Difficulty
-                    </h4>
-                    <div className="flex flex-wrap gap-2">
-                      {['all', 'beginner', 'intermediate', 'advanced'].map(diff => (
-                        <button
-                          key={diff}
-                          onClick={() => setSelectedDifficulty(diff)}
-                          className={`px-3 py-1.5 rounded-lg text-sm transition-all ${
-                            selectedDifficulty === diff
-                              ? diff === 'beginner'
-                                ? 'bg-green-100 text-green-700'
-                                : diff === 'intermediate'
-                                ? 'bg-yellow-100 text-yellow-700'
-                                : diff === 'advanced'
-                                ? 'bg-red-100 text-red-700'
-                                : darkMode
-                                ? 'bg-gray-700 text-white'
-                                : 'bg-gray-900 text-white'
-                              : darkMode
-                                ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                          }`}
-                        >
-                          {diff === 'all' ? 'All' : diff.charAt(0).toUpperCase() + diff.slice(1)}
+                          {level === 'all' ? 'All Levels' : level}
                         </button>
                       ))}
                     </div>
@@ -859,336 +949,103 @@ const ShortStories = () => {
               )}
 
               {/* Stories List */}
-              <div className={`max-h-[500px] overflow-y-auto ${darkMode ? 'scrollbar-dark' : ''}`}>
+              <div className="p-4">
                 {filteredStories.length === 0 ? (
                   <div className="text-center py-8">
-                    <FileText className="h-12 w-12 text-gray-400 mx-auto mb-3" />
-                    <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                    <FileText className="h-12 w-12 text-gray-400 dark:text-gray-600 mx-auto mb-3" />
+                    <p className={`text-sm ${
+                      darkMode ? 'text-gray-400' : 'text-gray-600'
+                    }`}>
                       No stories found. Try different filters.
                     </p>
                   </div>
                 ) : (
-                  <div className="space-y-3">
+                  <div className="space-y-3 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
                     {filteredStories.map((story) => (
-                      <div
+                      <StoryCard
                         key={story.id}
-                        className={`group relative overflow-hidden rounded-xl border transition-all duration-300 ${
-                          selectedStory === story.id
-                            ? darkMode
-                              ? 'border-indigo-500 bg-indigo-900/20'
-                              : 'border-indigo-500 bg-indigo-50'
-                            : darkMode
-                              ? 'border-gray-700 bg-gray-800/50 hover:bg-gray-800'
-                              : 'border-gray-200 bg-white hover:bg-gray-50'
-                        } ${story.status === 'locked' ? 'opacity-75' : 'cursor-pointer'}`}
-                        onClick={() => story.status !== 'locked' && startReading(story.id)}
-                      >
-                        {/* Story Image */}
-                        <div className="relative h-32 overflow-hidden">
-                          <img
-                            src={story.imageUrl}
-                            alt={story.title}
-                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                          />
-                          <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent"></div>
-                          
-                          {/* Status Badge */}
-                          <div className="absolute top-3 left-3">
-                            {story.status === 'locked' ? (
-                              <div className="px-2 py-1 bg-gray-900/80 text-white rounded-full text-xs">
-                                <Lock className="h-3 w-3 inline mr-1" />
-                                Locked
-                              </div>
-                            ) : story.status === 'completed' ? (
-                              <div className="px-2 py-1 bg-green-600 text-white rounded-full text-xs">
-                                <CheckCircle className="h-3 w-3 inline mr-1" />
-                                Completed
-                              </div>
-                            ) : (
-                              <div className="px-2 py-1 bg-blue-600 text-white rounded-full text-xs">
-                                Available
-                              </div>
-                            )}
-                          </div>
-                          
-                          {/* Difficulty Badge */}
-                          <div className="absolute top-3 right-3">
-                            <div className={`px-2 py-1 rounded-full text-xs font-medium ${
-                              getDifficultyBg(story.difficulty)
-                            }`}>
-                              {story.difficulty.charAt(0).toUpperCase() + story.difficulty.slice(1)}
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Story Content */}
-                        <div className="p-4">
-                          <div className="flex justify-between items-start mb-2">
-                            <h4 className={`font-bold text-sm line-clamp-1 ${
-                              darkMode ? 'text-white' : 'text-gray-900'
-                            }`}>
-                              {story.title}
-                            </h4>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                toggleBookmark(story.id);
-                              }}
-                              className={`p-1 ${
-                                story.isBookmarked
-                                  ? 'text-amber-500'
-                                  : darkMode
-                                    ? 'text-gray-400 hover:text-amber-400'
-                                    : 'text-gray-400 hover:text-amber-500'
-                              }`}
-                            >
-                              {story.isBookmarked ? (
-                                <BookmarkCheck className="h-4 w-4 fill-current" />
-                              ) : (
-                                <Bookmark className="h-4 w-4" />
-                              )}
-                            </button>
-                          </div>
-
-                          <p className={`text-xs mb-3 line-clamp-2 ${
-                            darkMode ? 'text-gray-400' : 'text-gray-600'
-                          }`}>
-                            {story.description}
-                          </p>
-
-                          {/* Story Metadata */}
-                          <div className="flex flex-wrap items-center gap-2 text-xs">
-                            <div className={`px-2 py-1 rounded-full ${
-                              darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-700'
-                            }`}>
-                              {story.level}
-                            </div>
-                            <div className={`px-2 py-1 rounded-full ${
-                              darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-700'
-                            }`}>
-                              <Clock className="h-3 w-3 inline mr-1" />
-                              {story.duration}
-                            </div>
-                            <div className={`px-2 py-1 rounded-full ${
-                              darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-700'
-                            }`}>
-                              <Eye className="h-3 w-3 inline mr-1" />
-                              {story.readCount}
-                            </div>
-                          </div>
-
-                          {/* Author and Rating */}
-                          <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-700">
-                            <div className="flex items-center gap-2">
-                              <div className={`w-6 h-6 rounded-full ${
-                                darkMode ? 'bg-gray-700' : 'bg-gray-200'
-                              } flex items-center justify-center`}>
-                                <Users className="h-3 w-3" />
-                              </div>
-                              <span className={`text-xs ${
-                                darkMode ? 'text-gray-400' : 'text-gray-600'
-                              }`}>
-                                {story.author}
-                              </span>
-                            </div>
-                            <div className="flex items-center gap-1">
-                              <Star className="h-3 w-3 text-amber-500 fill-current" />
-                              <span className="text-xs font-medium">{story.rating?.toFixed(1)}</span>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
+                        story={story}
+                        isSelected={selectedStory === story.id}
+                        onSelect={() => story.status !== 'locked' && startReading(story.id)}
+                        onToggleBookmark={() => toggleBookmark(story.id)}
+                        darkMode={darkMode}
+                      />
                     ))}
                   </div>
                 )}
               </div>
             </div>
 
-            {/* Reading Progress */}
-            <div className={`rounded-2xl p-6 ${
-              darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border border-gray-200'
-            } shadow-lg`}>
-              <h3 className={`text-lg font-bold mb-4 ${
+            {/* Progress Card */}
+            <div className={`rounded-2xl border transition-all duration-300 ${
+              darkMode 
+                ? 'bg-gray-800/50 border-gray-700/50 backdrop-blur-sm' 
+                : 'bg-white border-gray-200/80 backdrop-blur-sm'
+            } shadow-lg p-6`}>
+              <h3 className={`text-lg font-bold mb-6 ${
                 darkMode ? 'text-white' : 'text-gray-900'
               }`}>
                 Your Reading Journey
               </h3>
-              <div className="space-y-4">
-                <div>
-                  <div className="flex justify-between text-sm mb-1">
-                    <span className={darkMode ? 'text-gray-400' : 'text-gray-600'}>
-                      Beginner Stories
-                    </span>
-                    <span className="font-medium">8/10</span>
-                  </div>
-                  <div className={`h-2 rounded-full overflow-hidden ${
-                    darkMode ? 'bg-gray-700' : 'bg-gray-200'
-                  }`}>
-                    <div className="h-full bg-gradient-to-r from-green-500 to-emerald-500" style={{ width: '80%' }} />
-                  </div>
-                </div>
-                <div>
-                  <div className="flex justify-between text-sm mb-1">
-                    <span className={darkMode ? 'text-gray-400' : 'text-gray-600'}>
-                      Intermediate Stories
-                    </span>
-                    <span className="font-medium">5/15</span>
-                  </div>
-                  <div className={`h-2 rounded-full overflow-hidden ${
-                    darkMode ? 'bg-gray-700' : 'bg-gray-200'
-                  }`}>
-                    <div className="h-full bg-gradient-to-r from-yellow-500 to-amber-500" style={{ width: '33%' }} />
-                  </div>
-                </div>
-                <div>
-                  <div className="flex justify-between text-sm mb-1">
-                    <span className={darkMode ? 'text-gray-400' : 'text-gray-600'}>
-                      Advanced Stories
-                    </span>
-                    <span className="font-medium">2/8</span>
-                  </div>
-                  <div className={`h-2 rounded-full overflow-hidden ${
-                    darkMode ? 'bg-gray-700' : 'bg-gray-200'
-                  }`}>
-                    <div className="h-full bg-gradient-to-r from-red-500 to-rose-500" style={{ width: '25%' }} />
-                  </div>
-                </div>
+              <div className="space-y-5">
+                <ProgressBar
+                  label="Beginner Stories"
+                  value={8}
+                  total={10}
+                  color="from-emerald-400 to-green-500"
+                  darkMode={darkMode}
+                />
+                <ProgressBar
+                  label="Intermediate Stories"
+                  value={5}
+                  total={15}
+                  color="from-amber-400 to-orange-500"
+                  darkMode={darkMode}
+                />
+                <ProgressBar
+                  label="Advanced Stories"
+                  value={2}
+                  total={8}
+                  color="from-rose-500 to-pink-600"
+                  darkMode={darkMode}
+                />
               </div>
             </div>
           </div>
 
-          {/* Reading Interface */}
+          {/* Main Reading Area */}
           <div className="lg:w-2/3">
             {!selectedStoryData ? (
-              <div className={`rounded-2xl p-8 text-center ${
-                darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border border-gray-200'
-              } shadow-lg`}>
-                <div className="w-20 h-20 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <Compass className="h-10 w-10 text-white" />
-                </div>
-                <h2 className={`text-xl font-bold mb-2 ${
-                  darkMode ? 'text-white' : 'text-gray-900'
-                }`}>
-                  Start Your Reading Journey
-                </h2>
-                <p className={`mb-6 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                  Select a story from the library to begin reading
-                </p>
-                {filteredStories.length > 0 && (
-                  <button
-                    onClick={() => startReading(filteredStories[0].id)}
-                    className="px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl hover:shadow-lg transition-all font-medium"
-                  >
-                    Start Reading
-                  </button>
-                )}
-              </div>
+              <EmptyState
+                darkMode={darkMode}
+                filteredStories={filteredStories}
+                startReading={startReading}
+              />
             ) : (
-              <div className={`rounded-2xl overflow-hidden ${
-                darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border border-gray-200'
-              } shadow-lg`}>
-                {/* Story Header */}
-                <div className="relative">
-                  <div className="h-48 overflow-hidden">
-                    <img
-                      src={selectedStoryData.imageUrl}
-                      alt={selectedStoryData.title}
-                      className="w-full h-full object-cover"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent"></div>
-                  </div>
-                  
-                  <div className="absolute bottom-0 left-0 right-0 p-6">
-                    <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
-                      <div>
-                        <h2 className={`text-2xl md:text-3xl font-bold mb-2 ${
-                          darkMode ? 'text-white' : 'text-white'
-                        }`}>
-                          {selectedStoryData.title}
-                        </h2>
-                        <p className={`text-lg ${darkMode ? 'text-gray-300' : 'text-gray-200'}`}>
-                          {selectedStoryData.japaneseTitle}
-                        </p>
-                      </div>
-                      
-                      <div className="flex items-center gap-3">
-                        <button
-                          onClick={shareStory}
-                          className={`p-2 rounded-full ${
-                            darkMode 
-                              ? 'bg-white/10 text-white hover:bg-white/20' 
-                              : 'bg-white/20 text-white hover:bg-white/30'
-                          }`}
-                        >
-                          <Share2 className="h-4 w-4" />
-                        </button>
-                        <button
-                          onClick={() => toggleLike(selectedStoryData.id)}
-                          className={`p-2 rounded-full ${
-                            userLiked[selectedStoryData.id]
-                              ? 'bg-rose-500 text-white'
-                              : darkMode
-                                ? 'bg-white/10 text-white hover:bg-white/20'
-                                : 'bg-white/20 text-white hover:bg-white/30'
-                          }`}
-                        >
-                          <Heart className={`h-4 w-4 ${userLiked[selectedStoryData.id] ? 'fill-current' : ''}`} />
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="p-6">
-                  {/* Story Info Bar */}
-                  <div className={`flex flex-wrap items-center gap-3 mb-6 p-4 rounded-xl ${
-                    darkMode ? 'bg-gray-900/50' : 'bg-gray-50'
-                  }`}>
-                    <div className="flex items-center gap-2">
-                      <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                        getDifficultyColor(selectedStoryData.difficulty)
-                      }`}>
-                        <Target className="h-4 w-4 text-white" />
-                      </div>
-                      <div>
-                        <div className="text-xs text-gray-500">Difficulty</div>
-                        <div className="font-medium">{selectedStoryData.difficulty.charAt(0).toUpperCase() + selectedStoryData.difficulty.slice(1)}</div>
-                      </div>
-                    </div>
-                    
-                    <div className="flex items-center gap-2">
-                      <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-cyan-500 rounded-full flex items-center justify-center">
-                        <Trophy className="h-4 w-4 text-white" />
-                      </div>
-                      <div>
-                        <div className="text-xs text-gray-500">JLPT Level</div>
-                        <div className="font-medium">{selectedStoryData.level}</div>
-                      </div>
-                    </div>
-                    
-                    <div className="flex items-center gap-2">
-                      <div className="w-8 h-8 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full flex items-center justify-center">
-                        <Clock className="h-4 w-4 text-white" />
-                      </div>
-                      <div>
-                        <div className="text-xs text-gray-500">Reading Time</div>
-                        <div className="font-medium">{selectedStoryData.duration}</div>
-                      </div>
-                    </div>
-                    
-                    <div className="flex items-center gap-2">
-                      <div className="w-8 h-8 bg-gradient-to-r from-amber-500 to-orange-500 rounded-full flex items-center justify-center">
-                        <Star className="h-4 w-4 text-white fill-current" />
-                      </div>
-                      <div>
-                        <div className="text-xs text-gray-500">Rating</div>
-                        <div className="font-medium">{selectedStoryData.rating?.toFixed(1)} ★</div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {quizMode ? (
-                    /* Quiz Mode */
+              <ReadingInterface
+                story={selectedStoryData}
+                darkMode={darkMode}
+                currentPage={currentPage}
+                totalPages={selectedStoryData.content?.japanese?.length || 0}
+                onPrevPage={handlePrevPage}
+                onNextPage={handleNextPage}
+                showTranslation={showTranslation}
+                onToggleTranslation={() => setShowTranslation(!showTranslation)}
+                showVocabulary={showVocabulary}
+                onToggleVocabulary={() => setShowVocabulary(!showVocabulary)}
+                showCulturalNotes={showCulturalNotes}
+                onToggleCulturalNotes={() => setShowCulturalNotes(!showCulturalNotes)}
+                isPlaying={isPlaying}
+                onPlayAudio={playAudio}
+                speechRate={speechRate}
+                onSpeechRateChange={setSpeechRate}
+                userLiked={userLiked[selectedStoryData.id] || false}
+                onToggleLike={() => toggleLike(selectedStoryData.id)}
+                onShare={shareStory}
+                onQuizStart={() => setQuizMode(true)}
+                quizMode={quizMode}
+                quizInterface={
+                  quizMode ? (
                     <QuizInterface 
                       story={selectedStoryData}
                       userAnswers={userAnswers}
@@ -1206,321 +1063,33 @@ const ShortStories = () => {
                       selectedStory={selectedStory}
                       startReading={startReading}
                     />
-                  ) : (
-                    /* Reading Mode */
-                    <>
-                      {/* Reading Controls */}
-                      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mb-6 p-4 rounded-xl bg-gradient-to-r from-blue-50 to-purple-50 dark:from-gray-900 dark:to-gray-800">
-                        <div className="flex items-center gap-3">
-                          <button
-                            onClick={handlePrevPage}
-                            disabled={currentPage === 0}
-                            className={`p-2 rounded-lg ${
-                              currentPage === 0
-                                ? 'opacity-50 cursor-not-allowed'
-                                : 'hover:bg-white dark:hover:bg-gray-700'
-                            } ${darkMode ? 'bg-gray-800' : 'bg-white'}`}
-                          >
-                            <ChevronLeft className="h-5 w-5" />
-                          </button>
-                          
-                          <div className={`px-4 py-2 rounded-lg ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
-                            <div className="text-sm text-gray-500">Page</div>
-                            <div className="font-bold">{currentPage + 1} of {selectedStoryData.content?.japanese?.length || 1}</div>
-                          </div>
-                          
-                          <button
-                            onClick={handleNextPage}
-                            disabled={currentPage === (selectedStoryData.content?.japanese?.length || 1) - 1}
-                            className={`p-2 rounded-lg ${
-                              currentPage === (selectedStoryData.content?.japanese?.length || 1) - 1
-                                ? 'opacity-50 cursor-not-allowed'
-                                : 'hover:bg-white dark:hover:bg-gray-700'
-                            } ${darkMode ? 'bg-gray-800' : 'bg-white'}`}
-                          >
-                            <ChevronRight className="h-5 w-5" />
-                          </button>
-                        </div>
-                        
-                        <div className="flex items-center gap-3">
-                          <button
-                            onClick={playAudio}
-                            className="px-4 py-2 bg-gradient-to-r from-indigo-500 to-purple-500 text-white rounded-xl hover:shadow-lg transition-all flex items-center gap-2"
-                          >
-                            {isPlaying ? (
-                              <Pause className="h-4 w-4" />
-                            ) : (
-                              <Volume2 className="h-4 w-4" />
-                            )}
-                            Listen
-                          </button>
-                          
-                          <div className="flex items-center gap-2">
-                            <label className="text-sm text-gray-600 dark:text-gray-400">Speed:</label>
-                            <select
-                              value={speechRate}
-                              onChange={(e) => setSpeechRate(parseFloat(e.target.value))}
-                              className={`px-2 py-1 rounded text-sm ${
-                                darkMode 
-                                  ? 'bg-gray-800 text-gray-300 border border-gray-700' 
-                                  : 'bg-white text-gray-700 border border-gray-300'
-                              }`}
-                            >
-                              <option value="0.5">0.5x</option>
-                              <option value="0.8">0.8x</option>
-                              <option value="1">1x</option>
-                              <option value="1.2">1.2x</option>
-                              <option value="1.5">1.5x</option>
-                            </select>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Reading Content */}
-                      <div className="mb-8">
-                        {currentSentence ? (
-                          <div className="text-center mb-8">
-                            <div className={`text-2xl md:text-3xl font-bold mb-6 leading-relaxed ${
-                              darkMode ? 'text-white' : 'text-gray-900'
-                            }`}>
-                              {currentSentence}
-                            </div>
-                            
-                            <button
-                              onClick={() => setShowTranslation(!showTranslation)}
-                              className="px-4 py-2 mb-6 bg-gradient-to-r from-blue-100 to-purple-100 dark:from-gray-800 dark:to-gray-700 text-blue-700 dark:text-blue-300 rounded-xl hover:shadow transition-all"
-                            >
-                              {showTranslation ? 'Hide English Translation' : 'Show English Translation'}
-                            </button>
-                            
-                            {showTranslation && currentTranslation && (
-                              <div className={`p-6 rounded-xl border animate-fade-in ${
-                                darkMode 
-                                  ? 'bg-gray-900/50 border-gray-700 text-gray-300' 
-                                  : 'bg-blue-50 border-blue-200 text-gray-700'
-                              }`}>
-                                <div className="flex items-center gap-2 mb-3">
-                                  <Globe className="h-5 w-5 text-blue-500" />
-                                  <h4 className="font-bold">English Translation</h4>
-                                </div>
-                                <p className="text-lg leading-relaxed">{currentTranslation}</p>
-                              </div>
-                            )}
-                          </div>
-                        ) : (
-                          <div className="text-center py-8">
-                            <p className={darkMode ? 'text-gray-400' : 'text-gray-600'}>
-                              No content available for this story.
-                            </p>
-                          </div>
-                        )}
-
-                        {/* Action Buttons */}
-                        <div className="flex flex-wrap gap-3 mb-8">
-                          {selectedStoryData.comprehensionQuiz && (
-                            <button
-                              onClick={() => setQuizMode(true)}
-                              className="px-4 py-2 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-xl hover:shadow-lg transition-all flex items-center gap-2"
-                            >
-                              <Award className="h-4 w-4" />
-                              Take Comprehension Quiz
-                            </button>
-                          )}
-                          
-                          <button
-                            onClick={() => setShowVocabulary(!showVocabulary)}
-                            className={`px-4 py-2 rounded-xl transition-all flex items-center gap-2 ${
-                              showVocabulary
-                                ? 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300'
-                                : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
-                            }`}
-                          >
-                            <FileText className="h-4 w-4" />
-                            {showVocabulary ? 'Hide Vocabulary' : 'Show Vocabulary'}
-                          </button>
-                          
-                          <button
-                            onClick={() => setShowCulturalNotes(!showCulturalNotes)}
-                            className={`px-4 py-2 rounded-xl transition-all flex items-center gap-2 ${
-                              showCulturalNotes
-                                ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300'
-                                : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
-                            }`}
-                          >
-                            <Lightbulb className="h-4 w-4" />
-                            Cultural Notes
-                          </button>
-                        </div>
-
-                        {/* Vocabulary Panel */}
-                        {showVocabulary && selectedStoryData.content?.vocabulary && (
-                          <div className={`mb-8 p-6 rounded-xl border animate-fade-in ${
-                            darkMode 
-                              ? 'bg-gray-900/50 border-gray-700' 
-                              : 'bg-indigo-50 border-indigo-200'
-                          }`}>
-                            <div className="flex items-center justify-between mb-4">
-                              <h4 className={`text-lg font-bold flex items-center gap-2 ${
-                                darkMode ? 'text-white' : 'text-gray-900'
-                              }`}>
-                                <FileText className="h-5 w-5 text-indigo-500" />
-                                Story Vocabulary
-                              </h4>
-                              <span className={`px-2 py-1 rounded text-sm ${
-                                darkMode ? 'bg-gray-800 text-gray-300' : 'bg-white text-gray-700'
-                              }`}>
-                                {selectedStoryData.content.vocabulary.length} words
-                              </span>
-                            </div>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                              {selectedStoryData.content.vocabulary.map((vocab, index) => (
-                                <div
-                                  key={index}
-                                  className={`p-3 rounded-lg ${
-                                    darkMode ? 'bg-gray-800' : 'bg-white'
-                                  }`}
-                                >
-                                  <div className="flex items-center justify-between mb-2">
-                                    <div className="font-bold text-lg">{vocab.word}</div>
-                                    <div className={`px-2 py-1 rounded text-xs ${
-                                      darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-700'
-                                    }`}>
-                                      {vocab.reading}
-                                    </div>
-                                  </div>
-                                  <div className="text-sm text-blue-600 dark:text-blue-400">
-                                    {vocab.meaning}
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Cultural Notes */}
-                        {showCulturalNotes && selectedStoryData.culturalNotes && (
-                          <div className={`mb-8 p-6 rounded-xl border animate-fade-in ${
-                            darkMode 
-                              ? 'bg-gray-900/50 border-gray-700' 
-                              : 'bg-amber-50 border-amber-200'
-                          }`}>
-                            <div className="flex items-center gap-2 mb-4">
-                              <Lightbulb className="h-5 w-5 text-amber-500" />
-                              <h4 className={`text-lg font-bold ${
-                                darkMode ? 'text-white' : 'text-gray-900'
-                              }`}>
-                                Cultural Insights
-                              </h4>
-                            </div>
-                            <ul className="space-y-3">
-                              {selectedStoryData.culturalNotes.map((note, index) => (
-                                <li key={index} className="flex items-start gap-3">
-                                  <div className={`w-2 h-2 rounded-full mt-2 flex-shrink-0 ${
-                                    darkMode ? 'bg-amber-500' : 'bg-amber-400'
-                                  }`} />
-                                  <p className={darkMode ? 'text-gray-300' : 'text-gray-700'}>
-                                    {note}
-                                  </p>
-                                </li>
-                              ))}
-                            </ul>
-                          </div>
-                        )}
-
-                        {/* Progress Indicator */}
-                        {selectedStoryData.content?.japanese && 
-                         currentPage === selectedStoryData.content.japanese.length - 1 && (
-                          <div className={`p-6 rounded-xl border text-center ${
-                            darkMode 
-                              ? 'bg-gradient-to-r from-green-900/30 to-emerald-900/30 border-green-700' 
-                              : 'bg-gradient-to-r from-green-50 to-emerald-50 border-green-200'
-                          }`}>
-                            <div className="text-4xl mb-3">🎉</div>
-                            <h3 className={`text-xl font-bold mb-2 ${
-                              darkMode ? 'text-white' : 'text-gray-900'
-                            }`}>
-                              Story Complete!
-                            </h3>
-                            <p className={`mb-4 ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
-                              Great job reading through the entire story!
-                            </p>
-                            {selectedStoryData.comprehensionQuiz && (
-                              <button
-                                onClick={() => setQuizMode(true)}
-                                className="px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-xl hover:shadow-lg transition-all font-medium"
-                              >
-                                Test Your Understanding with Quiz
-                              </button>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    </>
-                  )}
-                </div>
-              </div>
+                  ) : null
+                }
+              />
             )}
 
             {/* Featured Stories */}
             {!selectedStoryData && stories.length > 0 && (
-              <div className="mt-6">
-                <h3 className={`text-lg font-bold mb-4 ${
-                  darkMode ? 'text-white' : 'text-gray-900'
-                }`}>
-                  Featured Stories
-                </h3>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  {stories.slice(0, 3).map((story) => (
-                    <div
-                      key={story.id}
-                      className={`group overflow-hidden rounded-xl border transition-all duration-300 ${
-                        darkMode 
-                          ? 'bg-gray-800 border-gray-700 hover:border-indigo-500' 
-                          : 'bg-white border-gray-200 hover:border-indigo-300'
-                      }`}
-                      onClick={() => startReading(story.id)}
-                    >
-                      <div className="h-40 overflow-hidden">
-                        <img
-                          src={story.imageUrl}
-                          alt={story.title}
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                        />
-                      </div>
-                      <div className="p-4">
-                        <h4 className={`font-bold mb-2 ${
-                          darkMode ? 'text-white' : 'text-gray-900'
-                        }`}>
-                          {story.title}
-                        </h4>
-                        <div className="flex items-center justify-between">
-                          <span className={`px-2 py-1 rounded text-xs ${
-                            getDifficultyBg(story.difficulty)
-                          }`}>
-                            {story.level}
-                          </span>
-                          <span className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                            {story.duration}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
+              <FeaturedStories
+                stories={stories.slice(0, 3)}
+                startReading={startReading}
+                darkMode={darkMode}
+              />
             )}
           </div>
         </div>
       </main>
 
       {/* Footer */}
-      <footer className={`mt-12 py-6 border-t ${
-        darkMode ? 'border-gray-800 text-gray-500' : 'border-gray-200 text-gray-600'
-      }`}>
-        <div className="max-w-7xl mx-auto px-4">
+      <footer className={`mt-12 py-6 border-t transition-colors duration-300 ${
+        darkMode 
+          ? 'border-gray-800/50 bg-gray-900/50 text-gray-400' 
+          : 'border-gray-200/50 bg-white/50 text-gray-600'
+      } backdrop-blur-sm`}>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-            <div className="text-sm">
-              <p>Japanese Stories • Immerse yourself in authentic Japanese reading</p>
+            <div className="text-sm text-center md:text-left">
+              <p className="font-medium">Japanese Stories • Immerse yourself in authentic Japanese reading</p>
               <p className="mt-1 text-xs opacity-75">
                 Practice reading with carefully crafted stories at your level
               </p>
@@ -1528,7 +1097,7 @@ const ShortStories = () => {
             <div className="flex items-center gap-4">
               <button
                 onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-                className={`text-sm ${
+                className={`text-sm transition-colors ${
                   darkMode 
                     ? 'text-gray-400 hover:text-white' 
                     : 'text-gray-600 hover:text-gray-900'
@@ -1561,6 +1130,23 @@ const ShortStories = () => {
           animation: fadeIn 0.3s ease-out;
         }
         
+        .custom-scrollbar::-webkit-scrollbar {
+          width: 4px;
+        }
+        
+        .custom-scrollbar::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+          background: ${darkMode ? '#4B5563' : '#D1D5DB'};
+          border-radius: 4px;
+        }
+        
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+          background: ${darkMode ? '#6B7280' : '#9CA3AF'};
+        }
+        
         @keyframes fadeIn {
           from { 
             opacity: 0; 
@@ -1572,30 +1158,786 @@ const ShortStories = () => {
           }
         }
         
-        /* Custom scrollbar for dark mode */
-        .scrollbar-dark::-webkit-scrollbar {
-          width: 8px;
+        @keyframes pulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.5; }
         }
         
-        .scrollbar-dark::-webkit-scrollbar-track {
-          background: #374151;
-          border-radius: 4px;
-        }
-        
-        .scrollbar-dark::-webkit-scrollbar-thumb {
-          background: #6B7280;
-          border-radius: 4px;
-        }
-        
-        .scrollbar-dark::-webkit-scrollbar-thumb:hover {
-          background: #9CA3AF;
+        .animate-pulse {
+          animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
         }
       `}</style>
     </div>
   );
 };
 
-// Quiz Interface Component
+// Reusable Components
+const StatCard: React.FC<{
+  label: string;
+  value: string | number;
+  icon: React.ReactNode;
+  color: string;
+  iconColor: string;
+  darkMode: boolean;
+}> = ({ label, value, icon, color, iconColor, darkMode }) => (
+  <div className={`p-3 rounded-xl transition-all duration-300 hover:scale-[1.02] ${
+    darkMode 
+      ? 'bg-gray-800/30 border border-gray-700/50 hover:bg-gray-800/50' 
+      : 'bg-white/50 border border-gray-200/50 hover:bg-white/80'
+  } shadow-sm`}>
+    <div className="flex items-center justify-between">
+      <div>
+        <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>{label}</p>
+        <p className={`text-lg font-bold ${color}`}>{value}</p>
+      </div>
+      <div className={`p-2 rounded-lg ${darkMode ? 'bg-gray-800' : 'bg-gray-100'}`}>
+        <div className={iconColor}>{icon}</div>
+      </div>
+    </div>
+  </div>
+);
+
+const MenuItem: React.FC<{
+  icon: React.ReactNode;
+  label: string;
+  active?: boolean;
+}> = ({ icon, label, active }) => (
+  <button className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all ${
+    active 
+      ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-300' 
+      : 'hover:bg-gray-100 dark:hover:bg-gray-800'
+  }`}>
+    {icon}
+    <span className="font-medium">{label}</span>
+  </button>
+);
+
+const StoryCard: React.FC<{
+  story: Story;
+  isSelected: boolean;
+  onSelect: () => void;
+  onToggleBookmark: () => void;
+  darkMode: boolean;
+}> = ({ story, isSelected, onSelect, onToggleBookmark, darkMode }) => (
+  <div
+    onClick={onSelect}
+    className={`group relative overflow-hidden rounded-xl border transition-all duration-300 cursor-pointer hover:shadow-lg ${
+      isSelected
+        ? darkMode
+          ? 'border-indigo-500 bg-indigo-900/20 ring-2 ring-indigo-500/20'
+          : 'border-indigo-400 bg-indigo-50 ring-2 ring-indigo-400/20'
+        : darkMode
+          ? 'border-gray-700/50 bg-gray-800/30 hover:bg-gray-800/50 hover:border-gray-600'
+          : 'border-gray-200/80 bg-white/50 hover:bg-white hover:border-gray-300'
+    }`}
+  >
+    {/* Story Image */}
+    <div className="relative h-40 overflow-hidden rounded-t-xl">
+      <img
+        src={story.imageUrl}
+        alt={story.title}
+        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+      />
+      <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+      
+      {/* Status Badge */}
+      <div className="absolute top-3 left-3">
+        {story.status === 'locked' ? (
+          <div className="px-3 py-1.5 bg-gray-900/80 text-white rounded-full text-xs backdrop-blur-sm flex items-center gap-1">
+            <Lock className="h-3 w-3" />
+            Locked
+          </div>
+        ) : story.status === 'completed' ? (
+          <div className="px-3 py-1.5 bg-emerald-500/90 text-white rounded-full text-xs backdrop-blur-sm flex items-center gap-1">
+            <CheckCircle className="h-3 w-3" />
+            Completed
+          </div>
+        ) : (
+          <div className="px-3 py-1.5 bg-blue-500/90 text-white rounded-full text-xs backdrop-blur-sm">
+            Available
+          </div>
+        )}
+      </div>
+      
+      {/* Difficulty Badge */}
+      <div className="absolute top-3 right-3">
+        <div className={`px-3 py-1.5 rounded-full text-xs font-medium backdrop-blur-sm ${getDifficultyBg(story.difficulty)}`}>
+          {story.difficulty.charAt(0).toUpperCase() + story.difficulty.slice(1)}
+        </div>
+      </div>
+    </div>
+
+    {/* Story Content */}
+    <div className="p-4">
+      <div className="flex justify-between items-start mb-3">
+        <div className="flex-1">
+          <h4 className={`font-bold text-base line-clamp-1 ${
+            darkMode ? 'text-white' : 'text-gray-900'
+          }`}>
+            {story.title}
+          </h4>
+          <p className={`text-xs mt-1 line-clamp-2 ${
+            darkMode ? 'text-gray-400' : 'text-gray-600'
+          }`}>
+            {story.description}
+          </p>
+        </div>
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggleBookmark();
+          }}
+          className={`p-1.5 ml-2 rounded-lg transition-all ${
+            story.isBookmarked
+              ? 'text-amber-500 hover:text-amber-600'
+              : darkMode
+                ? 'text-gray-400 hover:text-white hover:bg-gray-700'
+                : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'
+          }`}
+        >
+          {story.isBookmarked ? (
+            <BookmarkCheck className="h-4 w-4 fill-current" />
+          ) : (
+            <Bookmark className="h-4 w-4" />
+          )}
+        </button>
+      </div>
+
+      {/* Story Metadata */}
+      <div className="flex flex-wrap items-center gap-2 text-xs">
+        <div className={`px-2.5 py-1 rounded-full ${
+          darkMode ? 'bg-gray-800 text-gray-300' : 'bg-gray-100 text-gray-700'
+        }`}>
+          {story.level}
+        </div>
+        <div className={`px-2.5 py-1 rounded-full flex items-center gap-1 ${
+          darkMode ? 'bg-gray-800 text-gray-300' : 'bg-gray-100 text-gray-700'
+        }`}>
+          <Clock className="h-3 w-3" />
+          {story.duration}
+        </div>
+        <div className={`px-2.5 py-1 rounded-full flex items-center gap-1 ${
+          darkMode ? 'bg-gray-800 text-gray-300' : 'bg-gray-100 text-gray-700'
+        }`}>
+          <Eye className="h-3 w-3" />
+          {story.readCount}
+        </div>
+      </div>
+    </div>
+  </div>
+);
+
+const ProgressBar: React.FC<{
+  label: string;
+  value: number;
+  total: number;
+  color: string;
+  darkMode: boolean;
+}> = ({ label, value, total, color, darkMode }) => {
+  const percentage = (value / total) * 100;
+  
+  return (
+    <div>
+      <div className="flex justify-between text-sm mb-1.5">
+        <span className={darkMode ? 'text-gray-300' : 'text-gray-700'}>{label}</span>
+        <span className="font-medium">{value}/{total}</span>
+      </div>
+      <div className={`h-2 rounded-full overflow-hidden ${
+        darkMode ? 'bg-gray-700/50' : 'bg-gray-200/50'
+      }`}>
+        <div 
+          className={`h-full rounded-full bg-gradient-to-r ${color} transition-all duration-500`}
+          style={{ width: `${percentage}%` }}
+        />
+      </div>
+    </div>
+  );
+};
+
+const EmptyState: React.FC<{
+  darkMode: boolean;
+  filteredStories: Story[];
+  startReading: (id: string) => void;
+}> = ({ darkMode, filteredStories, startReading }) => (
+  <div className={`rounded-2xl border transition-all duration-300 ${
+    darkMode 
+      ? 'bg-gray-800/50 border-gray-700/50' 
+      : 'bg-white border-gray-200/80'
+  } shadow-lg p-8 text-center`}>
+    <div className="w-20 h-20 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg">
+      <Compass className="h-10 w-10 text-white" />
+    </div>
+    <h2 className={`text-xl font-bold mb-2 ${
+      darkMode ? 'text-white' : 'text-gray-900'
+    }`}>
+      Start Your Reading Journey
+    </h2>
+    <p className={`mb-6 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+      Select a story from the library to begin reading
+    </p>
+    {filteredStories.length > 0 && (
+      <button
+        onClick={() => startReading(filteredStories[0].id)}
+        className="px-6 py-3 bg-gradient-to-r from-indigo-500 to-purple-500 text-white rounded-xl hover:shadow-lg transition-all duration-300 font-medium hover:scale-[1.02] active:scale-[0.98]"
+      >
+        Start Reading
+      </button>
+    )}
+  </div>
+);
+
+const FeaturedStories: React.FC<{
+  stories: Story[];
+  startReading: (id: string) => void;
+  darkMode: boolean;
+}> = ({ stories, startReading, darkMode }) => (
+  <div className="mt-6">
+    <h3 className={`text-lg font-bold mb-4 ${
+      darkMode ? 'text-white' : 'text-gray-900'
+    }`}>
+      Featured Stories
+    </h3>
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      {stories.map((story) => (
+        <div
+          key={story.id}
+          className={`group overflow-hidden rounded-xl border transition-all duration-300 cursor-pointer ${
+            darkMode 
+              ? 'bg-gray-800/30 border-gray-700/50 hover:border-indigo-500/50' 
+              : 'bg-white border-gray-200/80 hover:border-indigo-400'
+          } hover:shadow-lg`}
+          onClick={() => startReading(story.id)}
+        >
+          <div className="h-48 overflow-hidden">
+            <img
+              src={story.imageUrl}
+              alt={story.title}
+              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+            />
+          </div>
+          <div className="p-4">
+            <h4 className={`font-bold mb-2 ${
+              darkMode ? 'text-white' : 'text-gray-900'
+            }`}>
+              {story.title}
+            </h4>
+            <div className="flex items-center justify-between">
+              <span className={`px-2.5 py-1 rounded text-xs ${getDifficultyBg(story.difficulty)}`}>
+                {story.level}
+              </span>
+              <span className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                {story.duration}
+              </span>
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  </div>
+);
+
+const ReadingInterface: React.FC<{
+  story: Story;
+  darkMode: boolean;
+  currentPage: number;
+  totalPages: number;
+  onPrevPage: () => void;
+  onNextPage: () => void;
+  showTranslation: boolean;
+  onToggleTranslation: () => void;
+  showVocabulary: boolean;
+  onToggleVocabulary: () => void;
+  showCulturalNotes: boolean;
+  onToggleCulturalNotes: () => void;
+  isPlaying: boolean;
+  onPlayAudio: () => void;
+  speechRate: number;
+  onSpeechRateChange: (rate: number) => void;
+  userLiked: boolean;
+  onToggleLike: () => void;
+  onShare: () => void;
+  onQuizStart: () => void;
+  quizMode: boolean;
+  quizInterface: React.ReactNode;
+}> = ({
+  story,
+  darkMode,
+  currentPage,
+  totalPages,
+  onPrevPage,
+  onNextPage,
+  showTranslation,
+  onToggleTranslation,
+  showVocabulary,
+  onToggleVocabulary,
+  showCulturalNotes,
+  onToggleCulturalNotes,
+  isPlaying,
+  onPlayAudio,
+  speechRate,
+  onSpeechRateChange,
+  userLiked,
+  onToggleLike,
+  onShare,
+  onQuizStart,
+  quizMode,
+  quizInterface
+}) => (
+  <div className={`rounded-2xl border overflow-hidden transition-all duration-300 ${
+    darkMode 
+      ? 'bg-gray-800/50 border-gray-700/50' 
+      : 'bg-white border-gray-200/80'
+  } shadow-lg`}>
+    {/* Story Header */}
+    <div className="relative">
+      <div className="h-56 md:h-64 overflow-hidden">
+        <img
+          src={story.imageUrl}
+          alt={story.title}
+          className="w-full h-full object-cover"
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent" />
+      </div>
+      
+      <div className="absolute bottom-0 left-0 right-0 p-6">
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+          <div className="flex-1">
+            <h2 className={`text-2xl md:text-3xl font-bold mb-2 text-white`}>
+              {story.title}
+            </h2>
+            <p className={`text-lg text-gray-200`}>
+              {story.japaneseTitle}
+            </p>
+          </div>
+          
+          <div className="flex items-center gap-2">
+            <button
+              onClick={onShare}
+              className={`p-2.5 rounded-full backdrop-blur-sm ${
+                darkMode 
+                  ? 'bg-white/10 text-white hover:bg-white/20' 
+                  : 'bg-white/20 text-white hover:bg-white/30'
+              } transition-all hover:scale-105`}
+            >
+              <Share2 className="h-4 w-4" />
+            </button>
+            <button
+              onClick={onToggleLike}
+              className={`p-2.5 rounded-full backdrop-blur-sm transition-all hover:scale-105 ${
+                userLiked
+                  ? 'bg-rose-500 text-white hover:bg-rose-600'
+                  : darkMode
+                    ? 'bg-white/10 text-white hover:bg-white/20'
+                    : 'bg-white/20 text-white hover:bg-white/30'
+              }`}
+            >
+              <Heart className={`h-4 w-4 ${userLiked ? 'fill-current' : ''}`} />
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div className="p-6">
+      {/* Story Info Bar */}
+      <div className={`flex flex-wrap gap-4 mb-8 p-4 rounded-xl ${
+        darkMode ? 'bg-gray-900/30' : 'bg-gray-50/50'
+      }`}>
+        <InfoItem 
+          icon={<Target className="h-4 w-4" />}
+          label="Difficulty"
+          value={story.difficulty.charAt(0).toUpperCase() + story.difficulty.slice(1)}
+          color={getDifficultyColor(story.difficulty)}
+          darkMode={darkMode}
+        />
+        <InfoItem 
+          icon={<Trophy className="h-4 w-4" />}
+          label="JLPT Level"
+          value={story.level}
+          color="from-blue-500 to-cyan-500"
+          darkMode={darkMode}
+        />
+        <InfoItem 
+          icon={<Clock className="h-4 w-4" />}
+          label="Reading Time"
+          value={story.duration}
+          color="from-purple-500 to-pink-500"
+          darkMode={darkMode}
+        />
+        <InfoItem 
+          icon={<Star className="h-4 w-4" />}
+          label="Rating"
+          value={`${story.rating?.toFixed(1)} ★`}
+          color="from-amber-500 to-orange-500"
+          darkMode={darkMode}
+        />
+      </div>
+
+      {/* Quiz Mode or Reading Mode */}
+      {quizMode ? (
+        quizInterface
+      ) : (
+        <ReadingMode
+          story={story}
+          darkMode={darkMode}
+          currentPage={currentPage}
+          totalPages={totalPages}
+          onPrevPage={onPrevPage}
+          onNextPage={onNextPage}
+          showTranslation={showTranslation}
+          onToggleTranslation={onToggleTranslation}
+          showVocabulary={showVocabulary}
+          onToggleVocabulary={onToggleVocabulary}
+          showCulturalNotes={showCulturalNotes}
+          onToggleCulturalNotes={onToggleCulturalNotes}
+          isPlaying={isPlaying}
+          onPlayAudio={onPlayAudio}
+          speechRate={speechRate}
+          onSpeechRateChange={onSpeechRateChange}
+          onQuizStart={onQuizStart}
+        />
+      )}
+    </div>
+  </div>
+);
+
+const InfoItem: React.FC<{
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+  color: string;
+  darkMode: boolean;
+}> = ({ icon, label, value, color, darkMode }) => (
+  <div className="flex items-center gap-3">
+    <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${color} shadow`}>
+      <div className="text-white">{icon}</div>
+    </div>
+    <div>
+      <div className="text-xs text-gray-500 dark:text-gray-400">{label}</div>
+      <div className="font-semibold">{value}</div>
+    </div>
+  </div>
+);
+
+const ReadingMode: React.FC<{
+  story: Story;
+  darkMode: boolean;
+  currentPage: number;
+  totalPages: number;
+  onPrevPage: () => void;
+  onNextPage: () => void;
+  showTranslation: boolean;
+  onToggleTranslation: () => void;
+  showVocabulary: boolean;
+  onToggleVocabulary: () => void;
+  showCulturalNotes: boolean;
+  onToggleCulturalNotes: () => void;
+  isPlaying: boolean;
+  onPlayAudio: () => void;
+  speechRate: number;
+  onSpeechRateChange: (rate: number) => void;
+  onQuizStart: () => void;
+}> = ({
+  story,
+  darkMode,
+  currentPage,
+  totalPages,
+  onPrevPage,
+  onNextPage,
+  showTranslation,
+  onToggleTranslation,
+  showVocabulary,
+  onToggleVocabulary,
+  showCulturalNotes,
+  onToggleCulturalNotes,
+  isPlaying,
+  onPlayAudio,
+  speechRate,
+  onSpeechRateChange,
+  onQuizStart
+}) => {
+  const currentSentence = story.content?.japanese?.[currentPage];
+  const currentTranslation = story.content?.english?.[currentPage];
+  
+  return (
+    <>
+      {/* Reading Controls */}
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mb-6 p-4 rounded-xl bg-gradient-to-r from-blue-50/50 to-purple-50/50 dark:from-gray-900/30 dark:to-gray-800/30 border border-blue-100/50 dark:border-gray-700/50">
+        <div className="flex items-center gap-3">
+          <button
+            onClick={onPrevPage}
+            disabled={currentPage === 0}
+            className={`p-2.5 rounded-xl transition-all ${
+              currentPage === 0
+                ? 'opacity-50 cursor-not-allowed'
+                : darkMode
+                  ? 'bg-gray-800 hover:bg-gray-700 hover:scale-105'
+                  : 'bg-white hover:bg-gray-50 hover:scale-105'
+            }`}
+          >
+            <ChevronLeft className="h-5 w-5" />
+          </button>
+          
+          <div className={`px-4 py-2 rounded-xl ${darkMode ? 'bg-gray-800' : 'bg-white'} shadow-sm`}>
+            <div className="text-xs text-gray-500 dark:text-gray-400">Page</div>
+            <div className="font-bold text-lg">{currentPage + 1} of {totalPages}</div>
+          </div>
+          
+          <button
+            onClick={onNextPage}
+            disabled={currentPage === totalPages - 1}
+            className={`p-2.5 rounded-xl transition-all ${
+              currentPage === totalPages - 1
+                ? 'opacity-50 cursor-not-allowed'
+                : darkMode
+                  ? 'bg-gray-800 hover:bg-gray-700 hover:scale-105'
+                  : 'bg-white hover:bg-gray-50 hover:scale-105'
+            }`}
+          >
+            <ChevronRight className="h-5 w-5" />
+          </button>
+        </div>
+        
+        <div className="flex items-center gap-3">
+          <button
+            onClick={onPlayAudio}
+            className="px-4 py-2.5 bg-gradient-to-r from-indigo-500 to-purple-500 text-white rounded-xl hover:shadow-lg transition-all duration-300 flex items-center gap-2 hover:scale-[1.02] active:scale-[0.98]"
+          >
+            {isPlaying ? (
+              <Pause className="h-4 w-4" />
+            ) : (
+              <Volume2 className="h-4 w-4" />
+            )}
+            Listen
+          </button>
+          
+          <div className="flex items-center gap-2">
+            <label className="text-sm text-gray-600 dark:text-gray-400">Speed:</label>
+            <select
+              value={speechRate}
+              onChange={(e) => onSpeechRateChange(parseFloat(e.target.value))}
+              className={`px-2 py-1 rounded-lg text-sm transition-all ${
+                darkMode 
+                  ? 'bg-gray-800 text-gray-300 border border-gray-700 hover:bg-gray-700' 
+                  : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+              }`}
+            >
+              <option value="0.5">0.5x</option>
+              <option value="0.8">0.8x</option>
+              <option value="1">1x</option>
+              <option value="1.2">1.2x</option>
+              <option value="1.5">1.5x</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      {/* Reading Content */}
+      <div className="mb-8">
+        {currentSentence ? (
+          <div className="text-center mb-8">
+            <div className={`text-2xl md:text-3xl font-bold mb-6 leading-relaxed ${
+              darkMode ? 'text-white' : 'text-gray-900'
+            }`}>
+              {currentSentence}
+            </div>
+            
+            <button
+              onClick={onToggleTranslation}
+              className="px-4 py-2 mb-6 bg-gradient-to-r from-blue-100 to-purple-100 dark:from-gray-800 dark:to-gray-700 text-blue-700 dark:text-blue-300 rounded-xl hover:shadow transition-all hover:scale-[1.02]"
+            >
+              {showTranslation ? 'Hide English Translation' : 'Show English Translation'}
+            </button>
+            
+            {showTranslation && currentTranslation && (
+              <div className={`p-6 rounded-xl border animate-fade-in ${
+                darkMode 
+                  ? 'bg-gray-900/30 border-gray-700 text-gray-300' 
+                  : 'bg-blue-50 border-blue-200 text-gray-700'
+              }`}>
+                <div className="flex items-center gap-2 mb-3">
+                  <Globe className="h-5 w-5 text-blue-500" />
+                  <h4 className="font-bold">English Translation</h4>
+                </div>
+                <p className="text-lg leading-relaxed">{currentTranslation}</p>
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="text-center py-8">
+            <p className={darkMode ? 'text-gray-400' : 'text-gray-600'}>
+              No content available for this story.
+            </p>
+          </div>
+        )}
+
+        {/* Action Buttons */}
+        <div className="flex flex-wrap gap-3 mb-8">
+          {story.comprehensionQuiz && (
+            <button
+              onClick={onQuizStart}
+              className="px-4 py-2.5 bg-gradient-to-r from-emerald-500 to-green-500 text-white rounded-xl hover:shadow-lg transition-all duration-300 flex items-center gap-2 hover:scale-[1.02]"
+            >
+              <Award className="h-4 w-4" />
+              Take Comprehension Quiz
+            </button>
+          )}
+          
+          <button
+            onClick={onToggleVocabulary}
+            className={`px-4 py-2.5 rounded-xl transition-all duration-300 flex items-center gap-2 hover:scale-[1.02] ${
+              showVocabulary
+                ? 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300'
+                : darkMode
+                  ? 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            <FileText className="h-4 w-4" />
+            {showVocabulary ? 'Hide Vocabulary' : 'Show Vocabulary'}
+          </button>
+          
+          <button
+            onClick={onToggleCulturalNotes}
+            className={`px-4 py-2.5 rounded-xl transition-all duration-300 flex items-center gap-2 hover:scale-[1.02] ${
+              showCulturalNotes
+                ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300'
+                : darkMode
+                  ? 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            <Lightbulb className="h-4 w-4" />
+            Cultural Notes
+          </button>
+        </div>
+
+        {/* Vocabulary Panel */}
+        {showVocabulary && story.content?.vocabulary && (
+          <VocabularyPanel vocabulary={story.content.vocabulary} darkMode={darkMode} />
+        )}
+
+        {/* Cultural Notes */}
+        {showCulturalNotes && story.culturalNotes && (
+          <CulturalNotes notes={story.culturalNotes} darkMode={darkMode} />
+        )}
+
+        {/* Story Complete */}
+        {currentPage === totalPages - 1 && (
+          <StoryComplete onQuizStart={onQuizStart} darkMode={darkMode} />
+        )}
+      </div>
+    </>
+  );
+};
+
+const VocabularyPanel: React.FC<{
+  vocabulary: Array<{ word: string; reading: string; meaning: string }>;
+  darkMode: boolean;
+}> = ({ vocabulary, darkMode }) => (
+  <div className={`mb-8 p-6 rounded-xl border animate-fade-in ${
+    darkMode 
+      ? 'bg-gray-900/30 border-gray-700' 
+      : 'bg-indigo-50 border-indigo-200'
+  }`}>
+    <div className="flex items-center justify-between mb-4">
+      <h4 className={`text-lg font-bold flex items-center gap-2 ${
+        darkMode ? 'text-white' : 'text-gray-900'
+      }`}>
+        <FileText className="h-5 w-5 text-indigo-500" />
+        Story Vocabulary
+      </h4>
+      <span className={`px-2.5 py-1 rounded text-sm ${
+        darkMode ? 'bg-gray-800 text-gray-300' : 'bg-white text-gray-700'
+      }`}>
+        {vocabulary.length} words
+      </span>
+    </div>
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+      {vocabulary.map((vocab, index) => (
+        <div
+          key={index}
+          className={`p-3 rounded-lg ${
+            darkMode ? 'bg-gray-800/50' : 'bg-white'
+          }`}
+        >
+          <div className="flex items-center justify-between mb-2">
+            <div className="font-bold text-lg">{vocab.word}</div>
+            <div className={`px-2 py-1 rounded text-xs ${
+              darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-700'
+            }`}>
+              {vocab.reading}
+            </div>
+          </div>
+          <div className="text-sm text-blue-600 dark:text-blue-400">
+            {vocab.meaning}
+          </div>
+        </div>
+      ))}
+    </div>
+  </div>
+);
+
+const CulturalNotes: React.FC<{
+  notes: string[];
+  darkMode: boolean;
+}> = ({ notes, darkMode }) => (
+  <div className={`mb-8 p-6 rounded-xl border animate-fade-in ${
+    darkMode 
+      ? 'bg-gray-900/30 border-gray-700' 
+      : 'bg-amber-50 border-amber-200'
+  }`}>
+    <div className="flex items-center gap-2 mb-4">
+      <Lightbulb className="h-5 w-5 text-amber-500" />
+      <h4 className={`text-lg font-bold ${
+        darkMode ? 'text-white' : 'text-gray-900'
+      }`}>
+        Cultural Insights
+      </h4>
+    </div>
+    <ul className="space-y-3">
+      {notes.map((note, index) => (
+        <li key={index} className="flex items-start gap-3">
+          <div className={`w-2 h-2 rounded-full mt-2 flex-shrink-0 ${
+            darkMode ? 'bg-amber-500' : 'bg-amber-400'
+          }`} />
+          <p className={darkMode ? 'text-gray-300' : 'text-gray-700'}>
+            {note}
+          </p>
+        </li>
+      ))}
+    </ul>
+  </div>
+);
+
+const StoryComplete: React.FC<{
+  onQuizStart: () => void;
+  darkMode: boolean;
+}> = ({ onQuizStart, darkMode }) => (
+  <div className={`p-6 rounded-xl border text-center ${
+    darkMode 
+      ? 'bg-gradient-to-r from-emerald-900/20 to-green-900/20 border-emerald-700' 
+      : 'bg-gradient-to-r from-emerald-50 to-green-50 border-emerald-200'
+  }`}>
+    <div className="text-4xl mb-3">🎉</div>
+    <h3 className={`text-xl font-bold mb-2 ${
+      darkMode ? 'text-white' : 'text-gray-900'
+    }`}>
+      Story Complete!
+    </h3>
+    <p className={`mb-4 ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+      Great job reading through the entire story!
+    </p>
+    <button
+      onClick={onQuizStart}
+      className="px-6 py-3 bg-gradient-to-r from-emerald-500 to-green-500 text-white rounded-xl hover:shadow-lg transition-all duration-300 font-medium hover:scale-[1.02]"
+    >
+      Test Your Understanding with Quiz
+    </button>
+  </div>
+);
+
+// Quiz Interface Component (same as before, but with updated styling)
 const QuizInterface: React.FC<{
   story: Story;
   userAnswers: Record<string, string>;
@@ -1652,12 +1994,12 @@ const QuizInterface: React.FC<{
             {story.comprehensionQuiz.map((question, index) => (
               <div 
                 key={question.id} 
-                className={`p-6 rounded-xl border ${
-                  darkMode ? 'bg-gray-900/50 border-gray-700' : 'bg-white border-gray-200'
-                }`}
+                className={`p-6 rounded-xl border transition-all duration-300 ${
+                  darkMode ? 'bg-gray-900/30 border-gray-700/50' : 'bg-white border-gray-200/80'
+                } hover:shadow-lg`}
               >
                 <div className="flex items-center gap-3 mb-4">
-                  <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full flex items-center justify-center text-white font-bold">
+                  <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full flex items-center justify-center text-white font-bold shadow">
                     {index + 1}
                   </div>
                   <h4 className={`font-semibold text-lg ${
@@ -1675,22 +2017,22 @@ const QuizInterface: React.FC<{
                         ...prev,
                         [question.id]: option
                       }))}
-                      className={`w-full p-4 text-left rounded-xl border transition-all duration-200 ${
+                      className={`w-full p-4 text-left rounded-xl border transition-all duration-200 hover:scale-[1.01] ${
                         userAnswers[question.id] === option
                           ? userAnswers[question.id] === question.correctAnswer
-                            ? 'border-green-500 bg-green-50 dark:bg-green-900/20'
-                            : 'border-red-500 bg-red-50 dark:bg-red-900/20'
+                            ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20'
+                            : 'border-rose-500 bg-rose-50 dark:bg-rose-900/20'
                           : darkMode
-                            ? 'border-gray-700 bg-gray-800 hover:bg-gray-700'
-                            : 'border-gray-200 bg-gray-50 hover:bg-gray-100'
+                            ? 'border-gray-700 bg-gray-800/50 hover:bg-gray-700/50'
+                            : 'border-gray-200 bg-gray-50/50 hover:bg-gray-100'
                       }`}
                     >
                       <div className="flex items-center gap-3">
-                        <div className={`w-6 h-6 rounded-full border flex items-center justify-center ${
+                        <div className={`w-6 h-6 rounded-full border flex items-center justify-center transition-all ${
                           userAnswers[question.id] === option
                             ? userAnswers[question.id] === question.correctAnswer
-                              ? 'border-green-500 bg-green-500'
-                              : 'border-red-500 bg-red-500'
+                              ? 'border-emerald-500 bg-emerald-500'
+                              : 'border-rose-500 bg-rose-500'
                             : darkMode
                               ? 'border-gray-600 bg-gray-700'
                               : 'border-gray-300 bg-white'
@@ -1702,8 +2044,8 @@ const QuizInterface: React.FC<{
                         <span className={`font-medium ${
                           userAnswers[question.id] === option
                             ? userAnswers[question.id] === question.correctAnswer
-                              ? 'text-green-700 dark:text-green-300'
-                              : 'text-red-700 dark:text-red-300'
+                              ? 'text-emerald-700 dark:text-emerald-300'
+                              : 'text-rose-700 dark:text-rose-300'
                             : darkMode ? 'text-gray-300' : 'text-gray-700'
                         }`}>
                           {option}
@@ -1719,13 +2061,13 @@ const QuizInterface: React.FC<{
               <button
                 onClick={submitQuiz}
                 disabled={Object.keys(userAnswers).length < (story.comprehensionQuiz?.length || 0)}
-                className="px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-xl hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed font-medium flex-1"
+                className="px-6 py-3 bg-gradient-to-r from-emerald-500 to-green-500 text-white rounded-xl hover:shadow-lg transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed font-medium flex-1 hover:scale-[1.02]"
               >
                 Submit Quiz
               </button>
               <button
                 onClick={resetQuiz}
-                className={`px-6 py-3 rounded-xl font-medium ${
+                className={`px-6 py-3 rounded-xl font-medium transition-all duration-300 hover:scale-[1.02] ${
                   darkMode
                     ? 'bg-gray-800 text-gray-300 hover:bg-gray-700'
                     : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
@@ -1742,7 +2084,7 @@ const QuizInterface: React.FC<{
             </p>
             <button
               onClick={resetQuiz}
-              className="mt-4 px-6 py-3 bg-blue-500 text-white rounded-xl hover:bg-blue-600 transition"
+              className="mt-4 px-6 py-3 bg-blue-500 text-white rounded-xl hover:bg-blue-600 transition-all"
             >
               Back to Story
             </button>
@@ -1761,10 +2103,10 @@ const QuizInterface: React.FC<{
           : 'bg-gradient-to-r from-blue-50 to-purple-50 border-blue-200'
       }`}>
         <div className="relative inline-flex mb-4">
-          <div className="w-24 h-24 bg-gradient-to-r from-emerald-500 to-teal-500 rounded-full flex items-center justify-center">
+          <div className="w-24 h-24 bg-gradient-to-r from-emerald-500 to-teal-500 rounded-full flex items-center justify-center shadow-lg">
             <Award className="h-12 w-12 text-white" />
           </div>
-          <div className="absolute -top-2 -right-2 w-12 h-12 bg-gradient-to-r from-amber-500 to-yellow-500 rounded-full flex items-center justify-center text-white font-bold text-lg">
+          <div className="absolute -top-2 -right-2 w-12 h-12 bg-gradient-to-r from-amber-500 to-yellow-500 rounded-full flex items-center justify-center text-white font-bold text-lg shadow">
             {quizScore}%
           </div>
         </div>
@@ -1798,11 +2140,11 @@ const QuizInterface: React.FC<{
             className={`p-4 rounded-xl border transition-all duration-300 ${
               result.isCorrect 
                 ? darkMode
-                  ? 'border-green-700 bg-green-900/20'
-                  : 'border-green-200 bg-green-50'
+                  ? 'border-emerald-700 bg-emerald-900/20'
+                  : 'border-emerald-200 bg-emerald-50'
                 : darkMode
-                  ? 'border-red-700 bg-red-900/20'
-                  : 'border-red-200 bg-red-50'
+                  ? 'border-rose-700 bg-rose-900/20'
+                  : 'border-rose-200 bg-rose-50'
             }`}
           >
             <div 
@@ -1812,8 +2154,8 @@ const QuizInterface: React.FC<{
               <div className="flex items-center gap-3">
                 <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
                   result.isCorrect 
-                    ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'
-                    : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300'
+                    ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300'
+                    : 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300'
                 }`}>
                   {result.isCorrect ? (
                     <CheckCircle2 className="h-5 w-5" />
@@ -1861,11 +2203,11 @@ const QuizInterface: React.FC<{
                 <div>
                   <div className={`text-sm font-medium mb-1 ${
                     darkMode ? 'text-gray-400' : 'text-gray-600'
-                  }`}>
+                    }`}>
                     Correct Answer
                   </div>
                   <div className={`p-2 rounded ${
-                    darkMode ? 'bg-green-900/30 text-green-300' : 'bg-green-50 text-green-700'
+                    darkMode ? 'bg-emerald-900/30 text-emerald-300' : 'bg-emerald-50 text-emerald-700'
                   }`}>
                     {result.correctAnswer}
                   </div>
@@ -1894,7 +2236,7 @@ const QuizInterface: React.FC<{
             resetQuiz();
             startReading(selectedStory);
           }}
-          className="px-6 py-3 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-xl hover:shadow-lg transition-all font-medium flex items-center justify-center gap-2"
+          className="px-6 py-3 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-xl hover:shadow-lg transition-all duration-300 font-medium flex items-center justify-center gap-2 hover:scale-[1.02]"
         >
           <RotateCcw className="h-5 w-5" />
           Read Story Again
@@ -1910,7 +2252,7 @@ const QuizInterface: React.FC<{
               resetQuiz();
             }
           }}
-          className={`px-6 py-3 rounded-xl font-medium flex items-center justify-center gap-2 ${
+          className={`px-6 py-3 rounded-xl font-medium flex items-center justify-center gap-2 transition-all duration-300 hover:scale-[1.02] ${
             darkMode
               ? 'bg-gray-800 text-gray-300 hover:bg-gray-700'
               : 'bg-gray-100 text-gray-700 hover:bg-gray-200'

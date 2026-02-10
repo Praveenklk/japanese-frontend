@@ -1011,73 +1011,113 @@ const [darkMode, setDarkMode] = useState<boolean>(() => {
             </div>
 
             {/* Center: Feature Toggles */}
-            <div>
-              <h4 className="font-bold mb-3 flex items-center gap-2">
-                <Settings className="w-5 h-5" />
-                Include Options
-              </h4>
-              <div className="space-y-3">
-                <button
-                  onClick={() => setSettings((s) => ({ ...s, includeTenten: !s.includeTenten }))}
-                  className={`w-full flex items-center justify-between p-3 rounded-lg transition-all ${settings.includeTenten
-                    ? "bg-gradient-to-r from-yellow-500 to-orange-500 text-white"
-                    : darkMode
-                      ? "bg-gray-700/50 hover:bg-gray-600/50"
-                      : "bg-gray-50 hover:bg-gray-100"}`}
-                >
-                  <div className="flex items-center gap-3">
-                    <div className={`p-2 rounded ${settings.includeTenten ? "bg-white/20" : "bg-gray-200 dark:bg-gray-600"}`}>
-                      <span className="text-lg">が</span>
-                    </div>
-                    <div className="text-left">
-                      <div className="font-medium">Dakuten</div>
-                      <div className="text-xs opacity-80">Characters with ゛ mark</div>
-                    </div>
-                  </div>
-                  {settings.includeTenten && <Check className="w-5 h-5" />}
-                </button>
+<div>
+  <h4 className="font-bold mb-3 flex items-center gap-2">
+    <Settings className="w-5 h-5" />
+    Include Options
+  </h4>
 
-                <button
-                  onClick={() => setSettings((s) => ({ ...s, includeMaru: !s.includeMaru }))}
-                  className={`w-full flex items-center justify-between p-3 rounded-lg transition-all ${settings.includeMaru
-                    ? "bg-gradient-to-r from-blue-500 to-cyan-500 text-white"
-                    : darkMode
-                      ? "bg-gray-700/50 hover:bg-gray-600/50"
-                      : "bg-gray-50 hover:bg-gray-100"}`}
-                >
-                  <div className="flex items-center gap-3">
-                    <div className={`p-2 rounded ${settings.includeMaru ? "bg-white/20" : "bg-gray-200 dark:bg-gray-600"}`}>
-                      <span className="text-lg">ぱ</span>
-                    </div>
-                    <div className="text-left">
-                      <div className="font-medium">Handakuten</div>
-                      <div className="text-xs opacity-80">Characters with ゜ mark</div>
-                    </div>
-                  </div>
-                  {settings.includeMaru && <Check className="w-5 h-5" />}
-                </button>
+  <div className="space-y-3">
+    {/* Dakuten */}
+    <button
+      onClick={() => setSettings((s) => ({ ...s, includeTenten: !s.includeTenten }))}
+      className={`w-full flex items-center justify-between p-3 rounded-xl transition-all duration-200 border ${
+        settings.includeTenten
+          ? "bg-gradient-to-r from-yellow-500 to-orange-500 text-white border-transparent shadow-lg"
+          : darkMode
+          ? "bg-gray-800/70 border-gray-700 hover:bg-gray-700"
+          : "bg-gray-50 border-gray-200 hover:bg-gray-100"
+      }`}
+    >
+      <div className="flex items-center gap-3">
+        <div
+          className={`p-2 rounded-lg ${
+            settings.includeTenten
+              ? "bg-white/20"
+              : darkMode
+              ? "bg-gray-700 text-gray-200"
+              : "bg-gray-200"
+          }`}
+        >
+          <span className="text-lg">が</span>
+        </div>
+        <div className="text-left">
+          <div className="font-medium">Dakuten</div>
+          <div className={`text-xs ${darkMode ? "text-gray-400" : "text-gray-500"}`}>
+            Characters with ゛
+          </div>
+        </div>
+      </div>
+      {settings.includeTenten && <Check className="w-5 h-5" />}
+    </button>
 
-                <button
-                  onClick={() => setSettings((s) => ({ ...s, includeCombo: !s.includeCombo }))}
-                  className={`w-full flex items-center justify-between p-3 rounded-lg transition-all ${settings.includeCombo
-                    ? "bg-gradient-to-r from-purple-500 to-pink-500 text-white"
-                    : darkMode
-                      ? "bg-gray-700/50 hover:bg-gray-600/50"
-                      : "bg-gray-50 hover:bg-gray-100"}`}
-                >
-                  <div className="flex items-center gap-3">
-                    <div className={`p-2 rounded ${settings.includeCombo ? "bg-white/20" : "bg-gray-200 dark:bg-gray-600"}`}>
-                      <span className="text-lg">きゃ</span>
-                    </div>
-                    <div className="text-left">
-                      <div className="font-medium">Combinations</div>
-                      <div className="text-xs opacity-80">Small ゃ, ゅ, ょ combinations</div>
-                    </div>
-                  </div>
-                  {settings.includeCombo && <Check className="w-5 h-5" />}
-                </button>
-              </div>
-            </div>
+    {/* Handakuten */}
+    <button
+      onClick={() => setSettings((s) => ({ ...s, includeMaru: !s.includeMaru }))}
+      className={`w-full flex items-center justify-between p-3 rounded-xl transition-all duration-200 border ${
+        settings.includeMaru
+          ? "bg-gradient-to-r from-blue-500 to-cyan-500 text-white border-transparent shadow-lg"
+          : darkMode
+          ? "bg-gray-800/70 border-gray-700 hover:bg-gray-700"
+          : "bg-gray-50 border-gray-200 hover:bg-gray-100"
+      }`}
+    >
+      <div className="flex items-center gap-3">
+        <div
+          className={`p-2 rounded-lg ${
+            settings.includeMaru
+              ? "bg-white/20"
+              : darkMode
+              ? "bg-gray-700 text-gray-200"
+              : "bg-gray-200"
+          }`}
+        >
+          <span className="text-lg">ぱ</span>
+        </div>
+        <div className="text-left">
+          <div className="font-medium">Handakuten</div>
+          <div className={`text-xs ${darkMode ? "text-gray-400" : "text-gray-500"}`}>
+            Characters with ゜
+          </div>
+        </div>
+      </div>
+      {settings.includeMaru && <Check className="w-5 h-5" />}
+    </button>
+
+    {/* Combinations */}
+    <button
+      onClick={() => setSettings((s) => ({ ...s, includeCombo: !s.includeCombo }))}
+      className={`w-full flex items-center justify-between p-3 rounded-xl transition-all duration-200 border ${
+        settings.includeCombo
+          ? "bg-gradient-to-r from-purple-500 to-pink-500 text-white border-transparent shadow-lg"
+          : darkMode
+          ? "bg-gray-800/70 border-gray-700 hover:bg-gray-700"
+          : "bg-gray-50 border-gray-200 hover:bg-gray-100"
+      }`}
+    >
+      <div className="flex items-center gap-3">
+        <div
+          className={`p-2 rounded-lg ${
+            settings.includeCombo
+              ? "bg-white/20"
+              : darkMode
+              ? "bg-gray-700 text-gray-200"
+              : "bg-gray-200"
+          }`}
+        >
+          <span className="text-lg">きゃ</span>
+        </div>
+        <div className="text-left">
+          <div className="font-medium">Combinations</div>
+          <div className={`text-xs ${darkMode ? "text-gray-400" : "text-gray-500"}`}>
+            Small ゃ, ゅ, ょ combos
+          </div>
+        </div>
+      </div>
+      {settings.includeCombo && <Check className="w-5 h-5" />}
+    </button>
+  </div>
+</div>
 
             {/* Right: Action Buttons */}
             <div className="space-y-4">

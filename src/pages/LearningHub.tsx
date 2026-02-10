@@ -147,6 +147,17 @@ const LearningHub = () => {
   level: "Beginner",
   status: "new",
   stats: "800+ Words"
+},
+{
+  title: "N4 Grammar",
+  japanese: "N4文法",
+  description: "Learn 100+ essential JLPT N4 grammar points with clear explanations and examples",
+  icon: <BookOpen className="w-10 h-10 text-blue-600" />,
+  path: "/jlpt/n4/grammar",
+  color: "bg-blue-50 hover:bg-blue-100 border-blue-200",
+  level: "Intermediate",
+  status: "new",
+  stats: "100+ Grammar Points"
 }
 
 
