@@ -348,53 +348,61 @@ const HiraganaPage = () => {
               </div>
 
               {/* Category Navigation */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                {groupByCategory().map((category) => (
-                  <div 
-                    key={category.title}
-                    className={`p-3 rounded-xl border-2 cursor-pointer hover:shadow-md transition-all ${
-                      filterType === category.title.toLowerCase().includes("dakuten") ? "tenten" :
-                      filterType === category.title.toLowerCase().includes("handakuten") ? "maru" :
-                      filterType === category.title.toLowerCase().includes("combination") ? "combinations" :
-                      filterType === category.title.toLowerCase().includes("basic") ? "basic" : ""
-                    } === category.title.toLowerCase().includes("dakuten") ? "tenten" :
-                      category.title.toLowerCase().includes("handakuten") ? "maru" :
-                      category.title.toLowerCase().includes("combination") ? "combinations" :
-                      category.title.toLowerCase().includes("basic") ? "basic" : "" ? 
-                      "ring-2 ring-red-500" : ""} ${getCategoryColor(
-                        category.title.toLowerCase().includes("dakuten") ? "tenten" :
-                        category.title.toLowerCase().includes("handakuten") ? "maru" :
-                        category.title.toLowerCase().includes("combination") ? "combinations" :
-                        "basic"
-                      )}`}
-                    onClick={() => {
-                      const filter = 
-                        category.title.toLowerCase().includes("dakuten") ? "tenten" :
-                        category.title.toLowerCase().includes("handakuten") ? "maru" :
-                        category.title.toLowerCase().includes("combination") ? "combinations" : "basic";
-                      setFilterType(filter as any);
-                    }}
-                  >
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <h4 className="font-semibold">{category.title.split(" ")[0]}</h4>
-                        <p className="text-xs text-gray-600 mt-1">{category.description}</p>
-                      </div>
-                      <span className="text-2xl">
-                        {category.title.toLowerCase().includes("dakuten") ? "゛" :
-                         category.title.toLowerCase().includes("handakuten") ? "゜" :
-                         category.title.toLowerCase().includes("combination") ? "ゃ" : "あ"}
-                      </span>
-                    </div>
-                    <div className="mt-2 flex justify-between text-sm">
-                      <span>{category.chars.length} chars</span>
-                      <span className="text-green-600">
-                        {Math.round((category.chars.filter(c => learnedChars.includes(c.id)).length / category.chars.length) * 100)}%
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
+     <div className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-3">
+  {groupByCategory().map((category) => (
+    <div 
+      key={category.title}
+      className={`p-2 md:p-3 rounded-lg md:rounded-xl border-2 cursor-pointer hover:shadow-md transition-all ${
+        filterType === (
+          category.title.toLowerCase().includes("dakuten") ? "tenten" :
+          category.title.toLowerCase().includes("handakuten") ? "maru" :
+          category.title.toLowerCase().includes("combination") ? "combinations" : "basic"
+        )
+          ? "ring-2 ring-red-500"
+          : ""
+      } ${getCategoryColor(
+        category.title.toLowerCase().includes("dakuten") ? "tenten" :
+        category.title.toLowerCase().includes("handakuten") ? "maru" :
+        category.title.toLowerCase().includes("combination") ? "combinations" :
+        "basic"
+      )}`}
+      onClick={() => {
+        const filter = 
+          category.title.toLowerCase().includes("dakuten") ? "tenten" :
+          category.title.toLowerCase().includes("handakuten") ? "maru" :
+          category.title.toLowerCase().includes("combination") ? "combinations" : "basic";
+        setFilterType(filter as any);
+      }}
+    >
+      <div className="flex justify-between items-start gap-1">
+        <div>
+          <h4 className="font-semibold text-sm md:text-base">
+            {category.title.split(" ")[0]}
+          </h4>
+          <p className="text-[10px] md:text-xs text-gray-600 mt-0.5">
+            {category.description}
+          </p>
+        </div>
+
+        <span className="text-lg md:text-2xl">
+          {category.title.toLowerCase().includes("dakuten") ? "゛" :
+           category.title.toLowerCase().includes("handakuten") ? "゜" :
+           category.title.toLowerCase().includes("combination") ? "ゃ" : "あ"}
+        </span>
+      </div>
+
+      <div className="mt-1 md:mt-2 flex justify-between text-[11px] md:text-sm">
+        <span>{category.chars.length} chars</span>
+        <span className="text-green-600">
+          {Math.round(
+            (category.chars.filter(c => learnedChars.includes(c.id)).length / category.chars.length) * 100
+          )}%
+        </span>
+      </div>
+    </div>
+  ))}
+</div>
+
             </div>
 
             {/* Character Grid */}
